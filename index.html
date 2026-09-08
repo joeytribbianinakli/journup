@@ -600,6 +600,7 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
 .tt-timer{font-size:11px;font-weight:700;font-family:'DM Mono',monospace;color:var(--text3);margin-top:5px}
 .tt-timer.tt-timer-paused{color:var(--amber)}
 .tt-timer.tt-timer-overdue{color:var(--red)}
+.tt-timer.tt-timer-alert{color:var(--amber)}
 .img-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:7px;margin-bottom:7px}
 .img-thumb{position:relative;border-radius:var(--radius);overflow:hidden;border:1px solid var(--border);aspect-ratio:16/10}
 .img-thumb img{width:100%;height:100%;object-fit:cover;display:block;cursor:pointer;transition:opacity .12s}
@@ -6224,7 +6225,7 @@ document.addEventListener('DOMContentLoaded',function(){
 </div>
 <!-- Prompt shown when the app opens with no active tracker session (or one just rolled
      past midnight) — a session is an explicit start/end, never silently assumed. -->
-<div class="modal-overlay" id="tracker-session-modal" onclick="dismissTrackerSessionPrompt()">
+<div class="modal-overlay" id="tracker-session-modal">
   <div class="modal-box" style="max-width:340px;text-align:center" onclick="event.stopPropagation()">
    <div class="modal-body">
     <h3 style="margin-bottom:6px">Start a backtesting session?</h3>
@@ -6242,7 +6243,12 @@ document.addEventListener('DOMContentLoaded',function(){
     </div>
     <div class="frow" style="text-align:left;margin-bottom:16px;display:none" id="tracker-deadline-row">
       <label class="flabel">Time limit (minutes)</label>
-      <input type="number" min="1" max="999" id="tracker-session-deadline-inp" value="60">
+      <input type="number" min="1" max="999" id="tracker-session-deadline-inp" value="60" oninput="_syncTrackerAlertMax()">
+    </div>
+    <div class="frow" style="text-align:left;margin-bottom:16px;display:none" id="tracker-alert-row">
+      <label class="flabel">Alert when # minutes remain</label>
+      <input type="number" min="1" max="998" id="tracker-session-alert-inp" value="10">
+      <div style="font-size:10px;color:var(--text3);margin-top:4px" id="tracker-alert-hint">Must be less than the time limit</div>
     </div>
     <div style="display:flex;gap:8px;justify-content:center">
       <button class="btn btn-primary" onclick="startTrackerSession()">Start session</button>
@@ -11273,6 +11279,10 @@ var _trackerLastCompleted=0; // last known completed-trade count, used by the ti
 // (or, in trades mode, the elapsed-time stopwatch) freezes for the break's duration instead of
 // ticking through it.
 var _trackerDeadlineMinutes=null,_trackerDeadlinePausedMs=0,_trackerDeadlinePauseStartedAt=null,_trackerDeadlineInterval=null,_trackerManualPause=false;
+// Minutes-remaining threshold (time mode only) that triggers a one-time "almost out of time"
+// toast — always less than _trackerDeadlineMinutes, enforced in startTrackerSession(). 0/null
+// means no alert (only possible when the deadline itself is 1 minute, leaving no valid value).
+var _trackerAlertMinutes=10;
 var TRACKER_HIT_MESSAGES=[
   "🎯 Goal crushed — that's disciplined, consistent work.",
   "🎯 Nailed it. You showed up and did the reps.",
@@ -11291,6 +11301,7 @@ async function loadTrackerSettings(){
   _trackerDeadlinePausedMs=await getSetting('trackerDeadlinePausedMs',0);
   _trackerDeadlinePauseStartedAt=await getSetting('trackerDeadlinePauseStartedAt',null);
   _trackerManualPause=await getSetting('trackerDeadlineManualPause',false);
+  _trackerAlertMinutes=await getSetting('trackerAlertMinutes',10);
   // The break modal itself isn't persisted across a reload — if the page was refreshed mid-
   // break, that break is gone with no "resume" click left to fire. Don't leave the deadline
   // stuck paused forever with nothing left to unpause it. A manual pause (the tt-pause-btn)
@@ -11349,7 +11360,10 @@ function offerTrackerSessionStart(){
   if(inp)inp.value=_trackerGoal||3;
   var deadlineInp=document.getElementById('tracker-session-deadline-inp');
   if(deadlineInp)deadlineInp.value=_trackerDeadlineMinutes||60;
+  var alertInp=document.getElementById('tracker-session-alert-inp');
+  if(alertInp)alertInp.value=_trackerAlertMinutes||10;
   setTrackerModeChoice(_trackerMode==='time'?'time':'trades');
+  _syncTrackerAlertMax();
   m.classList.add('open');
 }
 // Toggles which of the two mutually-exclusive inputs is shown in the (not-yet-started)
@@ -11358,12 +11372,27 @@ function setTrackerModeChoice(mode){
   _trackerModalMode=mode==='time'?'time':'trades';
   var goalRow=document.getElementById('tracker-goal-row');
   var deadlineRow=document.getElementById('tracker-deadline-row');
+  var alertRow=document.getElementById('tracker-alert-row');
   var tradesBtn=document.getElementById('tracker-mode-trades-btn');
   var timeBtn=document.getElementById('tracker-mode-time-btn');
   if(goalRow)goalRow.style.display=_trackerModalMode==='trades'?'':'none';
   if(deadlineRow)deadlineRow.style.display=_trackerModalMode==='time'?'':'none';
+  if(alertRow)alertRow.style.display=_trackerModalMode==='time'?'':'none';
   if(tradesBtn)tradesBtn.classList.toggle('selected',_trackerModalMode==='trades');
   if(timeBtn)timeBtn.classList.toggle('selected',_trackerModalMode==='time');
+}
+// Keeps the alert-minutes input's max (and hint text) in sync with whatever time limit is
+// currently typed in, so the field can't be set >= the deadline it's supposed to precede.
+function _syncTrackerAlertMax(){
+  var deadlineInp=document.getElementById('tracker-session-deadline-inp');
+  var alertInp=document.getElementById('tracker-session-alert-inp');
+  var hint=document.getElementById('tracker-alert-hint');
+  if(!deadlineInp||!alertInp)return;
+  var deadlineVal=parseInt(deadlineInp.value,10);
+  if(!deadlineVal||deadlineVal<1)deadlineVal=60;
+  var maxAlert=Math.max(1,deadlineVal-1);
+  alertInp.max=String(maxAlert);
+  if(hint)hint.textContent='Must be less than the time limit ('+deadlineVal+'m)';
 }
 function dismissTrackerSessionPrompt(){
   var m=document.getElementById('tracker-session-modal');
@@ -11381,8 +11410,27 @@ async function startTrackerSession(){
     var deadlineInp=document.getElementById('tracker-session-deadline-inp');
     var deadlineVal=deadlineInp?parseInt(deadlineInp.value,10):NaN;
     if(!deadlineVal||deadlineVal<1)deadlineVal=60;
+    // Alert minutes must be strictly less than the deadline — reject rather than silently
+    // adjust, since the person should know their alert isn't set up the way they typed it.
+    var alertInp=document.getElementById('tracker-session-alert-inp');
+    var alertVal=alertInp?parseInt(alertInp.value,10):NaN;
+    if(!alertVal||alertVal<1){toast('Enter a valid alert minutes value','err');return;}
+    if(alertVal>=deadlineVal){toast('Alert minutes must be less than the time limit ('+deadlineVal+'m)','err');return;}
     _trackerDeadlineMinutes=deadlineVal;
     _trackerGoal=null; // exclusive: a time-boxed session has no trade-count goal to chart progress toward
+    _trackerAlertMinutes=alertVal;
+    // Unlock the shared AudioContext here, inside this click handler — same reasoning as the
+    // break timer's chime (see startBreak): browsers block sound that isn't triggered by a
+    // real user gesture, and by the time the countdown later hits the alert threshold there's
+    // no fresh gesture left to unlock it with. Also doubles as the moment to ask for
+    // notification permission, so the alert can still reach you on a backgrounded tab.
+    try{
+      if(!_breakAudioCtx)_breakAudioCtx=new(window.AudioContext||window.webkitAudioContext)();
+      if(_breakAudioCtx.state==='suspended')_breakAudioCtx.resume();
+    }catch(e){}
+    try{
+      if(typeof Notification!=='undefined'&&Notification.permission==='default')Notification.requestPermission();
+    }catch(e){}
   }
   _trackerMode=mode;
   _trackerDeadlinePausedMs=0;
@@ -11395,6 +11443,7 @@ async function startTrackerSession(){
     setSetting('trackerSessionActive',true),
     setSetting('trackerSessionStartedAt',_trackerSessionStartedAt),
     setSetting('trackerDeadlineMinutes',_trackerDeadlineMinutes),
+    setSetting('trackerAlertMinutes',_trackerAlertMinutes),
     setSetting('trackerDeadlinePausedMs',0),
     setSetting('trackerDeadlinePauseStartedAt',null)
   ]);
@@ -11545,13 +11594,27 @@ function _updateTrackerTimerDOM(){
   if(_trackerMode==='time'&&_trackerDeadlineMinutes){
     var remainingMs=_trackerDeadlineMinutes*60000-_trackerElapsedMs();
     var overdue=remainingMs<0;
+    var inAlertZone=!overdue&&_trackerAlertMinutes>0&&remainingMs<=_trackerAlertMinutes*60000;
     el.textContent=(paused?'⏸ paused ':(overdue?'⏰ +':'⏱ '))+_fmtTrackerElapsed(Math.abs(remainingMs));
     el.classList.toggle('tt-timer-overdue',!paused&&overdue);
+    el.classList.toggle('tt-timer-alert',!paused&&inAlertZone);
     if(widget)widget.classList.toggle('tt-hit',overdue);
     if(overdue){
       var msg="⏰ Time's up — "+_trackerLastCompleted+' trade'+(_trackerLastCompleted===1?'':'s')+' logged this session.';
-      if(hitMsgEl)hitMsgEl.textContent=msg;
+      if(hitMsgEl){hitMsgEl.style.display='';hitMsgEl.style.color='';hitMsgEl.textContent=msg;}
       _maybeCelebrateTrackerGoal(msg);
+    } else if(inAlertZone&&!paused){
+      // tt-hit-msg is normally only shown via CSS when the widget has .tt-hit (goal/deadline
+      // reached) — the alert window is before that, so show it directly here instead.
+      if(hitMsgEl){
+        hitMsgEl.textContent='⏳ '+_trackerAlertMinutes+' minute'+(_trackerAlertMinutes===1?'':'s')+' left in this session';
+        hitMsgEl.style.display='block';hitMsgEl.style.color='var(--amber)';
+      }
+      _maybeAlertTrackerTimeRemaining(_trackerAlertMinutes);
+    } else if(hitMsgEl&&hitMsgEl.style.color==='var(--amber)'){
+      // Clear the alert message once we've left the alert window (e.g. paused, or moved
+      // straight to overdue which sets its own message via the CSS-driven .tt-hit path).
+      hitMsgEl.textContent='';hitMsgEl.style.display='';hitMsgEl.style.color='';
     }
   } else {
     // Trade-count mode: no deadline, so just show elapsed time spent so far as a stopwatch.
@@ -11596,6 +11659,45 @@ function _maybeCelebrateTrackerGoal(msg){
     if(localStorage.getItem(key)===_trackerSessionStartedAt)return;
     localStorage.setItem(key,_trackerSessionStartedAt);
     toast(msg,'ok');
+  }catch(e){}
+}
+// Fires at most once per session (same dedup pattern as _maybeCelebrateTrackerGoal above) —
+// the low-time-remaining warning for time-boxed sessions, triggered once the countdown drops
+// to/under the person's chosen alert threshold.
+function _maybeAlertTrackerTimeRemaining(mins){
+  try{
+    var key='tj-tracker-time-alerted-session';
+    if(localStorage.getItem(key)===_trackerSessionStartedAt)return;
+    localStorage.setItem(key,_trackerSessionStartedAt);
+    var msg='⏳ '+mins+' minute'+(mins===1?'':'s')+' left in this session';
+    toast(msg,'warn');
+    _playTrackerAlertChime();
+    // A chime alone is easy to miss if the tab isn't in focus — same fallback the break
+    // timer's end-of-break alert uses (see _playBreakChime's caller).
+    try{
+      if(document.hidden&&typeof Notification!=='undefined'&&Notification.permission==='granted'){
+        new Notification('⏳ Session time running out',{body:mins+' minute'+(mins===1?'':'s')+' left.'});
+      }
+    }catch(e){}
+  }catch(e){}
+}
+// A short single tone for "time's almost up" — pitched between the break timer's start tone
+// (520Hz) and end chime (880/660Hz) so it's distinguishable by ear from either. Reuses the
+// shared _breakAudioCtx (unlocked by the user gesture in startTrackerSession) rather than a
+// fresh AudioContext, since browsers require a real gesture to unlock audio in the first place.
+function _playTrackerAlertChime(){
+  try{
+    var ctx=_breakAudioCtx||new(window.AudioContext||window.webkitAudioContext)();
+    _breakAudioCtx=ctx;
+    if(ctx.state==='suspended')ctx.resume();
+    var now=ctx.currentTime;
+    var osc=ctx.createOscillator(),gain=ctx.createGain();
+    osc.type='sine';osc.frequency.value=740;
+    gain.gain.setValueAtTime(0,now);
+    gain.gain.linearRampToValueAtTime(0.22,now+0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001,now+0.4);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(now);osc.stop(now+0.45);
   }catch(e){}
 }
 if(!window._ttMidnightCheckRegistered){
@@ -17735,16 +17837,11 @@ async function calcLogTrade(){
   document.getElementById('f-type-val').value=tradeType;
   var skippedCb=document.getElementById('f-skipped');
   if(skippedCb){skippedCb.checked=calcIsSkipped;onSkippedChange();}
-  // Carry calculator partial TPs (% of position) over to Log Trade's partial rows (qty), converting
-  // % → absolute qty now that calcLastUnits (the computed position size) is known.
-  var validCalcPartials=_calcPartialTPs.filter(function(p){return parseFloat(p.price)>0&&parseFloat(p.pct)>0;});
-  if(validCalcPartials.length){
-    _partialTPs=validCalcPartials.map(function(p){
-      var qty=calcLastUnits*(parseFloat(p.pct)/100);
-      return{id:'ptp-'+(Date.now().toString(36)+Math.random().toString(36).slice(2,5)),price:p.price,qty:parseFloat(qty.toFixed(4)),pct:parseFloat(p.pct)};
-    });
-    renderPartialTPs();
-  }
+  // Note: calculator partial TPs are intentionally NOT carried over to Log Trade's partial
+  // rows — they're just planned targets, not actual fills, same as the single-TP field
+  // (calc-tp) which also isn't transferred. Carrying them over used to disable/clear the
+  // Log Trade "Exit price" field and drive it from these unfilled planned prices, which was
+  // incorrect since the trade hasn't actually happened yet.
   // Apply full trade flowlist state — renderChecklist is async (IDB), await it then apply synchronously.
   if(capturedChecklistState){
     await renderChecklist();
