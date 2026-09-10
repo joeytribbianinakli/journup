@@ -581,6 +581,21 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
 .tt-icon-btn:hover{color:var(--text);background:var(--bg3)}
 .tt-body{padding:10px 11px 11px}
 .trade-tracker.tt-collapsed .tt-body{display:none}
+/* Collapsed = a small floating circle (not a shrunken bar) so it stays out of the way while
+   still surfacing the one number that matters — trade count in trades mode, the clock in time
+   mode, or an idle clock glyph when no session is running. The title/pause/end/collapse
+   buttons don't fit a circle this small, so they're all hidden; there's no separate corner
+   badge anymore — the whole circle is the click-to-expand target (see the drag handler's
+   click-vs-drag check below), which also makes it a much bigger, easier tap target than the
+   old 17px badge. */
+.trade-tracker.tt-collapsed{width:52px;height:52px;min-width:0;border-radius:50%}
+.trade-tracker.tt-collapsed .tt-header{width:100%;height:100%;padding:0;border-bottom:none;justify-content:center;position:relative}
+.trade-tracker.tt-collapsed .tt-title,.trade-tracker.tt-collapsed #tt-pause-btn,.trade-tracker.tt-collapsed #tt-end-btn,.trade-tracker.tt-collapsed #tt-collapse-btn{display:none!important}
+.tt-mini{display:none;align-items:center;justify-content:center;font-size:11px;font-weight:700;font-family:'DM Mono',monospace;color:var(--text2);text-align:center;pointer-events:none;padding:0 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.tt-mini svg{stroke:currentColor;flex-shrink:0}
+.trade-tracker.tt-collapsed .tt-mini{display:flex}
+.trade-tracker.tt-collapsed.tt-hit .tt-mini{color:var(--green)}
+.tt-mini.tt-mini-idle{color:var(--text3)}
 .tt-dots{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:7px;max-width:220px}
 .tt-dot{width:13px;height:13px;border-radius:50%;background:var(--bg4);border:1.5px solid var(--border2);transition:all .2s;flex-shrink:0}
 .tt-dot.filled{background:var(--green);border-color:var(--green)}
@@ -6201,6 +6216,7 @@ document.addEventListener('DOMContentLoaded',function(){
 <div class="trade-tracker" id="trade-tracker">
   <div class="tt-header" id="tt-drag-handle">
     <span class="tt-title">Session goal</span>
+    <span class="tt-mini" id="tt-mini"></span>
     <button type="button" class="tt-icon-btn" id="tt-pause-btn" onclick="toggleTrackerTimerPause()" title="Pause timer" style="display:none;padding:2px 3px;font-size:13px"></button>
     <button type="button" class="tt-icon-btn" onclick="endTrackerSession()" id="tt-end-btn" title="End session" style="display:none">
       <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>
@@ -11326,12 +11342,28 @@ function applyTrackerCollapsedState(){
   var el=document.getElementById('trade-tracker'),btn=document.getElementById('tt-collapse-btn');
   if(!el)return;
   el.classList.toggle('tt-collapsed',_trackerCollapsed);
-  if(btn)btn.textContent=_trackerCollapsed?'+':'–';
+  // The button is only ever visible in the expanded header now (CSS hides it entirely once
+  // collapsed), so it only needs to show the "collapse" glyph — expanding back out happens
+  // via a plain click on the collapsed circle itself, handled by the drag handler below.
+  if(btn)btn.textContent='–';
 }
 function toggleTrackerCollapse(){
   _trackerCollapsed=!_trackerCollapsed;
   setSetting('trackerCollapsed',_trackerCollapsed);
   applyTrackerCollapsedState();
+  // Collapsed (circle) and expanded (full card) are very different sizes. If the widget was
+  // dragged near an edge while collapsed, expanding it can push the bigger card off-screen
+  // (e.g. below the viewport bottom) since top/left don't move on their own — pull it back in.
+  _clampTrackerToViewport();
+}
+function _clampTrackerToViewport(){
+  var el=document.getElementById('trade-tracker');
+  if(!el||!el.style.top)return; // only in play once the widget has a dragged/restored position
+  var rect=el.getBoundingClientRect();
+  var l=Math.max(4,Math.min(rect.left,window.innerWidth-rect.width-4));
+  var t=Math.max(4,Math.min(rect.top,window.innerHeight-rect.height-4));
+  el.style.left=l+'px';el.style.top=t+'px';el.style.right='auto';el.style.bottom='auto';
+  setSetting('trackerPos',{left:l,top:t});
 }
 // A session can't silently span two calendar days — polled every minute (see the interval
 // near the drag handler below) plus checked once on load, so "reset daily at midnight" holds
@@ -11496,13 +11528,20 @@ function _updateTrackerDOM(completed){
       endBtn=document.getElementById('tt-end-btn');
   var dotsEl=document.getElementById('tt-dots'),barTrack=document.getElementById('tt-bar-track'),
       barFill=document.getElementById('tt-bar-fill'),countRow=document.getElementById('tt-count-row'),
-      hitMsgEl=document.getElementById('tt-hit-msg');
+      hitMsgEl=document.getElementById('tt-hit-msg'),miniEl=document.getElementById('tt-mini');
   if(!widget)return;
   if(!_trackerSessionActive){
     widget.classList.remove('tt-hit');
     if(inactiveEl)inactiveEl.style.display='';
     if(activeEl)activeEl.style.display='none';
     if(endBtn)endBtn.style.display='none';
+    // Collapsed circle with no session running: a plain clock glyph instead of leaving it
+    // blank, so the circle still reads as "this is the session tracker, idle" rather than
+    // looking like an empty/broken widget. Tap/click it to expand and start a session.
+    if(miniEl){
+      miniEl.classList.add('tt-mini-idle');
+      miniEl.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.3 1.8"/><path d="M9 2.5h6"/></svg>';
+    }
     return;
   }
   if(inactiveEl)inactiveEl.style.display='none';
@@ -11533,6 +11572,7 @@ function _updateTrackerDOM(completed){
     dotsEl.style.display='none';if(barTrack)barTrack.style.display='none';
   }
   countRow.innerHTML='<span class="tt-count" onclick="editTrackerGoal()" title="Click to change your goal">'+completed+' / '+(goal||'—')+' trades this session</span>';
+  if(miniEl){miniEl.classList.remove('tt-mini-idle');miniEl.textContent=completed+'/'+(goal||'—');}
   if(hit){
     var msg=_pickTrackerMessage(_trackerSessionStartedAt)+' Time spent: '+_fmtTrackerElapsed(_trackerElapsedMs())+'.';
     if(hitMsgEl)hitMsgEl.textContent=msg;
@@ -11585,6 +11625,7 @@ function _updateTrackerTimerDOM(){
   var btn=document.getElementById('tt-pause-btn');
   var widget=document.getElementById('trade-tracker');
   var hitMsgEl=document.getElementById('tt-hit-msg');
+  var miniEl=document.getElementById('tt-mini');
   if(!el)return;
   if(!_trackerSessionActive){el.style.display='none';if(btn)btn.style.display='none';return;}
   var paused=!!_trackerDeadlinePauseStartedAt;
@@ -11599,6 +11640,9 @@ function _updateTrackerTimerDOM(){
     el.classList.toggle('tt-timer-overdue',!paused&&overdue);
     el.classList.toggle('tt-timer-alert',!paused&&inAlertZone);
     if(widget)widget.classList.toggle('tt-hit',overdue);
+    // Mini circle (collapsed view): time mode's headline number is the clock, not a trade
+    // count, so mirror it here — the trades-mode mini text is set separately in _updateTrackerDOM.
+    if(miniEl){miniEl.classList.remove('tt-mini-idle');miniEl.textContent=paused?'⏸':(overdue?'+':'')+_fmtTrackerElapsed(Math.abs(remainingMs));}
     if(overdue){
       var msg="⏰ Time's up — "+_trackerLastCompleted+' trade'+(_trackerLastCompleted===1?'':'s')+' logged this session.';
       if(hitMsgEl){hitMsgEl.style.display='';hitMsgEl.style.color='';hitMsgEl.textContent=msg;}
@@ -11707,14 +11751,15 @@ if(!window._ttMidnightCheckRegistered){
 if(!window._ttDragRegistered){
   window._ttDragRegistered=true;
   (function(){
-    var dragging=false,offsetX=0,offsetY=0,widget=null;
+    var dragging=false,offsetX=0,offsetY=0,widget=null,startX=0,startY=0,moved=false;
     function start(e){
       widget=document.getElementById('trade-tracker');
       if(!widget)return;
-      dragging=true;
+      dragging=true;moved=false;
       var rect=widget.getBoundingClientRect();
       var p=e.touches?e.touches[0]:e;
       offsetX=p.clientX-rect.left;offsetY=p.clientY-rect.top;
+      startX=p.clientX;startY=p.clientY;
       document.addEventListener('mousemove',move);
       document.addEventListener('mouseup',stop);
       document.addEventListener('touchmove',move,{passive:false});
@@ -11724,6 +11769,9 @@ if(!window._ttDragRegistered){
       if(!dragging||!widget)return;
       if(e.cancelable)e.preventDefault();
       var p=e.touches?e.touches[0]:e;
+      // A few px of jitter shouldn't count as a drag — only once it clears this threshold do
+      // we treat it as "moved" and suppress the click-to-expand behaviour in stop() below.
+      if(!moved&&(Math.abs(p.clientX-startX)>4||Math.abs(p.clientY-startY)>4))moved=true;
       var x=p.clientX-offsetX,y=p.clientY-offsetY;
       x=Math.max(4,Math.min(window.innerWidth-widget.offsetWidth-4,x));
       y=Math.max(4,Math.min(window.innerHeight-widget.offsetHeight-4,y));
@@ -11734,6 +11782,10 @@ if(!window._ttDragRegistered){
       if(widget){
         var rect=widget.getBoundingClientRect();
         setSetting('trackerPos',{left:rect.left,top:rect.top});
+        // No corner "+" badge anymore — a plain click (i.e. no real drag happened) on the
+        // collapsed circle is what expands it back to the full card. Dragging to reposition
+        // still works exactly as before; this only fires when the pointer barely moved.
+        if(!moved&&widget.classList.contains('tt-collapsed'))toggleTrackerCollapse();
       }
       dragging=false;widget=null;
       document.removeEventListener('mousemove',move);
@@ -26562,6 +26614,19 @@ async function wlSetAlert(watchlistId, itemId){
   // async CloudMonitor pull (cmLoadAlerts) that can race with a same-tick add
   // and overwrite its source tag. Adding first avoids that race entirely.
   if(it.price){
+    // Skip if an active (unfired) alert already matches this symbol/direction/target —
+    // prevents stacking duplicate alerts from repeated bell-icon clicks.
+    var _wlSymUp = (it.pair||'').replace(/\//g,'').toUpperCase();
+    var _wlDir = it.dir==='below' ? 'below' : 'above';
+    var _wlTgt = parseFloat(it.price);
+    var _wlDup = _paAlerts.some(function(a){
+      return !a.fired && (a.symbol||'').toUpperCase()===_wlSymUp && a.dir===_wlDir && a.target===_wlTgt;
+    });
+    if(_wlDup){
+      nav('price-alerts', document.getElementById('nav-price-alerts'));
+      toast('Alert already active for '+_wlSymUp+' at that price','err');
+      return;
+    }
     paAddAlert();
     // paAddAlert() → paSave() already ran its own fired-state-safe GET+merge+POST
     // cycle for this alert, so the cloud is authoritative now. Skip paInit()'s
@@ -26572,7 +26637,7 @@ async function wlSetAlert(watchlistId, itemId){
     nav('price-alerts', document.getElementById('nav-price-alerts'));
   } else {
     nav('price-alerts', document.getElementById('nav-price-alerts'));
-    toast('Filled in from "'+w.name+'" — this item has no watch price, enter a target to set the alert','ok');
+    toast('No price set on this watchlist item — enter a target price to set the alert','err');
   }
 }
 // Asset/pair selectors — shares its dropdown-population logic with paPopulateSymbolSuggestions()
