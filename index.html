@@ -17750,8 +17750,7 @@ function preClUpdateStatus() {
   }
   // Status badge
   var badge = document.getElementById('pre-cl-status');
-  var badgeText = document.getElementById('pre-cl-status-text');
-  if(badge && badgeText) {
+  if(badge) {
     if(n === total && total > 0) {
       badge.className = 'cl-status-badge cl-pass';
       badge.querySelector('svg').style.display = 'none';
@@ -19096,7 +19095,7 @@ async function ghAutoSync(){
 // - manual: trades+sessions to bkp/trades/ AND config files to bkp/strategies/, bkp/checklist/, bkp/assets/
 async function ghSnapshot(type,name){
   var cfg=ghGetConfig();
-  if(!cfg.user||!cfg.repo||!cfg.token)return;
+  if(!cfg.user||!cfg.repo||!cfg.token)return false;
   try{
     var ts=new Date().toISOString().replace(/[:.]/g,'-').slice(0,19);
     var label=name?name.replace(/[^a-zA-Z0-9_-]/g,'-').slice(0,40):'';
@@ -19108,11 +19107,12 @@ async function ghSnapshot(type,name){
     var tradesPayload=await ghBuildPayload();
     var tradesContent=utf8ToBase64(JSON.stringify(tradesPayload,null,2));
     var tradesFile='bkp/trades/'+fileLabel+'.json';
-    await fetch('https://api.github.com/repos/'+cfg.user+'/'+cfg.repo+'/contents/'+tradesFile,{
+    var tradesResp=await fetch('https://api.github.com/repos/'+cfg.user+'/'+cfg.repo+'/contents/'+tradesFile,{
       method:'PUT',
       headers:{'Authorization':'token '+cfg.token,'Accept':'application/vnd.github.v3+json','Content-Type':'application/json'},
       body:JSON.stringify({message:'TJ snapshot ['+prefix+(label?' '+label:'')+'] — '+ts,content:tradesContent})
     });
+    if(!tradesResp.ok){var tradesErr=await tradesResp.json().catch(function(){return{};});throw new Error('Trades push failed: HTTP '+tradesResp.status+' '+(tradesErr.message||''));}
     // Manual backup only: also overwrite the single config backup file
     if(type==='manual'){
       var cfgPayload=await ghBuildConfigPayload();
@@ -19120,11 +19120,12 @@ async function ghSnapshot(type,name){
       var cfgSha=await ghGetFileSHAByPath(cfg,GH_BKP_CONFIG_FILE);
       var cfgBody={message:'TJ config backup — '+ts,content:cfgContent};
       if(cfgSha)cfgBody.sha=cfgSha;
-      await fetch('https://api.github.com/repos/'+cfg.user+'/'+cfg.repo+'/contents/'+GH_BKP_CONFIG_FILE,{
+      var cfgResp=await fetch('https://api.github.com/repos/'+cfg.user+'/'+cfg.repo+'/contents/'+GH_BKP_CONFIG_FILE,{
         method:'PUT',
         headers:{'Authorization':'token '+cfg.token,'Accept':'application/vnd.github.v3+json','Content-Type':'application/json'},
         body:JSON.stringify(cfgBody)
       });
+      if(!cfgResp.ok){var cfgErr=await cfgResp.json().catch(function(){return{};});throw new Error('Config push failed: HTTP '+cfgResp.status+' '+(cfgErr.message||''));}
       // Also overwrite the single alerts backup file (bkp/alerts_backup.json)
       // Only write if there are actually alerts to back up — never overwrite with an empty array
       try{
@@ -19156,11 +19157,12 @@ async function ghSnapshot(type,name){
         var fxSha=await ghGetFileSHAByPath(cfg,GH_BKP_FX_FILE);
         var fxBody={message:'TJ FX backup — '+ts,content:fxContent};
         if(fxSha)fxBody.sha=fxSha;
-        await fetch('https://api.github.com/repos/'+cfg.user+'/'+cfg.repo+'/contents/'+GH_BKP_FX_FILE,{
+        var fxResp=await fetch('https://api.github.com/repos/'+cfg.user+'/'+cfg.repo+'/contents/'+GH_BKP_FX_FILE,{
           method:'PUT',
           headers:{'Authorization':'token '+cfg.token,'Accept':'application/vnd.github.v3+json','Content-Type':'application/json'},
           body:JSON.stringify(fxBody)
         });
+        if(!fxResp.ok){var fxErr=await fxResp.json().catch(function(){return{};});throw new Error('HTTP '+fxResp.status+' '+(fxErr.message||''));}
         fxBkpMsg='fx backup updated';
       }catch(fe){console.warn('FX backup error:',fe.message);}
       // Also overwrite the single watchlist backup file (bkp/watchlist_backup.json) —
@@ -19172,11 +19174,12 @@ async function ghSnapshot(type,name){
         var wlSha=await ghGetFileSHAByPath(cfg,GH_BKP_WATCHLIST_FILE);
         var wlBody={message:'TJ watchlist backup — '+ts,content:wlContent};
         if(wlSha)wlBody.sha=wlSha;
-        await fetch('https://api.github.com/repos/'+cfg.user+'/'+cfg.repo+'/contents/'+GH_BKP_WATCHLIST_FILE,{
+        var wlResp=await fetch('https://api.github.com/repos/'+cfg.user+'/'+cfg.repo+'/contents/'+GH_BKP_WATCHLIST_FILE,{
           method:'PUT',
           headers:{'Authorization':'token '+cfg.token,'Accept':'application/vnd.github.v3+json','Content-Type':'application/json'},
           body:JSON.stringify(wlBody)
         });
+        if(!wlResp.ok){var wlErr=await wlResp.json().catch(function(){return{};});throw new Error('HTTP '+wlResp.status+' '+(wlErr.message||''));}
         wlBkpMsg='watchlist backup updated';
       }catch(we){console.warn('Watchlist backup error:',we.message);}
       var alertsBkpMsg=(_paAlerts&&_paAlerts.length>0)?'trades snapshot + config backup + alerts backup + '+fxBkpMsg+' + '+wlBkpMsg:'trades snapshot + config backup + '+fxBkpMsg+' + '+wlBkpMsg+' (no alerts to back up)';
@@ -19184,9 +19187,11 @@ async function ghSnapshot(type,name){
     } else {
       toast('Snapshot saved to GitHub bkp/trades/','ok');
     }
+    return true;
   }catch(e){
     toast('Snapshot error: '+e.message,'err');
     console.error('Snapshot error:',e);
+    return false;
   }
 }
 // List snapshot files in the bkp/ folder — tabbed: Trade Backups | Config Backup
@@ -20107,8 +20112,11 @@ async function autoBkpMaybeRun(){
     var ghcfg=ghGetConfig();
     if(!ghcfg.user||!ghcfg.repo||!ghcfg.token)return; // nothing configured to push to
     if(!autoBkpDue(cfg))return;
-    await ghSnapshot('manual',null); // identical path to the "Save manual backup" button
-    localStorage.setItem('tj-autobkp-last',new Date().toISOString());
+    var ok=await ghSnapshot('manual',null); // identical path to the "Save manual backup" button
+    // Only stamp "last run" on an actual confirmed success. If the push failed (bad/expired
+    // token, wrong repo, rate limit, etc.) leave `last` alone so autoBkpDue() stays true and
+    // this retries on the next periodic check instead of silently marking the week as done.
+    if(ok)localStorage.setItem('tj-autobkp-last',new Date().toISOString());
     autoBkpRefreshUI();
   }catch(e){console.warn('Auto backup error:',e.message);}
 }
