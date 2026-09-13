@@ -5033,6 +5033,17 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
       #page-watchlist .wl-watch-meta{font-size:10px;color:var(--text3);}
       #page-watchlist .wl-empty{text-align:center;padding:32px 16px;color:var(--text3);}
       #page-watchlist .wl-empty svg{width:36px;height:36px;stroke:var(--border2);fill:none;stroke-width:1.5;margin-bottom:10px;}
+      /* "All" view — no boxed card per watchlist; each is just its name as a header (same
+         weight/size as the single-watchlist title) with a small arrow to collapse it, then its
+         items below in the exact same wl-watch-card formatting used when one watchlist is selected.
+         Sections are separated by a thin divider, not a background/border box. */
+      #page-watchlist .wl-watch-group + .wl-watch-group{margin-top:16px;padding-top:14px;border-top:1px solid var(--border);}
+      #page-watchlist .wl-group-header{display:flex;align-items:center;gap:7px;cursor:pointer;user-select:none;margin-bottom:8px;}
+      #page-watchlist .wl-group-chev{transition:transform .18s;flex-shrink:0;color:var(--text3);}
+      #page-watchlist .wl-watch-group.wl-group-expanded .wl-group-chev{transform:rotate(90deg);}
+      #page-watchlist .wl-group-name{font-size:16px;font-weight:700;color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+      #page-watchlist .wl-group-body{display:none;}
+      #page-watchlist .wl-watch-group.wl-group-expanded .wl-group-body{display:block;}
       </style>
       <div class="wl-grid">
         <!-- LEFT column: Watchlist selector + Add item form -->
@@ -5127,7 +5138,7 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
           </div>
           <div id="wl-empty-state" class="wl-empty">
             <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-            <div>No watchlist selected. Create one to start tracking assets.</div>
+            <div id="wl-empty-state-text">No watchlist selected. Create one to start tracking assets.</div>
           </div>
           <div id="wl-detail-body" style="display:none">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
@@ -18338,6 +18349,7 @@ async function ghBuildConfigPayload(){
   var cloudinaryConfig=cloudinaryGetConfig();
   return{
     version:2,
+    exportedAt:new Date().toISOString(), // forces a new commit on every backup, same as FX/Watchlist below, so "Backed up <date>" always reflects the last backup run, not just the last actual settings change
     checklist,setupRatings,strategies,errorTypes,assets,histCols,
     theme,themeBrightness,themeContrast,calView,mcDefaults,calcCapital,demoDefaults,
     aiConfig,cloudinaryConfig
@@ -26124,6 +26136,8 @@ async function saveWlCategories(data){ await setSetting('watchlistCategories', d
 var _wlActiveId = null;
 var _wlDir = 'above';        // default direction for the Watch Price above/below toggle
 var _wlCatFilter = 'all';    // 'all' | '' (uncategorized) | a category id
+var WL_ALL_ID = '__wl_all__'; // sentinel _wlActiveId value: right panel shows every visible watchlist as collapsible groups instead of a single one
+var _wlCollapsedGroups = {}; // watchlistId -> true when manually collapsed in the "All" view
 // One-time migration for the brief prior version that stored a freeform `category` string
 // directly on the watchlist instead of a categoryId — turns each distinct string into a
 // real category and rewrites the watchlist to reference it by id. No-op once migrated.
@@ -26150,7 +26164,9 @@ async function wlInit(){
   await wlRenderCatTabs();
   var lists = await getWatchlists();
   var visible = wlVisibleLists(lists);
-  if(!_wlActiveId || !visible.find(function(w){return w.id===_wlActiveId;})){
+  if(!_wlActiveId){
+    _wlActiveId = WL_ALL_ID; // default to the "All" view
+  } else if(_wlActiveId!==WL_ALL_ID && !visible.find(function(w){return w.id===_wlActiveId;})){
     _wlActiveId = visible.length ? visible[0].id : null;
   }
   await wlRenderList();
@@ -26203,7 +26219,7 @@ async function wlSetCatFilter(id){
   await wlRenderCatTabs();
   var lists = await getWatchlists();
   var visible = wlVisibleLists(lists);
-  if(!visible.find(function(w){return w.id===_wlActiveId;})) _wlActiveId = visible.length ? visible[0].id : null;
+  if(_wlActiveId!==WL_ALL_ID && !visible.find(function(w){return w.id===_wlActiveId;})) _wlActiveId = visible.length ? visible[0].id : null;
   await wlRenderList();
   await wlRenderDetail();
 }
@@ -26285,13 +26301,24 @@ function wlItemRowHtml(w){
     +'<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>'
     +'</button></div></div>';
 }
+// "All" pseudo-row at the top of the Watchlists list — selecting it switches the right panel
+// into the multi-watchlist collapsible view (wlRenderAllView) instead of a single watchlist.
+// Count reflects however many watchlists are visible under the currently selected category tab.
+function wlAllRowHtml(count){
+  var active = _wlActiveId===WL_ALL_ID;
+  return '<div class="wl-item'+(active?' active':'')+'" onclick="wlSelect(\''+WL_ALL_ID+'\')" title="Show every watchlist in this category">'
+    +'<span class="wl-item-name">All</span>'
+    +'<span class="wl-item-count">'+count+'</span>'
+  +'</div>';
+}
 // Renders the watchlist selector list, filtered to the active category tab (_wlCatFilter)
 async function wlRenderList(){
   var lists = wlVisibleLists(await getWatchlists());
   var el = document.getElementById('wl-list');
   if(!el) return;
-  if(!lists.length){ el.innerHTML='<div class="wl-list-empty">No watchlists in this category.</div>'; return; }
-  el.innerHTML = lists.map(wlItemRowHtml).join('');
+  var allRow = wlAllRowHtml(lists.length);
+  if(!lists.length){ el.innerHTML = allRow+'<div class="wl-list-empty">No watchlists in this category.</div>'; return; }
+  el.innerHTML = allRow + lists.map(wlItemRowHtml).join('');
 }
 // ── Edit watchlist (name + goal): populates the New Watchlist form for editing — mirrors wlEditItem/wlCancelEditItem/wlUpdateItem ──
 var _wlEditingListId = null;
@@ -26396,6 +26423,7 @@ async function wlSelect(id){
 function wlUpdateAddHint(){
   var hint = document.getElementById('wl-add-target-hint');
   if(!hint) return;
+  if(_wlActiveId===WL_ALL_ID){ hint.textContent = 'Select a specific watchlist to add items'; return; }
   var lists = _wlListsCache || [];
   var w = lists.find(function(x){return x.id===_wlActiveId;});
   hint.textContent = w ? 'Adding to: ' + w.name : 'Select or create a watchlist first';
@@ -26404,13 +26432,32 @@ var _wlListsCache = [];
 async function wlRenderDetail(){
   var lists = await getWatchlists();
   _wlListsCache = lists;
-  var w = lists.find(function(x){return x.id===_wlActiveId;});
+  wlUpdateAddHint();
   var empty = document.getElementById('wl-empty-state');
   var body = document.getElementById('wl-detail-body');
+  if(_wlActiveId===WL_ALL_ID){
+    var visible = wlVisibleLists(lists);
+    if(empty)empty.style.display = visible.length ? 'none' : '';
+    var emptyTextEl = document.getElementById('wl-empty-state-text');
+    if(emptyTextEl) emptyTextEl.textContent = 'No watchlists in this category yet.';
+    var nameElAll = document.getElementById('wl-detail-name');
+    if(nameElAll && !visible.length) nameElAll.textContent = '';
+    if(body)body.style.display = visible.length ? '' : 'none';
+    wlRenderAllView(visible);
+    return;
+  }
+  var w = lists.find(function(x){return x.id===_wlActiveId;});
   var nameEl = document.getElementById('wl-detail-name');
   var catEl = document.getElementById('wl-detail-category');
-  wlUpdateAddHint();
-  if(!w){ if(nameEl)nameEl.textContent=''; if(catEl)catEl.textContent=''; if(empty)empty.style.display=''; if(body)body.style.display='none'; return; }
+  if(!w){
+    if(nameEl)nameEl.textContent='';
+    if(catEl)catEl.textContent='';
+    if(empty)empty.style.display='';
+    var emptyTextEl2 = document.getElementById('wl-empty-state-text');
+    if(emptyTextEl2) emptyTextEl2.textContent = 'No watchlist selected. Create one to start tracking assets.';
+    if(body)body.style.display='none';
+    return;
+  }
   if(empty)empty.style.display='none';
   if(body)body.style.display='';
   if(nameEl)nameEl.textContent = w.name;
@@ -26426,6 +26473,16 @@ async function wlRenderDetail(){
   }
   wlRenderItems(w);
 }
+// Re-renders whatever the items area currently shows (single watchlist, or the "All" view) —
+// used after add/edit/delete of an item so the right mode stays in sync without a full wlRenderDetail().
+async function wlRefreshDetailItems(w){
+  if(_wlActiveId===WL_ALL_ID){
+    var lists = await getWatchlists();
+    wlRenderAllView(wlVisibleLists(lists));
+  } else if(w){
+    wlRenderItems(w);
+  }
+}
 // ── Compact card list with per-item expand state — items are expanded by default; track only collapsed ids ──
 var _wlCollapsedItems = {}; // itemId -> true when manually collapsed
 function wlToggleItem(itemId, evt){
@@ -26435,6 +26492,11 @@ function wlToggleItem(itemId, evt){
   if(card) card.classList.toggle('wl-expanded', !_wlCollapsedItems[itemId]);
 }
 function wlExpandAllItems(){
+  document.querySelectorAll('#page-watchlist .wl-watch-group').forEach(function(el){
+    var id = el.id.replace('wl-group-','');
+    _wlCollapsedGroups[id] = false;
+    el.classList.add('wl-group-expanded');
+  });
   document.querySelectorAll('#page-watchlist .wl-watch-card').forEach(function(el){
     var id = el.id.replace('wl-witem-','');
     _wlCollapsedItems[id] = false;
@@ -26442,44 +26504,89 @@ function wlExpandAllItems(){
   });
 }
 function wlCollapseAllItems(){
+  document.querySelectorAll('#page-watchlist .wl-watch-group').forEach(function(el){
+    var id = el.id.replace('wl-group-','');
+    _wlCollapsedGroups[id] = true;
+    el.classList.remove('wl-group-expanded');
+  });
   document.querySelectorAll('#page-watchlist .wl-watch-card').forEach(function(el){
     var id = el.id.replace('wl-witem-','');
     _wlCollapsedItems[id] = true;
     el.classList.remove('wl-expanded');
   });
 }
+// One item's compact expandable card — shared by wlRenderItems (single watchlist) and
+// wlRenderAllView (the "All" grouped view) so both render identically.
+function wlItemCardHtml(w, it){
+  var isBelow = it.dir==='below'; // default to 'above' for legacy items with no dir saved
+  var dirIcon = isBelow
+    ? '<svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>'
+    : '<svg viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg>';
+  var isExpanded = !_wlCollapsedItems[it.id];
+  var addedStr = new Date(it.createdAt||Date.now()).toLocaleDateString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+  return '<div class="wl-watch-card'+(isExpanded?' wl-expanded':'')+'" id="wl-witem-'+it.id+'">'
+    +'<div class="wl-row-main" onclick="wlToggleItem(\''+it.id+'\', event)">'
+      +'<span class="wl-watch-symbol">'+escHtml(it.pair)+'</span>'
+      +(it.price?'<span class="wl-watch-price '+(isBelow?'dir-below':'dir-above')+'">'+dirIcon+escHtml(it.price)+'</span>':'')
+      +'<div class="wl-row-actions">'
+        +'<button class="btn btn-ghost btn-sm btn-icon wl-alert-bell" onclick="wlSetAlert(\''+w.id+'\',\''+it.id+'\')" title="Set price alert">'
+        +'<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>'
+        +'</button>'
+        +'<button class="btn btn-ghost btn-sm btn-icon" onclick="wlEditItem(\''+w.id+'\',\''+it.id+'\')" title="Edit item">'
+        +'<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>'
+        +'</button>'
+        +'<button class="btn btn-danger btn-sm btn-icon" onclick="wlDeleteItem(\''+w.id+'\',\''+it.id+'\')" title="Remove">'
+        +'<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>'
+        +'</button>'
+      +'</div>'
+      +'<svg class="wl-row-chev" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>'
+    +'</div>'
+    +'<div class="wl-detail">'
+      +(it.comment?'<div class="wl-watch-comment"><span style="opacity:.6;margin-right:4px;">📝</span>'+linkifyComment(it.comment)+'</div>':'')
+      +'<div class="wl-watch-meta">Added on: '+escHtml(addedStr)+'</div>'
+    +'</div>'
+  +'</div>';
+}
 function wlRenderItems(w){
   var el = document.getElementById('wl-items');
   if(!el) return;
   if(!w.items.length){ el.innerHTML='<div class="wl-list-empty">No assets added yet.</div>'; return; }
-  el.innerHTML = w.items.slice().reverse().map(function(it){
-    var isBelow = it.dir==='below'; // default to 'above' for legacy items with no dir saved
-    var dirIcon = isBelow
-      ? '<svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>'
-      : '<svg viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg>';
-    var isExpanded = !_wlCollapsedItems[it.id];
-    var addedStr = new Date(it.createdAt||Date.now()).toLocaleDateString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
-    return '<div class="wl-watch-card'+(isExpanded?' wl-expanded':'')+'" id="wl-witem-'+it.id+'">'
-      +'<div class="wl-row-main" onclick="wlToggleItem(\''+it.id+'\', event)">'
-        +'<span class="wl-watch-symbol">'+escHtml(it.pair)+'</span>'
-        +(it.price?'<span class="wl-watch-price '+(isBelow?'dir-below':'dir-above')+'">'+dirIcon+escHtml(it.price)+'</span>':'')
-        +'<div class="wl-row-actions">'
-          +'<button class="btn btn-ghost btn-sm btn-icon wl-alert-bell" onclick="wlSetAlert(\''+w.id+'\',\''+it.id+'\')" title="Set price alert">'
-          +'<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>'
-          +'</button>'
-          +'<button class="btn btn-ghost btn-sm btn-icon" onclick="wlEditItem(\''+w.id+'\',\''+it.id+'\')" title="Edit item">'
-          +'<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>'
-          +'</button>'
-          +'<button class="btn btn-danger btn-sm btn-icon" onclick="wlDeleteItem(\''+w.id+'\',\''+it.id+'\')" title="Remove">'
-          +'<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>'
-          +'</button>'
-        +'</div>'
-        +'<svg class="wl-row-chev" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>'
+  el.innerHTML = w.items.slice().reverse().map(function(it){ return wlItemCardHtml(w, it); }).join('');
+}
+// Toggle one watchlist's collapsible group header in the "All" view
+function wlToggleGroup(id){
+  _wlCollapsedGroups[id] = !_wlCollapsedGroups[id];
+  var card = document.getElementById('wl-group-'+id);
+  if(card) card.classList.toggle('wl-group-expanded', !_wlCollapsedGroups[id]);
+}
+// "All" view: every visible watchlist (already filtered to the active category tab) rendered
+// as a collapsible group — same wl-watch-card item formatting as the single-watchlist view,
+// just grouped under a collapsible watchlist header so you can switch between watchlists
+// without leaving the page or reselecting from the left panel.
+function wlRenderAllView(lists){
+  var nameEl = document.getElementById('wl-detail-name');
+  if(nameEl) nameEl.textContent = 'All Watchlists';
+  var totalItems = lists.reduce(function(sum,w){return sum+w.items.length;},0);
+  var itemBadge = document.getElementById('wl-item-count-badge');
+  if(itemBadge){
+    if(totalItems > 0){ itemBadge.style.display='inline'; itemBadge.textContent=totalItems; }
+    else itemBadge.style.display='none';
+  }
+  var el = document.getElementById('wl-items');
+  if(!el) return;
+  if(!lists.length){ el.innerHTML='<div class="wl-list-empty">No watchlists in this category.</div>'; return; }
+  el.innerHTML = lists.map(function(w){
+    var isExpanded = !_wlCollapsedGroups[w.id];
+    var itemsHtml = w.items.length
+      ? '<div class="wl-watch-list">'+w.items.slice().reverse().map(function(it){ return wlItemCardHtml(w, it); }).join('')+'</div>'
+      : '<div class="wl-list-empty">No assets added yet.</div>';
+    return '<div class="wl-watch-group'+(isExpanded?' wl-group-expanded':'')+'" id="wl-group-'+w.id+'">'
+      +'<div class="wl-group-header" onclick="wlToggleGroup(\''+w.id+'\')">'
+        +'<svg class="wl-group-chev" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>'
+        +'<span class="wl-group-name">'+escHtml(w.name)+'</span>'
+        +'<span class="wl-item-count">'+w.items.length+'</span>'
       +'</div>'
-      +'<div class="wl-detail">'
-        +(it.comment?'<div class="wl-watch-comment"><span style="opacity:.6;margin-right:4px;">📝</span>'+linkifyComment(it.comment)+'</div>':'')
-        +'<div class="wl-watch-meta">Added on: '+escHtml(addedStr)+'</div>'
-      +'</div>'
+      +'<div class="wl-group-body">'+itemsHtml+'</div>'
     +'</div>';
   }).join('');
 }
@@ -26513,7 +26620,7 @@ async function wlAddItem(){
   document.getElementById('wl-comment').value='';
   wlSetDir('above');
   await wlRenderList();
-  wlRenderItems(w);
+  await wlRefreshDetailItems(w);
   toast('Added to watchlist','ok');
   ghAutoSyncWatchlist();
 }
@@ -26528,7 +26635,7 @@ async function wlDeleteItem(watchlistId, itemId){
   w.items = w.items.filter(function(x){return x.id!==itemId;});
   await saveWatchlistsData(lists);
   await wlRenderList();
-  wlRenderItems(w);
+  await wlRefreshDetailItems(w);
   ghAutoSyncWatchlist();
 }
 // ── Edit item: populate the Add-to-Watchlist form for editing — follows the same UX pattern as
@@ -26597,7 +26704,7 @@ async function wlUpdateItem(){
   await saveWatchlistsData(lists);
   wlCancelEditItem();
   await wlRenderList();
-  wlRenderItems(w);
+  await wlRefreshDetailItems(w);
   toast('Watchlist item updated','ok');
   ghAutoSyncWatchlist();
 }
