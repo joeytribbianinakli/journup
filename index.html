@@ -19102,9 +19102,12 @@ async function ghAutoSync(){
   await ghPush(false); // no toast on auto-sync to avoid noise
 }
 // Push a timestamped snapshot to bkp/ subfolders.
-// type: 'session' | 'manual' | 'clear-all'   name: optional label
+// type: 'session' | 'manual' | 'auto' | 'clear-all'   name: optional label
 // - session / clear-all: only trades+sessions go to bkp/trades/
-// - manual: trades+sessions to bkp/trades/ AND config files to bkp/strategies/, bkp/checklist/, bkp/assets/
+// - manual / auto: trades+sessions to bkp/trades/ AND config/FX/alerts/watchlist backups —
+//   'auto' is the scheduled weekly run and does exactly the same full backup as 'manual',
+//   just labelled differently (filename prefix, toast, and the Backup & Restore list) so the
+//   two are distinguishable after the fact.
 async function ghSnapshot(type,name){
   var cfg=ghGetConfig();
   if(!cfg.user||!cfg.repo||!cfg.token)return false;
@@ -19113,6 +19116,7 @@ async function ghSnapshot(type,name){
     var label=name?name.replace(/[^a-zA-Z0-9_-]/g,'-').slice(0,40):'';
     var prefix=type==='session'?'session-snapshot'
                :type==='manual'?'manual-backup'
+               :type==='auto'?'auto-backup'
                :'clear-all-snapshot';
     var fileLabel=label?prefix+'-'+label+'-'+ts:prefix+'-'+ts;
     // Always push a trades+sessions snapshot to bkp/trades/
@@ -19125,8 +19129,8 @@ async function ghSnapshot(type,name){
       body:JSON.stringify({message:'TJ snapshot ['+prefix+(label?' '+label:'')+'] — '+ts,content:tradesContent})
     });
     if(!tradesResp.ok){var tradesErr=await tradesResp.json().catch(function(){return{};});throw new Error('Trades push failed: HTTP '+tradesResp.status+' '+(tradesErr.message||''));}
-    // Manual backup only: also overwrite the single config backup file
-    if(type==='manual'){
+    // Manual + automatic backup: also overwrite the single config backup file
+    if(type==='manual'||type==='auto'){
       var cfgPayload=await ghBuildConfigPayload();
       var cfgContent=utf8ToBase64(JSON.stringify(cfgPayload,null,2));
       var cfgSha=await ghGetFileSHAByPath(cfg,GH_BKP_CONFIG_FILE);
@@ -19195,7 +19199,8 @@ async function ghSnapshot(type,name){
         wlBkpMsg='watchlist backup updated';
       }catch(we){console.warn('Watchlist backup error:',we.message);}
       var alertsBkpMsg=(_paAlerts&&_paAlerts.length>0)?'trades snapshot + config backup + alerts backup + '+fxBkpMsg+' + '+wlBkpMsg:'trades snapshot + config backup + '+fxBkpMsg+' + '+wlBkpMsg+' (no alerts to back up)';
-      toast('Manual backup saved — '+alertsBkpMsg,'ok');
+      if(type==='auto')toast('Automatic backup saved — '+alertsBkpMsg,'ok');
+      else toast('Manual backup saved — '+alertsBkpMsg,'ok');
     } else {
       toast('Snapshot saved to GitHub bkp/trades/','ok');
     }
@@ -19237,6 +19242,7 @@ async function ghListSnapshots(){
         var tsRaw=fname.replace('.json','').replace(/^.*?(\d{4}-\d{2}-\d{2}T)/,'$1');
         var typeLabel=fname.startsWith('session-snapshot')?'Session snapshot'
                      :fname.startsWith('manual-backup')?'Manual backup'
+                     :fname.startsWith('auto-backup')?'Automatic backup'
                      :fname.startsWith('clear-all-snapshot')?'Clear-all snapshot'
                      :'Snapshot';
         var tsDisplay=tsRaw.replace('T',' ').replace(/-/g,function(m,i){return i<10?'-':':'});
@@ -20069,10 +20075,12 @@ function toggleGhSnapshots(){
   ghRefreshStatus();
 })();
 // ══ Automatic Weekly Backup ═══════════════════════
-// Runs the exact same push as the "Save manual backup" button (ghSnapshot('manual',null)),
-// on a day-of-week + time you pick. This is a static, single-file, client-side app with no
-// server or service worker, so the schedule can only be checked while the app is open in a
-// tab: once shortly after load, then every few minutes for as long as the tab stays open.
+// Runs the same full backup as the "Save manual backup" button (config+FX+alerts+watchlist,
+// via ghSnapshot('auto',null)) on a day-of-week + time you pick — just tagged 'auto' instead
+// of 'manual' so the filename, toast and Backup & Restore list correctly show it as automatic
+// rather than manual. This is a static, single-file, client-side app with no server or service
+// worker, so the schedule can only be checked while the app is open in a tab: once shortly
+// after load, then every few minutes for as long as the tab stays open.
 // If the scheduled moment passes while the app wasn't open, it catches up once — the next
 // time you open it — rather than skipping the week entirely.
 var AUTOBKP_CHECK_MS=5*60*1000; // re-check every 5 min while the tab is open
@@ -20124,7 +20132,7 @@ async function autoBkpMaybeRun(){
     var ghcfg=ghGetConfig();
     if(!ghcfg.user||!ghcfg.repo||!ghcfg.token)return; // nothing configured to push to
     if(!autoBkpDue(cfg))return;
-    var ok=await ghSnapshot('manual',null); // identical path to the "Save manual backup" button
+    var ok=await ghSnapshot('auto',null); // same full backup as "Save manual backup", tagged 'auto' for correct labeling
     // Only stamp "last run" on an actual confirmed success. If the push failed (bad/expired
     // token, wrong repo, rate limit, etc.) leave `last` alone so autoBkpDue() stays true and
     // this retries on the next periodic check instead of silently marking the week as done.
