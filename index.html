@@ -11375,6 +11375,7 @@ async function _checkTrackerMidnightRollover(){
   if(startedDay!==todayDay){
     _trackerSessionActive=false;
     _trackerDeadlineMinutes=null;_trackerDeadlinePausedMs=0;_trackerDeadlinePauseStartedAt=null;
+    try{document.title=_origTitle;}catch(e){} // clear any lingering alert title (see endTrackerSession)
     await Promise.all([
       setSetting('trackerSessionActive',false),
       setSetting('trackerDeadlineMinutes',null),
@@ -11486,6 +11487,7 @@ async function startTrackerSession(){
 async function endTrackerSession(){
   _trackerSessionActive=false;
   _trackerDeadlineMinutes=null;_trackerDeadlinePausedMs=0;_trackerDeadlinePauseStartedAt=null;
+  try{document.title=_origTitle;}catch(e){} // clear any lingering "⏳/⏰" alert title from a time-boxed session
   await Promise.all([
     setSetting('trackerSessionActive',false),
     setSetting('trackerDeadlineMinutes',null),
@@ -11646,6 +11648,10 @@ function _updateTrackerTimerDOM(){
     if(overdue){
       var msg="⏰ Time's up — "+_trackerLastCompleted+' trade'+(_trackerLastCompleted===1?'':'s')+' logged this session.';
       if(hitMsgEl){hitMsgEl.style.display='';hitMsgEl.style.color='';hitMsgEl.textContent=msg;}
+      // Tab title flips permanently to "Time's up" (same trick the break timer uses on
+      // _origTitle) so it's visible even if the tab is backgrounded or you're on another app —
+      // no need to keep re-checking the widget itself.
+      try{document.title="⏰ Time's up — "+_origTitle;}catch(e){}
       _maybeCelebrateTrackerGoal(msg);
     } else if(inAlertZone&&!paused){
       // tt-hit-msg is normally only shown via CSS when the widget has .tt-hit (goal/deadline
@@ -11654,11 +11660,15 @@ function _updateTrackerTimerDOM(){
         hitMsgEl.textContent='⏳ '+_trackerAlertMinutes+' minute'+(_trackerAlertMinutes===1?'':'s')+' left in this session';
         hitMsgEl.style.display='block';hitMsgEl.style.color='var(--amber)';
       }
+      // Live countdown in the tab title for the whole alert window — ticks down every second,
+      // so glancing at any open tab (not just this one) shows time's running out.
+      try{document.title='⏳ '+_fmtTrackerElapsed(remainingMs)+' left — '+_origTitle;}catch(e){}
       _maybeAlertTrackerTimeRemaining(_trackerAlertMinutes);
     } else if(hitMsgEl&&hitMsgEl.style.color==='var(--amber)'){
       // Clear the alert message once we've left the alert window (e.g. paused, or moved
       // straight to overdue which sets its own message via the CSS-driven .tt-hit path).
       hitMsgEl.textContent='';hitMsgEl.style.display='';hitMsgEl.style.color='';
+      try{document.title=_origTitle;}catch(e){}
     }
   } else {
     // Trade-count mode: no deadline, so just show elapsed time spent so far as a stopwatch.
