@@ -1314,7 +1314,7 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
       <button type="button" class="nav-section-header" onclick="toggleNavSection('overview')">
         <svg class="nav-section-chevron" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
         <span class="nav-section-title">Overview</span>
-        <span class="nav-section-count">4</span>
+        <span class="nav-section-count">5</span>
       </button>
       <div class="nav-section-collapse"><div class="nav-section-body">
         <button class="nav-item active" onclick="nav('dashboard',this)">
@@ -1328,6 +1328,9 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
         </button>
         <button class="nav-item" onclick="nav('calendar',this)">
           <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Calendar
+        </button>
+        <button class="nav-item" onclick="nav('notes',this)" id="nav-notes">
+          <svg viewBox="0 0 24 24"><path d="M15 3H5a2 2 0 00-2 2v14a2 2 0 002 2h10l6-6V5a2 2 0 00-2-2z"/><path d="M15 3v6h6"/></svg>Notes
         </button>
       </div></div>
     </div>
@@ -3464,20 +3467,20 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
             <div class="backup-card">
               <div class="bc-icon" style="background:rgba(79,142,247,.12);color:var(--accent)"><svg viewBox="0 0 24 24"><polyline points="21 15 21 19 3 19 3 15"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div>
               <div class="bc-title">Export JSON</div>
-              <div class="bc-desc">Downloads 4 separate files — <strong>trade data</strong> (trades, images, sessions &amp; settings), <strong>config</strong> (strategies, checklist, asset pairs, theme, AI &amp; Cloudinary selections), <strong>FX</strong> (USD/CAD conversions) and <strong>watchlists</strong> — the exact same data a GitHub Manual Backup pushes, just downloaded instead of pushed. Alerts are not included.</div>
+              <div class="bc-desc">Downloads 5 separate files — <strong>trade data</strong> (trades, images, sessions &amp; settings), <strong>config</strong> (strategies, checklist, asset pairs, theme, AI &amp; Cloudinary selections), <strong>FX</strong> (USD/CAD conversions), <strong>watchlists</strong> and <strong>notes</strong> (your sticky-note board) — the exact same data a GitHub Manual Backup pushes, just downloaded instead of pushed. Alerts are not included.</div>
               <button class="btn btn-primary" onclick="exportBackup()"><svg viewBox="0 0 24 24"><polyline points="21 15 21 19 3 19 3 15"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download JSON</button>
             </div>
             <div class="backup-card">
               <div class="bc-icon" style="background:rgba(155,127,240,.12);color:var(--purple)"><svg viewBox="0 0 24 24"><polyline points="21 15 21 19 3 19 3 15"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
               <div class="bc-title">Restore JSON</div>
-              <div class="bc-desc">Select one or more of the JSON files above (trade data, config, FX, watchlists — any combination); each is detected automatically. <strong style="color:var(--amber)">Deletes your existing trades, images and sessions first</strong>, then loads only what's in the selected file(s) — a true restore, just like GitHub's "Restore latest". Config/FX/Watchlist files always fully overwrite the matching settings. All-or-nothing — if any selected file is invalid, nothing is touched. Also syncs the actual GitHub data files (not the bkp/ backup folder) if GitHub is configured.</div>
+              <div class="bc-desc">Select one or more of the JSON files above (trade data, config, FX, watchlists, notes — any combination); each is detected automatically. <strong style="color:var(--amber)">Deletes your existing trades, images and sessions first</strong>, then loads only what's in the selected file(s) — a true restore, just like GitHub's "Restore latest". Config/FX/Watchlist/Notes files always fully overwrite the matching settings. All-or-nothing — if any selected file is invalid, nothing is touched. Also syncs the actual GitHub data files (not the bkp/ backup folder) if GitHub is configured.</div>
               <input type="file" id="imp-file-restore" accept=".json" multiple style="display:none" onchange="importJsonFiles(this,'restore')">
               <button class="btn" style="border-color:rgba(155,127,240,.3);color:var(--purple)" onclick="document.getElementById('imp-file-restore').click()"><svg viewBox="0 0 24 24"><polyline points="21 15 21 19 3 19 3 15"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Restore file(s)</button>
             </div>
             <div class="backup-card">
               <div class="bc-icon" style="background:rgba(62,207,142,.12);color:var(--green)"><svg viewBox="0 0 24 24"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></svg></div>
               <div class="bc-title">Merge JSON</div>
-              <div class="bc-desc">Select one or more of the JSON files above (trade data, config, FX, watchlists — any combination); each is detected automatically. <strong style="color:var(--text2)">Keeps your existing data</strong> and merges in trades, images, sessions, config, FX and watchlists from the selected file(s) — duplicate trades are skipped, nothing existing is deleted. Config/FX/Watchlist files still fully overwrite the matching settings. All-or-nothing — if any selected file is invalid, nothing is touched. Also syncs the actual GitHub data files (not the bkp/ backup folder) if GitHub is configured.</div>
+              <div class="bc-desc">Select one or more of the JSON files above (trade data, config, FX, watchlists, notes — any combination); each is detected automatically. <strong style="color:var(--text2)">Keeps your existing data</strong> and merges in trades, images, sessions, config, FX, watchlists and notes from the selected file(s) — duplicate trades are skipped, nothing existing is deleted. Config/FX/Watchlist/Notes files still fully overwrite the matching settings. All-or-nothing — if any selected file is invalid, nothing is touched. Also syncs the actual GitHub data files (not the bkp/ backup folder) if GitHub is configured.</div>
               <input type="file" id="imp-file-merge" accept=".json" multiple style="display:none" onchange="importJsonFiles(this,'merge')">
               <button class="btn" style="border-color:rgba(62,207,142,.3);color:var(--green)" onclick="document.getElementById('imp-file-merge').click()"><svg viewBox="0 0 24 24"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></svg>Merge file(s)</button>
             </div>
@@ -3548,7 +3551,7 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 15 21 19 3 19 3 15"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               </div>
               <div class="bc-title">Push to GitHub</div>
-              <div class="bc-desc">Manually push your full journal — trades, images, sessions, settings, watchlists, config (strategies, checklist, assets &amp; pairs), price alerts and FX conversions — to your GitHub repo right now.</div>
+              <div class="bc-desc">Manually push your full journal — trades, images, sessions, settings, watchlists, config (strategies, checklist, assets &amp; pairs), price alerts, FX conversions and your notes board — to your GitHub repo right now.</div>
               <button class="btn btn-primary" onclick="ghPushManual()">
                 <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 00-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0020 4.77 5.07 5.07 0 0019.91 1S18.73.65 16 2.48a13.38 13.38 0 00-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 005 4.77a5.44 5.44 0 00-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 009 18.13V22"/></svg>
                 Push now
@@ -3559,7 +3562,7 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 15 21 19 3 19 3 15"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
               </div>
               <div class="bc-title">Pull from GitHub</div>
-              <div class="bc-desc">Restore your full journal — trades, images, sessions, settings, watchlists, config, price alerts and FX conversions — from GitHub. Use this on a new browser or device. Existing data is merged (no duplicates).</div>
+              <div class="bc-desc">Restore your full journal — trades, images, sessions, settings, watchlists, config, price alerts, FX conversions and your notes board — from GitHub. Use this on a new browser or device. Existing data is merged (no duplicates).</div>
               <button class="btn" onclick="ghPull()">
                 <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 00-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0020 4.77 5.07 5.07 0 0019.91 1S18.73.65 16 2.48a13.38 13.38 0 00-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 005 4.77a5.44 5.44 0 00-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 009 18.13V22"/></svg>
                 Pull now
@@ -3591,7 +3594,7 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
                   </div>
                   <div class="bc-title">Manual Backup</div>
-                  <div class="bc-desc">Saves a timestamped trades snapshot to <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;font-size:10px">bkp/trades/</code> and overwrites the single config backup at <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;font-size:10px">bkp/config_backup.json</code> with all current settings (strategies, checklist, pairs, columns, theme, defaults), plus the single FX backup at <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;font-size:10px">bkp/fx_backup.json</code> with your USD/CAD conversions.</div>
+                  <div class="bc-desc">Saves a timestamped trades snapshot to <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;font-size:10px">bkp/trades/</code> and overwrites the single config backup at <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;font-size:10px">bkp/config_backup.json</code> with all current settings (strategies, checklist, pairs, columns, theme, defaults), plus the single FX backup at <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;font-size:10px">bkp/fx_backup.json</code> with your USD/CAD conversions, the single watchlist backup at <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;font-size:10px">bkp/watchlist_backup.json</code>, and the single notes backup at <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;font-size:10px">bkp/notes_backup.json</code> with your sticky-note board.</div>
                   <button class="btn" style="border-color:rgba(52,201,122,.3);color:var(--green)" onclick="ghManualBackup()">
                     <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                     Save manual backup
@@ -3663,10 +3666,10 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
                 <div class="card-header" style="cursor:pointer;user-select:none" onclick="toggleGhSnapshots()">
                   <div style="display:flex;align-items:center;gap:8px">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                    <span class="card-title">Trade, Config, FX &amp; Watchlist Backups</span>
+                    <span class="card-title">Backup Files</span>
                   </div>
                   <div style="display:flex;align-items:center;gap:10px">
-                    <span style="font-size:11px;color:var(--text3)">bkp/trades/ · bkp/config_backup.json · bkp/fx_backup.json · bkp/watchlist_backup.json</span>
+                    <span style="font-size:11px;color:var(--text3)">bkp/trades/ · bkp/config_backup.json · bkp/fx_backup.json · bkp/watchlist_backup.json · bkp/notes_backup.json</span>
                     <svg id="gh-snapshots-chevron" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transition:transform .18s"><polyline points="6 9 12 15 18 9"/></svg>
                   </div>
                 </div>
@@ -3675,7 +3678,8 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
                     <strong style="color:var(--text2)">Trade Backups</strong> — timestamped snapshots in <code style="background:var(--bg3);padding:1px 4px;border-radius:3px">bkp/trades/</code>. Created automatically before session deletes and clear-all, or manually. Multiple snapshots kept so you can roll back to any point.<br><br>
                     <strong style="color:var(--text2)">Config Backup</strong> — a single file at <code style="background:var(--bg3);padding:1px 4px;border-radius:3px">bkp/config_backup.json</code> storing strategies, checklist, and asset pairs. Auto-updated whenever you change any of those, and on Manual Backup. Only one backup kept — always the latest.<br><br>
                     <strong style="color:var(--text2)">FX Backup</strong> — a single file at <code style="background:var(--bg3);padding:1px 4px;border-radius:3px">bkp/fx_backup.json</code> storing your USD/CAD conversions from the FX Tracker page. Updated on Manual Backup. Only one backup kept — always the latest.<br><br>
-                    <strong style="color:var(--text2)">Watchlist Backup</strong> — a single file at <code style="background:var(--bg3);padding:1px 4px;border-radius:3px">bkp/watchlist_backup.json</code> storing all your watchlists and categories. Updated on Manual Backup. Only one backup kept — always the latest.
+                    <strong style="color:var(--text2)">Watchlist Backup</strong> — a single file at <code style="background:var(--bg3);padding:1px 4px;border-radius:3px">bkp/watchlist_backup.json</code> storing all your watchlists and categories. Updated on Manual Backup. Only one backup kept — always the latest.<br><br>
+                    <strong style="color:var(--text2)">Notes Backup</strong> — a single file at <code style="background:var(--bg3);padding:1px 4px;border-radius:3px">bkp/notes_backup.json</code> storing your sticky-note board (columns and notes) from the Notes page. Updated on Manual Backup. Only one backup kept — always the latest.
                   </div>
                   <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
                     <button class="btn btn-ghost btn-sm" onclick="ghListSnapshots()">
@@ -5156,6 +5160,45 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
         </div>
       </div>
     </div><!-- /page-watchlist -->
+    <!-- NOTES -->
+    <div class="page" id="page-notes">
+      <style>
+      #page-notes .notes-intro{font-size:11px;color:var(--text3);margin-bottom:14px;line-height:1.5;max-width:760px;}
+      #page-notes .notes-board{display:flex;gap:14px;align-items:flex-start;overflow-x:auto;padding-bottom:10px;}
+      #page-notes .note-col{flex:0 0 260px;width:260px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:12px;display:flex;flex-direction:column;gap:10px;}
+      #page-notes .note-col-header{display:flex;align-items:center;gap:7px;}
+      #page-notes .note-col-title{flex:1;font-size:12px;font-weight:700;color:var(--text);cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+      #page-notes .note-col-title:hover{color:var(--accent);}
+      #page-notes .note-col-count{font-size:9px;font-weight:700;font-family:DM Mono,monospace;background:var(--bg4);border:1px solid var(--border2);color:var(--text3);border-radius:10px;padding:1px 6px;flex-shrink:0;}
+      #page-notes .note-col-body{display:flex;flex-direction:column;gap:9px;min-height:40px;}
+      #page-notes .note-col-empty{font-size:11px;color:var(--text3);font-style:italic;text-align:center;padding:14px 4px;border:1px dashed var(--border2);border-radius:var(--radius);}
+      #page-notes .note-add-btn{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;padding:7px;border-radius:var(--radius);border:1px dashed var(--border2);background:transparent;color:var(--text3);font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .12s;}
+      #page-notes .note-add-btn:hover{color:var(--text);border-color:var(--accent);background:rgba(77,127,255,.06);}
+      #page-notes .note-col-add{flex:0 0 150px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:90px;border-radius:var(--radius-lg);border:1px dashed var(--border2);background:transparent;color:var(--text3);font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .12s;align-self:flex-start;}
+      #page-notes .note-col-add:hover{color:var(--accent);border-color:var(--accent);background:rgba(77,127,255,.06);}
+      #page-notes .note-card{position:relative;border-radius:8px;padding:11px 11px 9px;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.25);transition:transform .12s,box-shadow .12s;color:#2b2418;font-family:'DM Sans',sans-serif;}
+      #page-notes .note-col-body .note-card:hover{transform:translateY(-2px);box-shadow:0 6px 14px rgba(0,0,0,.32);}
+      #page-notes .note-del-btn{position:absolute;top:5px;right:5px;width:16px;height:16px;border-radius:50%;border:none;background:rgba(0,0,0,.12);color:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:0;transition:opacity .12s,background .12s;padding:0;}
+      #page-notes .note-card:hover .note-del-btn{opacity:1;}
+      #page-notes .note-del-btn:hover{background:rgba(0,0,0,.25);color:#000;}
+      #page-notes .note-tag{display:inline-block;font-size:9px;font-weight:700;letter-spacing:.03em;background:rgba(0,0,0,.1);border-radius:8px;padding:1px 7px;margin-bottom:6px;}
+      #page-notes .note-text{font-size:12px;line-height:1.5;white-space:pre-wrap;word-break:break-word;padding-right:14px;}
+      #page-notes .note-meta{font-size:9px;color:rgba(0,0,0,.5);margin-top:7px;font-weight:600;}
+      /* Sticky-note colors — reused globally by the add/edit modal's color swatches too (note-modal lives outside #page-notes in the DOM) */
+      .note-yellow{background:#f5dd6e;}
+      .note-pink{background:#f5a3c7;}
+      .note-blue{background:#9bd0f5;}
+      .note-green{background:#a8ecb8;}
+      .note-purple{background:#cbb4f7;}
+      .note-orange{background:#f7bd88;}
+      .note-color-row{display:flex;gap:8px;}
+      .note-swatch{width:26px;height:26px;border-radius:50%;border:2px solid transparent;cursor:pointer;padding:0;transition:transform .12s,border-color .12s;}
+      .note-swatch:hover{transform:scale(1.1);}
+      .note-swatch.active{border-color:var(--text);}
+      </style>
+      <div class="notes-intro">Your personal scratchpad — todo items, something to do later today, or a note about what you learned on an asset. Drag cards between columns. Kept separate from your trade data, and synced to GitHub as its own file (<span class="mono">tj_notes.json</span>), just like your Watchlist and Price Alerts, if configured under Backup &amp; Restore.</div>
+      <div class="notes-board" id="notes-board"></div>
+    </div><!-- /page-notes -->
     <!-- FXSTREET -->
     <div class="page" id="page-fxstreet" style="flex-direction:column">
       <!-- Flow breadcrumb (only shown in full trade flow) -->
@@ -5921,6 +5964,38 @@ document.addEventListener('DOMContentLoaded',function(){
       </div>
     </div>
     <div id="retro-view-body" class="retro-view-body" style="flex:1;overflow-y:auto;padding:20px 24px"></div>
+  </div>
+</div>
+<!-- Notes modal (add/edit sticky note) -->
+<div class="modal-overlay" id="note-modal" onclick="notesCloseModal()">
+  <div class="modal-box" style="max-width:420px" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3 id="note-modal-title">New note</h3>
+      <button class="btn btn-ghost btn-icon btn-sm" onclick="notesCloseModal()"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="frow">
+        <label class="flabel">Note</label>
+        <textarea id="note-text-inp" rows="4" placeholder="e.g. Check NFP release before entering EURUSD longs…"></textarea>
+      </div>
+      <div class="frow">
+        <label class="flabel">Tag / asset <span style="color:var(--text3);font-weight:400">(optional)</span></label>
+        <input type="text" id="note-tag-inp" list="note-tag-suggestions" placeholder="e.g. XAUUSD, BTC, Forex">
+        <datalist id="note-tag-suggestions"></datalist>
+      </div>
+      <div class="frow">
+        <label class="flabel">Column</label>
+        <select id="note-col-inp"></select>
+      </div>
+      <div class="frow">
+        <label class="flabel">Color</label>
+        <div class="note-color-row" id="note-color-row"></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button class="btn btn-primary" style="flex:1;justify-content:center" onclick="notesSaveModal()">Save note</button>
+        <button class="btn btn-danger" id="note-delete-btn" style="display:none" onclick="notesDeleteModal()">Delete</button>
+      </div>
+    </div>
   </div>
 </div>
 <!-- Strategy modal -->
@@ -9180,7 +9255,7 @@ async function populateSessionSelects(restoreSessionId){
   updateFilterSessionSummary('edg-session-filter','edg-filter-summary','edg-skipped-filter');
 }
 // ══ Navigation ════════════════════════════════════
-var pageMap={'pre-checklist':{title:'Pre-trade checklist',sub:'Calendar → Checklist → Calculator → Log trade'},dashboard:{title:'Dashboard',sub:'Overview of your trading performance'},log:{title:'Log trade',sub:'Record a new trade entry'},history:{title:'Trade history',sub:'Browse and filter all your trades'},sessions:{title:'Sessions',sub:'Manage your trading session periods'},'checklist-editor':{title:'Checklist editor',sub:'Edit checklist items globally'},backup:{title:'Backup & restore',sub:'Export, import or clear your journal data'},montecarlo:{title:'Monte Carlo',sub:'Simulate future equity paths from historical trade data'},calculator:{title:'Position Size Calculator',sub:'Forex · Crypto · Gold · Stocks · Indices'},calendar:{title:'Calendar view',sub:'Visual trade activity by day, week and year'},'ai-analyzer':{title:'AI Trade Analyzer',sub:'Intelligent session review powered by AI'},'price-alerts':{title:'Price Alerts',sub:'Get notified on your phone when a price target is hit'},'watchlist':{title:'Watchlist',sub:'Track assets you\'re keeping an eye on'},fxstreet:{title:'Economic calendar',sub:'ForexFactory calendar — check before trading'},'trade-analytics':{title:'Trade Analytics',sub:'Ratings, error types, direction & entry-time performance'},edge:{title:'Edge Analyzer',sub:'Is there a statistically real edge in your logged trades?'},'fx-tracker':{title:'USD/CAD Tracker',sub:'Track your CAD→USD conversions and currency gains/losses'}};;
+var pageMap={'pre-checklist':{title:'Pre-trade checklist',sub:'Calendar → Checklist → Calculator → Log trade'},dashboard:{title:'Dashboard',sub:'Overview of your trading performance'},log:{title:'Log trade',sub:'Record a new trade entry'},history:{title:'Trade history',sub:'Browse and filter all your trades'},sessions:{title:'Sessions',sub:'Manage your trading session periods'},'checklist-editor':{title:'Checklist editor',sub:'Edit checklist items globally'},backup:{title:'Backup & restore',sub:'Export, import or clear your journal data'},montecarlo:{title:'Monte Carlo',sub:'Simulate future equity paths from historical trade data'},calculator:{title:'Position Size Calculator',sub:'Forex · Crypto · Gold · Stocks · Indices'},calendar:{title:'Calendar view',sub:'Visual trade activity by day, week and year'},'ai-analyzer':{title:'AI Trade Analyzer',sub:'Intelligent session review powered by AI'},'price-alerts':{title:'Price Alerts',sub:'Get notified on your phone when a price target is hit'},'watchlist':{title:'Watchlist',sub:'Track assets you\'re keeping an eye on'},fxstreet:{title:'Economic calendar',sub:'ForexFactory calendar — check before trading'},'trade-analytics':{title:'Trade Analytics',sub:'Ratings, error types, direction & entry-time performance'},edge:{title:'Edge Analyzer',sub:'Is there a statistically real edge in your logged trades?'},'fx-tracker':{title:'USD/CAD Tracker',sub:'Track your CAD→USD conversions and currency gains/losses'},'notes':{title:'Notes',sub:'Todos, reminders and things to remember — your personal sticky-note board'}};;
 var _currentPage='dashboard';
 function nav(id,btn){
   // Reset log form when navigating away — but preserve it if going back to calc within the flow
@@ -15110,15 +15185,18 @@ async function _updateSidebarStatsImpl(){
 // otherwise backup, restore, and refresh-sync silently fall out of sync with live data.
 // Local (manual, in-browser) backup/restore/export helpers. These are the "Backup &
 // restore" page's manual JSON buttons — distinct from the automatic GitHub cloud sync.
-// Export downloads 4 separate files — trade data, config, FX, watchlists — using the
+// Export downloads 5 separate files — trade data, config, FX, watchlists, notes — using the
 // exact same payload-building functions the GitHub "Manual Backup" push uses
 // (ghBuildPayload(), ghBuildConfigPayload(), the fx {version,exportedAt,conversions}
-// shape, and ghBuildWatchlistPayload()), so the downloaded files are byte-for-byte what
-// would otherwise be pushed to bkp/trades/, bkp/config_backup.json, bkp/fx_backup.json
-// and bkp/watchlist_backup.json. Alerts are intentionally excluded — they're not backed
-// up by design. Import (importJsonFiles below) reuses ghApplyConfigData()/fxSave()/
-// saveWatchlistsData() so both directions round-trip through the same code path
-// GitHub's own restore uses, with correct cache invalidation, no page reload required.
+// shape, ghBuildWatchlistPayload(), and ghBuildNotesPayload()), so the downloaded files are
+// byte-for-byte what would otherwise be pushed to bkp/trades/, bkp/config_backup.json,
+// bkp/fx_backup.json, bkp/watchlist_backup.json and bkp/notes_backup.json. Alerts are
+// intentionally excluded — they're not backed up by design. Import (importJsonFiles below)
+// reuses ghApplyConfigData()/fxSave()/saveWatchlistsData()/saveNotesBoard() so both
+// directions round-trip through the same code path GitHub's own restore uses, with correct
+// cache invalidation, no page reload required.
+// NEW DATA TYPE? See the checklist comment above GH_FILE (search "ADDING A NEW BACKED-UP
+// DATA TYPE") — exportBackup() below is only one of ~9 spots that need updating.
 async function exportBackup(){
   function downloadJSON(obj,filename){
     var blob=new Blob([JSON.stringify(obj,null,2)],{type:'application/json'});
@@ -15137,7 +15215,10 @@ async function exportBackup(){
   // 4. Watchlists — same shape as bkp/watchlist_backup.json
   var wlPayload=await ghBuildWatchlistPayload();
   setTimeout(function(){downloadJSON(wlPayload,'tj_watchlist_'+date+'.json');},450);
-  toast('Downloaded 4 files — trade data ('+tradesPayload.trades.length+' trades, '+tradesPayload.images.length+' images), config, FX ('+fxPayload.conversions.length+' conversions), watchlists ('+wlPayload.watchlists.length+')','ok');
+  // 5. Notes board — same shape as bkp/notes_backup.json
+  var notesPayload=await ghBuildNotesPayload();
+  setTimeout(function(){downloadJSON(notesPayload,'tj_notes_'+date+'.json');},600);
+  toast('Downloaded 5 files — trade data ('+tradesPayload.trades.length+' trades, '+tradesPayload.images.length+' images), config, FX ('+fxPayload.conversions.length+' conversions), watchlists ('+wlPayload.watchlists.length+'), notes ('+notesPayload.board.notes.length+')','ok');
 }
 // ══ Recompute derived fields from raw trade data ══════
 // Given a trade's raw inputs (entry/exit price, qty, risk $ or risk %), fills in the
@@ -15193,19 +15274,24 @@ async function refreshUI(){
   // covers, so a pull/restore/merge that changed them needs the page re-rendered too if open.
   if(_currentPage==='watchlist'&&typeof wlInit==='function')wlInit();
 }
-// Returns 'trades' | 'config' | 'fx' | null depending on which of the three known backup
-// shapes `data` matches — a trade-data payload (has `trades`, or is itself a raw trades
+// Returns 'trades' | 'config' | 'fx' | 'watchlist' | 'notes' depending on which known backup
+// shape `data` matches — a trade-data payload (has `trades`, or is itself a raw trades
 // array — same shape as tj_data.json / a trade backup snapshot / an older combined export),
-// a standalone config payload (ghBuildConfigPayload() shape), or a standalone FX payload
-// (has `conversions`, same shape as bkp/fx_backup.json). null means the file isn't a
-// recognized backup file at all (e.g. an unrelated JSON file) — used both to validate
-// files up front (importJsonFiles() below, before anything is written) and to decide how
-// to apply them (applyBackupPayload() below).
+// a standalone config payload (ghBuildConfigPayload() shape), a standalone FX payload
+// (has `conversions`, same shape as bkp/fx_backup.json), a standalone watchlist payload
+// (has `watchlists`), or a standalone notes payload (has `board`, same shape as
+// bkp/notes_backup.json / ghBuildNotesPayload()). null means the file isn't a recognized
+// backup file at all (e.g. an unrelated JSON file) — used both to validate files up front
+// (importJsonFiles() below, before anything is written) and to decide how to apply them
+// (applyBackupPayload() below).
+// NEW DATA TYPE? See the checklist comment above GH_FILE (search "ADDING A NEW BACKED-UP
+// DATA TYPE") — this function is only one of ~9 spots that need updating.
 function detectBackupShape(data){
   if(data&&typeof data==='object'){
     if(Array.isArray(data)||Array.isArray(data.trades))return'trades';
     if(Array.isArray(data.conversions))return'fx';
     if(Array.isArray(data.watchlists))return'watchlist';
+    if(data.board&&typeof data.board==='object'&&(Array.isArray(data.board.notes)||Array.isArray(data.board.columns)))return'notes';
     if(data.checklist||data.strategies||data.assets||data.setupRatings||data.errorTypes||data.histCols||data.aiConfig||data.cloudinaryConfig)return'config';
   }
   return null;
@@ -15229,12 +15315,14 @@ function detectBackupShape(data){
 // restore uses — so cloudinaryConfig/aiConfig (localStorage-only, never in the `settings`
 // IndexedDB store) come back correctly and caches (setup ratings, checklist items, asset
 // fees, history columns) are invalidated instead of silently going stale until reload.
-// Config/FX/Watchlists are always a full overwrite of the matching keys regardless of `mode` — trades
-// are the only piece that can be merged, since config/FX aren't meaningfully mergeable.
+// Config/FX/Watchlists/Notes are always a full overwrite of the matching keys regardless of
+// `mode` — trades are the only piece that can be merged, since config/FX/watchlist/notes
+// aren't meaningfully mergeable through this generic multi-file import (the dedicated
+// GitHub bkp/ Notes tab has its own true merge — see ghMergeNotesBackup()).
 // Returns a summary used by importJsonFiles() below to build one combined toast message.
 async function applyBackupPayload(data,mode){
   mode=mode==='restore'?'restore':'merge';
-  var result={trades:0,skippedTrades:0,images:0,configRestored:false,fx:null,watchlists:null};
+  var result={trades:0,skippedTrades:0,images:0,configRestored:false,fx:null,watchlists:null,notes:null};
   var isTradeData=detectBackupShape(data)==='trades';
   if(isTradeData){
     var importedTrades=Array.isArray(data)?data:(data.trades||[]);
@@ -15274,6 +15362,14 @@ async function applyBackupPayload(data,mode){
   // as bkp/watchlist_backup.json). Like config/FX, always a full overwrite — not merged
   // by trade-import mode — since a list of watchlists isn't meaningfully mergeable here.
   if(Array.isArray(data.watchlists)){await saveWatchlistsData(data.watchlists);result.watchlists=data.watchlists;if(Array.isArray(data.categories))await saveWlCategories(data.categories);}
+  // Notes: standalone notes JSON file's top-level `board` object (same shape as
+  // bkp/notes_backup.json / ghBuildNotesPayload()). Like config/FX/watchlist, always a
+  // full overwrite — not merged by trade-import mode.
+  if(data.board&&typeof data.board==='object'&&(Array.isArray(data.board.notes)||Array.isArray(data.board.columns))){
+    var notesBoard={columns:Array.isArray(data.board.columns)?data.board.columns:[],notes:Array.isArray(data.board.notes)?data.board.notes:[]};
+    await saveNotesBoard(notesBoard);
+    result.notes=notesBoard;
+  }
   return result;
 }
 // Destructive local reset (trades, images, sessions — settings/config are untouched).
@@ -18304,6 +18400,37 @@ function calcCalc(){
   setTimeout(function(){if(typeof getAssets==='function')calcSyncAssets();},500);
 })();
 // ══ GitHub Sync ═══════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════════════
+// ⚠ ADDING A NEW BACKED-UP DATA TYPE (a new file/board alongside Config/FX/Watchlist/Notes)? ⚠
+// There is no single source of truth for "what gets backed up" — every flow below tracks
+// its own list of data types independently, so adding a type to just one of these leaves it
+// silently missing from the rest. Go through ALL of these for the new type:
+//   1. Constants right below — a GH_<X>_FILE (if it needs an always-live file) and/or a
+//      GH_BKP_<X>_FILE (bkp/<x>_backup.json, for Manual/Automatic Backup snapshots).
+//   2. ghBuild<X>Payload() — the shape-builder reused by GitHub push, the GitHub bkp/
+//      snapshot, AND local JSON export — keep all three byte-for-byte identical.
+//   3. ghPushManual() / ghPull() / ghAutoPullOnSetup() — push/pull the live file (mirror
+//      the Watchlist/Notes blocks in each).
+//   4. ghSnapshot() (manual+auto bkp/ push, 'manual'||'auto' branch) — add the new
+//      bkp/<x>_backup.json PUT block and fold its status into the summary toast message.
+//   5. ghListSnapshots() + ghSnapTabSwitch() — new tab button + pane in the "Backup Files"
+//      card's snapshot list (Backup & Restore page → GitHub → Backup & Snapshots).
+//   6. ghRestore<X>Backup() / ghMerge<X>Backup() — the GitHub bkp/ restore+merge pair,
+//      wired to buttons inside the new pane from #5 (mirror ghRestoreNotesBackup()/
+//      ghMergeNotesBackup() for the merge-by-id pattern, or ghRestoreWatchlistBackup()/
+//      ghMergeWatchlistBackup() for a simpler array).
+//   7. detectBackupShape() + applyBackupPayload() — teaches the local "Restore JSON" /
+//      "Merge JSON" buttons (top of Backup & Restore page) to recognize + apply the new
+//      file's shape.
+//   8. exportBackup() — add the new file to the local "Export JSON" download (keep the
+//      staggered setTimeout pattern and the file count in the toast message).
+//   9. UI copy that lists data types in prose — ALL of these go stale independently:
+//      Manual Backup card, Push to GitHub / Pull from GitHub cards, Export/Restore/Merge
+//      JSON card descriptions, the "Backup Files" info blurb, and the bkp/ path list next
+//      to that card's header.
+// Grep for "GH_BKP_NOTES_FILE" or "ghBuildNotesPayload" to see every one of these touched
+// for Notes — that's the full worked example to copy.
+// ═══════════════════════════════════════════════════════════════════════════════════════
 var GH_FILE='tj_data.json';
 var GH_CONFIG_FILE='tj_config.json';       // live config (always overwritten)
 // Settings keys already stored (as named fields) in tj_config.json via ghBuildConfigPayload().
@@ -18315,6 +18442,8 @@ var GH_BKP_ALERTS_FILE='bkp/alerts_backup.json'; // single alerts backup (manual
 var GH_BKP_FX_FILE='bkp/fx_backup.json';   // single FX (USD/CAD conversions) backup — manual backup only, mirrors config backup
 var GH_WATCHLIST_FILE='tj_watchlist.json'; // live watchlist (always overwritten)
 var GH_BKP_WATCHLIST_FILE='bkp/watchlist_backup.json'; // single watchlist backup — manual backup only, mirrors config backup
+var GH_NOTES_FILE='tj_notes.json'; // live sticky-notes/kanban board (always overwritten)
+var GH_BKP_NOTES_FILE='bkp/notes_backup.json'; // single notes backup — manual/auto backup only, mirrors config/FX/watchlist backup
 // ── Watchlist file helpers (mirrors the config helpers — live file always overwritten, bkp/ only touched on Manual Backup) ──
 async function ghBuildWatchlistPayload(){
   return{version:1,exportedAt:new Date().toISOString(),watchlists:await getWatchlists(),categories:await getWlCategories()};
@@ -18586,6 +18715,56 @@ function ghAutoSyncWatchlist(){
     ghPushWatchlistLive();
   }, 'watchlist', 1500);
 }
+// Silently syncs the Notes kanban board to the live tj_notes.json file — mirrors
+// ghPushWatchlistLive()/tj_watchlist.json. The single-file backup at bkp/notes_backup.json
+// is a separate, distinct file only touched by Manual/Automatic Backup (see ghSnapshot()) —
+// same split as config/FX/watchlist, so the bkp/ folder stays purely a backup/restore point
+// and isn't churned on every note edit. Called after every note/column add/edit/delete/move
+// (via the debounced ghAutoSyncNotes() below), and as part of Push.
+async function ghBuildNotesPayload(){
+  return{version:1,exportedAt:new Date().toISOString(),board:await getNotesBoard()};
+}
+async function ghPushNotesLive(){
+  var cfg=ghGetConfig();
+  if(!cfg.user||!cfg.repo||!cfg.token)return;
+  try{
+    var payload=await ghBuildNotesPayload();
+    // Compare new payload vs existing file — skip push if only exportedAt differs
+    // (same no-op guard ghPushWatchlistLive() uses for tj_watchlist.json)
+    var sha=null;
+    try{
+      var existingResp=await fetch('https://api.github.com/repos/'+cfg.user+'/'+cfg.repo+'/contents/'+GH_NOTES_FILE,{
+        headers:{'Authorization':'token '+cfg.token,'Accept':'application/vnd.github.v3+json'}
+      });
+      if(existingResp.ok){
+        var existingFile=await existingResp.json();
+        sha=existingFile.sha||null;
+        var existingText=decodeURIComponent(escape(atob(existingFile.content.replace(/\n/g,''))));
+        var existingData=JSON.parse(existingText);
+        var newCopy=Object.assign({},payload);delete newCopy.exportedAt;
+        var oldCopy=Object.assign({},existingData);delete oldCopy.exportedAt;
+        if(JSON.stringify(newCopy)===JSON.stringify(oldCopy))return; // no real change — skip push
+      }
+    }catch(e){ sha=await ghGetFileSHAByPath(cfg,GH_NOTES_FILE); }
+    var content=utf8ToBase64(JSON.stringify(payload,null,2));
+    var body={message:'TJ notes — '+new Date().toISOString().slice(0,16).replace('T',' '),content:content};
+    if(sha)body.sha=sha;
+    await fetch('https://api.github.com/repos/'+cfg.user+'/'+cfg.repo+'/contents/'+GH_NOTES_FILE,{
+      method:'PUT',
+      headers:{'Authorization':'token '+cfg.token,'Accept':'application/vnd.github.v3+json','Content-Type':'application/json'},
+      body:JSON.stringify(body)
+    });
+  }catch(e){console.warn('Notes sync error:',e.message);}
+}
+// Silently push the live tj_notes.json after any note/column add/edit/delete/move —
+// debounced, same pattern as ghAutoSyncWatchlist().
+function ghAutoSyncNotes(){
+  ghDebounce(function(){
+    var cfg=ghGetConfig();
+    if(!cfg.user||!cfg.repo||!cfg.token)return;
+    ghPushNotesLive();
+  }, 'notes', 1500);
+}
 // ── Alerts file helpers ────────────────────────────────────────
 async function ghPushAlertsFile(cfg){
   try{
@@ -18804,6 +18983,17 @@ async function ghAutoPullOnSetup(){
         if(!Array.isArray(wlData)&&Array.isArray(wlData.categories))await saveWlCategories(wlData.categories);
       }
     }catch(we){console.warn('Watchlist pull error:',we.message);}
+    // Pull Notes board from the live tj_notes.json — same reasoning as the watchlist pull
+    // above: not part of tj_data.json/tj_config.json, so it needs its own step here too,
+    // otherwise this device never sees note edits made on another device.
+    try{
+      var notesStr=await ghFetchFileContent(cfg,GH_NOTES_FILE);
+      if(notesStr){
+        var notesData=JSON.parse(notesStr);
+        if(notesData&&notesData.board)await saveNotesBoard(notesData.board);
+        if(_currentPage==='notes'&&typeof notesRender==='function')notesRender();
+      }
+    }catch(ne){console.warn('Notes pull error:',ne.message);}
     var now=new Date().toISOString();
     localStorage.setItem('tj-gh-last-sync',now);
     ghRefreshStatus();
@@ -18949,6 +19139,8 @@ async function ghBuildPayload(){
 // Get existing file SHA (needed for updates)
 async function ghGetFileSHA(cfg){return ghGetFileSHAByPath(cfg,GH_FILE);}
 // "Push" button in Backup & Restore — same as auto-sync but always confirms + always toasts
+// NEW DATA TYPE? See the checklist comment above GH_FILE — this (and ghPull()/
+// ghAutoPullOnSetup() below) is spot #3; add a push/pull call for the new live file here.
 async function ghPushManual(){
   if(!confirm('Push to GitHub? This will overwrite the remote backup with your current local data.'))return;
   await ghPush(true);
@@ -18960,6 +19152,7 @@ async function ghPushManual(){
     await ghPushFxLive();
     await ghPushWatchlistLive();
     await ghPushAlertsFile(cfg);
+    await ghPushNotesLive();
   }
 }
 // Push the full tj_data.json to GitHub (create or update via SHA), then also
@@ -19087,6 +19280,16 @@ async function ghPull(){
         if(!Array.isArray(wlData)&&Array.isArray(wlData.categories))await saveWlCategories(wlData.categories);
       }
     }catch(we){console.warn('Watchlist pull error:',we.message);}
+    // Pull Notes board from the live tj_notes.json — also not stored in tj_data.json's
+    // settings dump, so Pull needs this separate step to restore it, mirroring Watchlist.
+    try{
+      var notesStr=await ghFetchFileContent(cfg,GH_NOTES_FILE);
+      if(notesStr){
+        var notesData=JSON.parse(notesStr);
+        if(notesData&&notesData.board)await saveNotesBoard(notesData.board);
+        if(_currentPage==='notes'&&typeof notesRender==='function')notesRender();
+      }
+    }catch(ne){console.warn('Notes pull error:',ne.message);}
     var now=new Date().toISOString();
     localStorage.setItem('tj-gh-last-sync',now);
     ghRefreshStatus();
@@ -19102,6 +19305,8 @@ async function ghAutoSync(){
   await ghPush(false); // no toast on auto-sync to avoid noise
 }
 // Push a timestamped snapshot to bkp/ subfolders.
+// NEW DATA TYPE? See the checklist comment above GH_FILE ("ADDING A NEW BACKED-UP DATA
+// TYPE") — this is spot #4; add its bkp/<x>_backup.json block in the manual/auto branch below.
 // type: 'session' | 'manual' | 'auto' | 'clear-all'   name: optional label
 // - session / clear-all: only trades+sessions go to bkp/trades/
 // - manual / auto: trades+sessions to bkp/trades/ AND config/FX/alerts/watchlist backups —
@@ -19198,7 +19403,24 @@ async function ghSnapshot(type,name){
         if(!wlResp.ok){var wlErr=await wlResp.json().catch(function(){return{};});throw new Error('HTTP '+wlResp.status+' '+(wlErr.message||''));}
         wlBkpMsg='watchlist backup updated';
       }catch(we){console.warn('Watchlist backup error:',we.message);}
-      var alertsBkpMsg=(_paAlerts&&_paAlerts.length>0)?'trades snapshot + config backup + alerts backup + '+fxBkpMsg+' + '+wlBkpMsg:'trades snapshot + config backup + '+fxBkpMsg+' + '+wlBkpMsg+' (no alerts to back up)';
+      // Also overwrite the single notes backup file (bkp/notes_backup.json) — same
+      // unconditional single-file pattern as config/FX/watchlist backup.
+      var notesBkpMsg='no notes backup';
+      try{
+        var notesPayload=await ghBuildNotesPayload();
+        var notesContent=utf8ToBase64(JSON.stringify(notesPayload,null,2));
+        var notesSha=await ghGetFileSHAByPath(cfg,GH_BKP_NOTES_FILE);
+        var notesBody={message:'TJ notes backup — '+ts,content:notesContent};
+        if(notesSha)notesBody.sha=notesSha;
+        var notesResp=await fetch('https://api.github.com/repos/'+cfg.user+'/'+cfg.repo+'/contents/'+GH_BKP_NOTES_FILE,{
+          method:'PUT',
+          headers:{'Authorization':'token '+cfg.token,'Accept':'application/vnd.github.v3+json','Content-Type':'application/json'},
+          body:JSON.stringify(notesBody)
+        });
+        if(!notesResp.ok){var notesErr=await notesResp.json().catch(function(){return{};});throw new Error('HTTP '+notesResp.status+' '+(notesErr.message||''));}
+        notesBkpMsg='notes backup updated';
+      }catch(nex){console.warn('Notes backup error:',nex.message);}
+      var alertsBkpMsg=(_paAlerts&&_paAlerts.length>0)?'trades snapshot + config backup + alerts backup + '+fxBkpMsg+' + '+wlBkpMsg+' + '+notesBkpMsg:'trades snapshot + config backup + '+fxBkpMsg+' + '+wlBkpMsg+' + '+notesBkpMsg+' (no alerts to back up)';
       if(type==='auto')toast('Automatic backup saved — '+alertsBkpMsg,'ok');
       else toast('Manual backup saved — '+alertsBkpMsg,'ok');
     } else {
@@ -19212,6 +19434,8 @@ async function ghSnapshot(type,name){
   }
 }
 // List snapshot files in the bkp/ folder — tabbed: Trade Backups | Config Backup
+// NEW DATA TYPE? See the checklist comment above GH_FILE — this is spot #5; add a tab
+// button + pane here (and toggle it in ghSnapTabSwitch() below), mirroring the Notes pane.
 async function ghListSnapshots(){
   var cfg=ghGetConfig();
   var el=document.getElementById('gh-snapshot-list');
@@ -19258,18 +19482,22 @@ async function ghListSnapshots(){
     var fxFile=allFiles.find(function(f){return f.path==='bkp/fx_backup.json';});
     // ── Watchlist backup: single bkp/watchlist_backup.json ──
     var wlFile=allFiles.find(function(f){return f.path==='bkp/watchlist_backup.json';});
+    // ── Notes backup: single bkp/notes_backup.json ──
+    var notesFile=allFiles.find(function(f){return f.path==='bkp/notes_backup.json';});
     // Build tabbed UI
     el.innerHTML=
-      '<div style="display:flex;gap:2px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:3px;margin-bottom:14px" id="snap-tab-bar">'
+      '<div style="display:flex;gap:2px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:3px;margin-bottom:14px;flex-wrap:wrap" id="snap-tab-bar">'
       +'<button id="snap-tab-trades" class="form-tab active" onclick="ghSnapTabSwitch(\'trades\')" style="flex:1">📈 Trade Backups</button>'
       +'<button id="snap-tab-config" class="form-tab" onclick="ghSnapTabSwitch(\'config\')" style="flex:1">⚙️ Config Backup</button>'
       +'<button id="snap-tab-fx" class="form-tab" onclick="ghSnapTabSwitch(\'fx\')" style="flex:1">💱 FX Backup</button>'
       +'<button id="snap-tab-watchlist" class="form-tab" onclick="ghSnapTabSwitch(\'watchlist\')" style="flex:1">👁 Watchlist Backup</button>'
+      +'<button id="snap-tab-notes" class="form-tab" onclick="ghSnapTabSwitch(\'notes\')" style="flex:1">🗒️ Notes Backup</button>'
       +'</div>'
       +'<div id="snap-pane-trades"></div>'
       +'<div id="snap-pane-config" style="display:none"></div>'
       +'<div id="snap-pane-fx" style="display:none"></div>'
-      +'<div id="snap-pane-watchlist" style="display:none"></div>';
+      +'<div id="snap-pane-watchlist" style="display:none"></div>'
+      +'<div id="snap-pane-notes" style="display:none"></div>';
     // ── Trade pane ──
     var tradePane=document.getElementById('snap-pane-trades');
     if(!tradeFiles.length){
@@ -19420,6 +19648,52 @@ async function ghListSnapshots(){
         +'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></svg>Merge watchlists'
         +'</button></div></div>';
     }
+    // ── Notes pane ──
+    var notesPane=document.getElementById('snap-pane-notes');
+    if(!notesFile){
+      notesPane.innerHTML='<div style="font-size:11px;color:var(--text3);padding:10px 0">No notes backup yet. Use <strong>Manual Backup</strong> above to create one. Notes are backed up as a single file — it is overwritten each time.</div>';
+    } else {
+      var notesCommitDate=null;
+      try{
+        var notesCommitResp=await fetch('https://api.github.com/repos/'+cfg.user+'/'+cfg.repo+'/commits?path='+encodeURIComponent(GH_BKP_NOTES_FILE)+'&per_page=1&_='+Date.now(),{
+          headers:{'Authorization':'token '+cfg.token,'Accept':'application/vnd.github.v3+json'}
+        });
+        if(notesCommitResp.ok){
+          var notesCommits=await notesCommitResp.json();
+          if(notesCommits&&notesCommits[0]&&notesCommits[0].commit){
+            notesCommitDate=notesCommits[0].commit.committer&&notesCommits[0].commit.committer.date||notesCommits[0].commit.author&&notesCommits[0].commit.author.date||null;
+          }
+        }
+      }catch(nce){console.warn('Notes backup commit date error:',nce.message);}
+      var notesTimeLine=notesCommitDate?'<div class="js-hint-mt" style="margin-top:4px">Backed up '+escHtml(new Date(notesCommitDate).toLocaleString())+'</div>':'';
+      var notesColCount=null,notesNoteCount=null;
+      try{
+        var notesRaw=await ghFetchFileContent(cfg,GH_BKP_NOTES_FILE);
+        if(notesRaw){
+          var notesData=JSON.parse(notesRaw);
+          var nb=notesData&&notesData.board?notesData.board:notesData;
+          notesColCount=(nb&&Array.isArray(nb.columns))?nb.columns.length:null;
+          notesNoteCount=(nb&&Array.isArray(nb.notes))?nb.notes.length:null;
+        }
+      }catch(nre){}
+      notesPane.innerHTML='<div style="font-size:11px;color:var(--text3);margin-bottom:12px;line-height:1.7">'
+        +'Notes backup stores your <strong style="color:var(--text2)">sticky-note board</strong> (columns and notes) from the Notes page in a single file that is overwritten each time you run a Manual Backup. '
+        +'<code style="background:var(--bg3);padding:1px 5px;border-radius:3px">bkp/notes_backup.json</code>'
+        +'</div>'
+        +'<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius)">'
+        +'<div>'
+        +'<div style="font-size:12px;font-weight:600;color:var(--text)">notes_backup.json</div>'
+        +'<div class="js-hint-mt">'+(notesColCount!==null?notesColCount+' column(s), '+notesNoteCount+' note(s)':'Notes board')+'</div>'
+        +notesTimeLine
+        +'</div>'
+        +'<div style="display:flex;gap:5px;flex-shrink:0">'
+        +'<button class="btn btn-ghost btn-sm" style="color:var(--purple)" onclick="ghRestoreNotesBackup()">'
+        +'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>Restore notes'
+        +'</button>'
+        +'<button class="btn btn-ghost btn-sm" style="color:var(--green)" onclick="ghMergeNotesBackup()">'
+        +'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></svg>Merge notes'
+        +'</button></div></div>';
+    }
   }catch(e){el.innerHTML='<div style="font-size:11px;color:var(--red)">Error: '+escHtml(e.message)+'</div>';}
 }
 function ghSnapTabSwitch(tab){
@@ -19427,10 +19701,12 @@ function ghSnapTabSwitch(tab){
   document.getElementById('snap-tab-config').classList.toggle('active',tab==='config');
   document.getElementById('snap-tab-fx').classList.toggle('active',tab==='fx');
   document.getElementById('snap-tab-watchlist').classList.toggle('active',tab==='watchlist');
+  document.getElementById('snap-tab-notes').classList.toggle('active',tab==='notes');
   document.getElementById('snap-pane-trades').style.display=tab==='trades'?'':'none';
   document.getElementById('snap-pane-config').style.display=tab==='config'?'':'none';
   document.getElementById('snap-pane-fx').style.display=tab==='fx'?'':'none';
   document.getElementById('snap-pane-watchlist').style.display=tab==='watchlist'?'':'none';
+  document.getElementById('snap-pane-notes').style.display=tab==='notes'?'':'none';
 }
 // Restore the single config backup from bkp/config_backup.json
 // ── Generic "type WORD to confirm" modal (see #typeconfirm-modal in the HTML) ──
@@ -19697,6 +19973,84 @@ async function ghMergeWatchlistBackup(){
     }
   });
 }
+// Restore the single notes backup from bkp/notes_backup.json
+async function ghRestoreNotesBackup(){
+  var cfg=ghGetConfig();
+  if(!cfg.user||!cfg.repo||!cfg.token){toast('GitHub not configured','err');return;}
+  var remoteBoard;
+  try{
+    toast('Fetching notes backup…','ok');
+    var rawContent=await ghFetchFileContent(cfg,GH_BKP_NOTES_FILE);
+    if(!rawContent){toast('Notes backup not found. Run a Manual Backup first.','err');return;}
+    var data=JSON.parse(rawContent);
+    remoteBoard=(data&&data.board)?data.board:{columns:[],notes:[]};
+    if(!Array.isArray(remoteBoard.columns))remoteBoard.columns=[];
+    if(!Array.isArray(remoteBoard.notes))remoteBoard.notes=[];
+  }catch(e){toast('Restore error: '+e.message,'err');return;}
+  var current=await getNotesBoard();
+  openTypeConfirmModal({
+    title:'Restore notes backup?',
+    message:'This will replace your current notes board ('+current.columns.length+' column(s), '+current.notes.length+' note(s)) with '+remoteBoard.columns.length+' column(s) and '+remoteBoard.notes.length+' note(s) from the backup.\n\nIf this backup file turns out to be invalid or corrupt, the restore is cancelled and nothing is touched.',
+    expectedWord:'RESTORE',
+    confirmLabel:'Restore',
+    onCancel:function(){toast('Restore cancelled','ok');},
+    onConfirm:async function(){
+      try{
+        await saveNotesBoard(remoteBoard);
+        if(_currentPage==='notes'&&typeof notesRender==='function')await notesRender();
+        toast('Notes restored ('+remoteBoard.columns.length+' column(s), '+remoteBoard.notes.length+' note(s))','ok');
+        ghAutoSyncNotes();
+      }catch(e){toast('Restore error: '+e.message,'err');}
+    }
+  });
+}
+// Merge the single notes backup from bkp/notes_backup.json into current notes board —
+// adds columns from the backup whose id isn't already present locally, and notes whose id
+// isn't already present (kept in their backup column if that column exists locally, otherwise
+// dropped into the first local column). Unlike Restore, nothing existing is replaced or deleted.
+async function ghMergeNotesBackup(){
+  var cfg=ghGetConfig();
+  if(!cfg.user||!cfg.repo||!cfg.token){toast('GitHub not configured','err');return;}
+  var remoteBoard;
+  try{
+    toast('Fetching notes backup…','ok');
+    var rawContent=await ghFetchFileContent(cfg,GH_BKP_NOTES_FILE);
+    if(!rawContent){toast('Notes backup not found. Run a Manual Backup first.','err');return;}
+    var data=JSON.parse(rawContent);
+    remoteBoard=(data&&data.board)?data.board:{columns:[],notes:[]};
+    if(!Array.isArray(remoteBoard.columns))remoteBoard.columns=[];
+    if(!Array.isArray(remoteBoard.notes))remoteBoard.notes=[];
+  }catch(e){toast('Merge error: '+e.message,'err');return;}
+  openTypeConfirmModal({
+    title:'Merge notes backup?',
+    message:'This will add columns and notes from the backup ('+remoteBoard.notes.length+' note(s) total) that you don\'t already have (matched by id). Existing notes and columns are not deleted or overwritten.\n\nIf this backup file turns out to be invalid or corrupt, the merge is cancelled and nothing is touched.',
+    expectedWord:'MERGE',
+    confirmLabel:'Merge',
+    onCancel:function(){toast('Merge cancelled','ok');},
+    onConfirm:async function(){
+      try{
+        var data=await getNotesBoard();
+        var existingColIds=new Set(data.columns.map(function(c){return c.id;}));
+        var addedCols=0;
+        remoteBoard.columns.forEach(function(c){if(!existingColIds.has(c.id)){data.columns.push(c);existingColIds.add(c.id);addedCols++;}});
+        var existingNoteIds=new Set(data.notes.map(function(n){return n.id;}));
+        var addedNotes=0;
+        remoteBoard.notes.forEach(function(n){
+          if(existingNoteIds.has(n.id))return;
+          // If the note's column no longer exists locally, drop it into the first column
+          // rather than losing it or silently creating an orphaned colId.
+          if(!existingColIds.has(n.colId))n=Object.assign({},n,{colId:data.columns[0]?data.columns[0].id:n.colId});
+          data.notes.push(n);existingNoteIds.add(n.id);addedNotes++;
+        });
+        await saveNotesBoard(data);
+        if(_currentPage==='notes'&&typeof notesRender==='function')await notesRender();
+        var total=remoteBoard.notes.length;
+        toast('Notes merged: '+addedCols+' column(s), '+addedNotes+' note(s) added'+((total-addedNotes)>0?', '+(total-addedNotes)+' dupe(s) skipped':''),'ok');
+        ghAutoSyncNotes();
+      }catch(e){toast('Merge error: '+e.message,'err');}
+    }
+  });
+}
 function ghSnapDeselectAll(){
   document.querySelectorAll('.snap-chk').forEach(function(c){c.checked=false;});
   ghSnapshotSelectionChanged();
@@ -19746,7 +20100,7 @@ async function importJsonFiles(input,mode){
     var file=files[i];
     try{
       var data=JSON.parse(await file.text());
-      if(!detectBackupShape(data)){badFiles.push(file.name+': not a recognized trade data / config / FX / watchlist backup file');continue;}
+      if(!detectBackupShape(data)){badFiles.push(file.name+': not a recognized trade data / config / FX / watchlist / notes backup file');continue;}
       parsedFiles.push(data);
     }catch(e){badFiles.push(file.name+': invalid JSON ('+e.message+')');}
   }
@@ -19760,10 +20114,10 @@ async function importJsonFiles(input,mode){
   var expectedWord=isRestore?'RESTORE':'MERGE';
   var confirmMsg=isRestore
     ?('File'+(files.length>1?'s':'')+': '+fileList+'\n\n'
-      +'This will DELETE your existing trades, images and sessions, then load only what is in the selected file(s) — a true restore, just like GitHub\'s "Restore latest". Config/FX/Watchlist files (if included) fully overwrite the matching settings. This cannot be undone.\n\n'
+      +'This will DELETE your existing trades, images and sessions, then load only what is in the selected file(s) — a true restore, just like GitHub\'s "Restore latest". Config/FX/Watchlist/Notes files (if included) fully overwrite the matching settings. This cannot be undone.\n\n'
       +'All-or-nothing: if any selected file were invalid or corrupt, the entire restore would be cancelled and nothing touched — but every file here has already passed that check.')
     :('File'+(files.length>1?'s':'')+': '+fileList+'\n\n'
-      +'Trades, images, sessions, config, FX conversions and watchlists (whichever are present) will be merged into your existing data. Duplicate trades are skipped. Your existing data is NOT deleted.\n\n'
+      +'Trades, images, sessions, config, FX conversions, watchlists and your notes board (whichever are present) will be merged into your existing data. Duplicate trades are skipped. Your existing data is NOT deleted.\n\n'
       +'All-or-nothing: if any selected file were invalid or corrupt, the entire merge would be cancelled and nothing touched — but every file here has already passed that check.');
   openTypeConfirmModal({
     title:(isRestore?'Restore':'Merge')+' from '+parsedFiles.length+' JSON file'+(parsedFiles.length>1?'s':'')+'?',
@@ -19779,7 +20133,7 @@ async function importJsonFiles(input,mode){
         // same batch just wrote.
         var hasTradeData=parsedFiles.some(function(d){return detectBackupShape(d)==='trades';});
         if(isRestore&&hasTradeData){await dbClear('trades');await dbClear('images');await dbClear('sessions');}
-        var totals={trades:0,skippedTrades:0,images:0,configRestored:false,fx:null,watchlists:null};
+        var totals={trades:0,skippedTrades:0,images:0,configRestored:false,fx:null,watchlists:null,notes:null};
         var allImportedTrades=[];
         for(var j=0;j<parsedFiles.length;j++){
           var pf=parsedFiles[j];
@@ -19788,6 +20142,7 @@ async function importJsonFiles(input,mode){
           if(r.configRestored)totals.configRestored=true;
           if(r.fx)totals.fx=r.fx;
           if(r.watchlists)totals.watchlists=r.watchlists;
+          if(r.notes)totals.notes=r.notes;
           if(detectBackupShape(pf)==='trades')allImportedTrades=allImportedTrades.concat(Array.isArray(pf)?pf:(pf.trades||[]));
         }
         // Restore mode only: same as ghRestoreLatestBackup, top up strategies/asset types/pairs
@@ -19795,6 +20150,7 @@ async function importJsonFiles(input,mode){
         // don't carry a `config` block of their own).
         if(isRestore&&allImportedTrades.length)await syncConfigFromTrades(allImportedTrades);
         if(totals.fx&&_currentPage==='fx-tracker'&&typeof fxRender==='function')fxRender();
+        if(totals.notes&&_currentPage==='notes'&&typeof notesRender==='function')await notesRender();
         // Refresh anything config-related that refreshUI() below doesn't already cover
         if(totals.configRestored){
           if(typeof renderChecklistEditor==='function')renderChecklistEditor();
@@ -19803,17 +20159,19 @@ async function importJsonFiles(input,mode){
           if(typeof aiUpdateProviderStatus==='function')aiUpdateProviderStatus();
         }
         var msg=(isRestore?'Restored ':'Merged ')+totals.trades+' trades, '+totals.images+' images'+(totals.skippedTrades?' ('+totals.skippedTrades+' dupes skipped)':'')
-          +(totals.configRestored?', config restored':'')+(totals.fx?', '+totals.fx.length+' FX conversions':'')+(totals.watchlists?', '+totals.watchlists.length+' watchlists':'');
+          +(totals.configRestored?', config restored':'')+(totals.fx?', '+totals.fx.length+' FX conversions':'')+(totals.watchlists?', '+totals.watchlists.length+' watchlists':'')+(totals.notes?', notes board ('+totals.notes.notes.length+' note(s))':'');
         toast(msg,'ok');
         await refreshUI();
         // Sync the actual GitHub data files (tj_data.json + tj_config.json) — NOT the bkp/
         // backup folder — same as any other local change. No-ops silently if GitHub isn't configured.
         ghAutoSync();
-        // FX/Watchlists have no separate "live" file on GitHub (only their single bkp/ file),
-        // so that file is the actual data for them — keep it in sync too, without touching
-        // any other bkp/ file.
+        // FX/Watchlists/Notes each have their own file on GitHub outside tj_data.json/
+        // tj_config.json (FX's is its single bkp/fx_backup.json; Watchlist/Notes each have
+        // an always-live file, tj_watchlist.json / tj_notes.json) — keep it in sync too,
+        // without touching any other bkp/ file.
         if(totals.fx)ghPushFxLive();
         if(totals.watchlists)ghPushWatchlistLive();
+        if(totals.notes)ghPushNotesLive();
       }catch(e){toast((isRestore?'Restore':'Merge')+' error: '+e.message,'err');}
       input.value='';
     }
@@ -26789,6 +27147,284 @@ var _wlNavOriginal = nav;
 nav = function(id, btn){
   _wlNavOriginal(id, btn);
   if(id === 'watchlist') wlInit();
+};
+// ══ Notes (sticky-note Kanban board) ═════════════════════════════════
+// Stored under settings key 'notes-board': {columns:[{id,title}], notes:[{id,colId,text,tag,color,createdAt,updatedAt}]}
+// A note's position among other notes sharing the same colId (i.e. its index within the
+// `notes` array, filtered to that column) is its row order within the column — used for
+// drag-reorder, same "array order = display order" idea as watchlist items.
+// Purely personal scratch space — todos, reminders, things learned about an asset — kept
+// separate from trades/watchlist/alerts. Backed up as its own file, mirroring the FX
+// tracker's single-file pattern: GitHub live copy at tj_notes.json via
+// ghPushNotesLive()/ghAutoSyncNotes() (see near "── Alerts file helpers ──" above), pulled
+// by ghAutoPullOnSetup()/ghPull(). Also gets a single-file snapshot at bkp/notes_backup.json
+// on Manual/Automatic Backup (ghSnapshot()), restorable/mergeable via ghRestoreNotesBackup()/
+// ghMergeNotesBackup() — same split as config/FX/watchlist.
+var NOTES_DEFAULT_COLUMNS=[
+  {id:'todo',title:'To Do'},
+  {id:'today',title:'Today'},
+  {id:'ideas',title:'Ideas & Learnings'}
+];
+var NOTE_COLORS=['yellow','pink','blue','green','purple','orange'];
+async function getNotesBoard(){
+  var data=await getSetting('notes-board',null);
+  if(!data||typeof data!=='object'||!Array.isArray(data.columns)||!data.columns.length){
+    data={columns:JSON.parse(JSON.stringify(NOTES_DEFAULT_COLUMNS)),notes:(data&&Array.isArray(data.notes))?data.notes:[]};
+  }
+  if(!Array.isArray(data.notes))data.notes=[];
+  return data;
+}
+async function saveNotesBoard(data){ await setSetting('notes-board', data); }
+var _noteEditingId=null;   // id of note being edited in the modal; null = add mode
+var _noteEditColor='yellow'; // color currently selected in the modal's swatch row
+var _noteDragId=null;      // id of the note currently being dragged (dataTransfer fallback for browsers that don't expose it on dragover)
+// Called via the nav() hook below when navigating to the Notes page
+async function notesInit(){
+  await notesPopulateTagSuggestions();
+  await notesRender();
+}
+// Builds the tag/asset datalist from configured asset types & pairs, so the tag field on a
+// note can autocomplete against the same assets used elsewhere in the journal — purely a
+// convenience suggestion list, the tag itself stays freeform text.
+async function notesPopulateTagSuggestions(){
+  var dl=document.getElementById('note-tag-suggestions');
+  if(!dl)return;
+  try{
+    var assets=await getAssets();
+    var opts=[];
+    assets.forEach(function(a){
+      if(a.name)opts.push(a.name);
+      (a.pairs||[]).forEach(function(p){opts.push(p);});
+    });
+    dl.innerHTML=opts.map(function(o){return '<option value="'+escHtml(o)+'">';}).join('');
+  }catch(e){}
+}
+function notesTimeAgo(ts){
+  if(!ts)return'';
+  var mins=Math.max(0,Math.round((Date.now()-ts)/60000));
+  if(mins<1)return'just now';
+  if(mins<60)return mins+'m ago';
+  var hrs=Math.round(mins/60);
+  if(hrs<24)return hrs+'h ago';
+  var days=Math.round(hrs/24);
+  if(days<30)return days+'d ago';
+  return new Date(ts).toLocaleDateString();
+}
+async function notesRender(){
+  var container=document.getElementById('notes-board');
+  if(!container)return;
+  var data=await getNotesBoard();
+  var cols=data.columns,notes=data.notes;
+  var html='';
+  cols.forEach(function(col){
+    var colNotes=notes.filter(function(n){return n.colId===col.id;});
+    html+='<div class="note-col">'
+      +'<div class="note-col-header">'
+        +'<span class="note-col-title" title="Click to rename" onclick="notesRenameColumn(\''+col.id+'\')">'+escHtml(col.title)+'</span>'
+        +'<span class="note-col-count">'+colNotes.length+'</span>'
+        +'<button class="btn btn-ghost btn-icon btn-sm" title="Rename column" onclick="notesRenameColumn(\''+col.id+'\')">'
+          +'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>'
+        +'</button>'
+        +'<button class="btn btn-ghost btn-icon btn-sm" title="Delete column" onclick="notesDeleteColumn(\''+col.id+'\')">'
+          +'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>'
+        +'</button>'
+      +'</div>'
+      +'<div class="note-col-body" data-col="'+col.id+'" ondragover="notesDragOver(event)" ondrop="notesHandleDrop(event,\''+col.id+'\')">';
+    if(!colNotes.length){
+      html+='<div class="note-col-empty">Nothing here yet</div>';
+    } else {
+      colNotes.forEach(function(n){ html+=notesCardHtml(n); });
+    }
+    html+='</div>'
+      +'<button class="note-add-btn" onclick="notesOpenAdd(\''+col.id+'\')">'
+        +'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add note'
+      +'</button>'
+    +'</div>';
+  });
+  html+='<button class="note-col-add" onclick="notesAddColumn()">'
+    +'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>'
+    +'<span>Add column</span>'
+  +'</button>';
+  container.innerHTML=html;
+}
+function notesCardHtml(n){
+  var color=NOTE_COLORS.indexOf(n.color)!==-1?n.color:'yellow';
+  var textHtml=escHtml(n.text||'').replace(/\n/g,'<br>');
+  var tagHtml=n.tag?'<div class="note-tag">'+escHtml(n.tag)+'</div>':'';
+  return '<div class="note-card note-'+color+'" draggable="true" data-id="'+n.id+'" '
+    +'ondragstart="notesDragStart(event,\''+n.id+'\')" ondragend="notesDragEnd(event)" onclick="notesOpenEdit(\''+n.id+'\')">'
+    +'<button class="note-del-btn" title="Delete note" onclick="event.stopPropagation();notesQuickDelete(\''+n.id+'\')">'
+      +'<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'
+    +'</button>'
+    +tagHtml
+    +'<div class="note-text">'+textHtml+'</div>'
+    +'<div class="note-meta">'+notesTimeAgo(n.updatedAt||n.createdAt)+'</div>'
+  +'</div>';
+}
+// ── Drag & drop reordering (within/between columns) — mirrors the native HTML5 draggable
+// pattern used elsewhere in the app (e.g. checklist editor row reordering) ──
+function notesDragStart(e,id){
+  _noteDragId=id;
+  e.dataTransfer.effectAllowed='move';
+  e.dataTransfer.setData('text/plain',id);
+  var card=e.target.closest('.note-card');
+  if(card)card.style.opacity='.4';
+}
+function notesDragEnd(e){
+  _noteDragId=null;
+  document.querySelectorAll('.note-card').forEach(function(c){ c.style.opacity=''; });
+}
+function notesDragOver(e){ e.preventDefault(); e.dataTransfer.dropEffect='move'; }
+async function notesHandleDrop(e,colId){
+  e.preventDefault();
+  var draggedId=e.dataTransfer.getData('text/plain')||_noteDragId;
+  if(!draggedId)return;
+  var data=await getNotesBoard();
+  var idx=data.notes.findIndex(function(n){return n.id===draggedId;});
+  if(idx===-1)return;
+  var note=data.notes.splice(idx,1)[0];
+  note.colId=colId;
+  note.updatedAt=Date.now();
+  // Find the nearest sibling card in the target column to insert before, based on pointer Y
+  var beforeId=null;
+  var cards=Array.from(document.querySelectorAll('.note-col-body[data-col="'+colId+'"] .note-card'));
+  for(var c of cards){
+    if(c.dataset.id===draggedId)continue;
+    var r=c.getBoundingClientRect();
+    if(e.clientY<r.top+r.height/2){ beforeId=c.dataset.id; break; }
+  }
+  if(beforeId){
+    var insertIdx=data.notes.findIndex(function(n){return n.id===beforeId;});
+    data.notes.splice(insertIdx<0?data.notes.length:insertIdx,0,note);
+  } else {
+    data.notes.push(note);
+  }
+  await saveNotesBoard(data);
+  await notesRender();
+  ghAutoSyncNotes();
+}
+async function notesQuickDelete(id){
+  if(!confirm('Delete this note?'))return;
+  var data=await getNotesBoard();
+  data.notes=data.notes.filter(function(n){return n.id!==id;});
+  await saveNotesBoard(data);
+  await notesRender();
+  toast('Note deleted','ok');
+  ghAutoSyncNotes();
+}
+async function notesAddColumn(){
+  var title=(prompt('New column name (e.g. Watching, Backlog):')||'').trim();
+  if(!title)return;
+  var data=await getNotesBoard();
+  var id=Date.now().toString(36)+Math.random().toString(36).slice(2);
+  data.columns.push({id:id,title:title});
+  await saveNotesBoard(data);
+  await notesRender();
+  toast('Column added','ok');
+  ghAutoSyncNotes();
+}
+async function notesRenameColumn(colId){
+  var data=await getNotesBoard();
+  var col=data.columns.find(function(c){return c.id===colId;});
+  if(!col)return;
+  var title=(prompt('Rename column:',col.title)||'').trim();
+  if(!title||title===col.title)return;
+  col.title=title;
+  await saveNotesBoard(data);
+  await notesRender();
+  ghAutoSyncNotes();
+}
+async function notesDeleteColumn(colId){
+  var data=await getNotesBoard();
+  if(data.columns.length<=1){ toast('You need at least one column','err'); return; }
+  var col=data.columns.find(function(c){return c.id===colId;});
+  if(!col)return;
+  var count=data.notes.filter(function(n){return n.colId===colId;}).length;
+  var msg='Delete column "'+col.title+'"?'+(count?' Its '+count+' note'+(count===1?'':'s')+' will be deleted too.':'');
+  if(!confirm(msg))return;
+  data.columns=data.columns.filter(function(c){return c.id!==colId;});
+  data.notes=data.notes.filter(function(n){return n.colId!==colId;});
+  await saveNotesBoard(data);
+  await notesRender();
+  toast('Column deleted','ok');
+  ghAutoSyncNotes();
+}
+// ── Add/Edit modal ──
+async function notesOpenAdd(colId){
+  _noteEditingId=null;
+  _noteEditColor='yellow';
+  await notesPopulateColSelect(colId);
+  document.getElementById('note-modal-title').textContent='New note';
+  document.getElementById('note-text-inp').value='';
+  document.getElementById('note-tag-inp').value='';
+  document.getElementById('note-delete-btn').style.display='none';
+  notesRenderColorRow();
+  document.getElementById('note-modal').classList.add('open');
+  setTimeout(function(){ var t=document.getElementById('note-text-inp'); if(t)t.focus(); },50);
+}
+async function notesOpenEdit(id){
+  var data=await getNotesBoard();
+  var n=data.notes.find(function(x){return x.id===id;});
+  if(!n)return;
+  _noteEditingId=id;
+  _noteEditColor=NOTE_COLORS.indexOf(n.color)!==-1?n.color:'yellow';
+  await notesPopulateColSelect(n.colId);
+  document.getElementById('note-modal-title').textContent='Edit note';
+  document.getElementById('note-text-inp').value=n.text||'';
+  document.getElementById('note-tag-inp').value=n.tag||'';
+  document.getElementById('note-delete-btn').style.display='';
+  notesRenderColorRow();
+  document.getElementById('note-modal').classList.add('open');
+}
+async function notesPopulateColSelect(selectedId){
+  var data=await getNotesBoard();
+  var sel=document.getElementById('note-col-inp');
+  if(!sel)return;
+  sel.innerHTML=data.columns.map(function(c){return '<option value="'+c.id+'"'+(c.id===selectedId?' selected':'')+'>'+escHtml(c.title)+'</option>';}).join('');
+}
+function notesRenderColorRow(){
+  var row=document.getElementById('note-color-row');
+  if(!row)return;
+  row.innerHTML=NOTE_COLORS.map(function(c){
+    return '<button type="button" class="note-swatch note-'+c+(c===_noteEditColor?' active':'')+'" title="'+c+'" onclick="notesSetColor(\''+c+'\')"></button>';
+  }).join('');
+}
+function notesSetColor(c){ _noteEditColor=c; notesRenderColorRow(); }
+function notesCloseModal(){ document.getElementById('note-modal').classList.remove('open'); }
+async function notesSaveModal(){
+  var text=(document.getElementById('note-text-inp').value||'').trim();
+  if(!text){ toast('Write something first','err'); return; }
+  var tag=(document.getElementById('note-tag-inp').value||'').trim();
+  var colId=document.getElementById('note-col-inp').value;
+  var data=await getNotesBoard();
+  if(_noteEditingId){
+    var n=data.notes.find(function(x){return x.id===_noteEditingId;});
+    if(n){ n.text=text; n.tag=tag; n.colId=colId; n.color=_noteEditColor; n.updatedAt=Date.now(); }
+  } else {
+    data.notes.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2),colId:colId,text:text,tag:tag,color:_noteEditColor,createdAt:Date.now(),updatedAt:Date.now()});
+  }
+  await saveNotesBoard(data);
+  notesCloseModal();
+  await notesRender();
+  toast(_noteEditingId?'Note updated':'Note added','ok');
+  ghAutoSyncNotes();
+}
+async function notesDeleteModal(){
+  if(!_noteEditingId)return;
+  if(!confirm('Delete this note?'))return;
+  var data=await getNotesBoard();
+  data.notes=data.notes.filter(function(n){return n.id!==_noteEditingId;});
+  await saveNotesBoard(data);
+  notesCloseModal();
+  await notesRender();
+  toast('Note deleted','ok');
+  ghAutoSyncNotes();
+}
+// Hook into nav() — init when navigating to Notes (same pattern used for watchlist)
+var _notesNavOriginal = nav;
+nav = function(id, btn){
+  _notesNavOriginal(id, btn);
+  if(id === 'notes') notesInit();
 };
 // ── Scroll-to-top button ──────────────────────────────────────────
 // .main scrolls internally on desktop (overflow-y:auto) but on narrow/mobile
