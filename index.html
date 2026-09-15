@@ -3746,7 +3746,8 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
             When configured, screenshots are uploaded to <strong style="color:var(--text2)">Cloudinary</strong> (free tier: 25 GB) instead of being stored as base64. Your <code style="background:var(--bg3);padding:1px 5px;border-radius:3px">tj_data.json</code> stays tiny — only image URLs are saved, not the image data itself.
             <br><br>
             Sign up free at <a href="https://cloudinary.com" target="_blank" style="color:var(--accent)">cloudinary.com</a>, then go to <strong style="color:var(--text2)">Settings → Upload → Upload presets</strong> and create an <strong style="color:var(--text2)">unsigned</strong> preset. Copy your Cloud Name from the dashboard.<br><br>
-            <strong style="color:var(--amber)">⚠ Required for screenshot deletion:</strong> In your upload preset settings, under <strong style="color:var(--text2)">Upload Control</strong>, set <strong style="color:var(--text2)">Return delete token</strong> to <strong style="color:var(--text2)">Yes</strong>. Without this, removed screenshots will not be deleted from Cloudinary.
+            <strong style="color:var(--amber)">⚠ Required for screenshot deletion:</strong> In your upload preset settings, under <strong style="color:var(--text2)">Upload Control</strong>, set <strong style="color:var(--text2)">Return delete token</strong> to <strong style="color:var(--text2)">Yes</strong>. Without this, removed screenshots will not be deleted from Cloudinary.<br><br>
+            <strong style="color:var(--text2)">Deleting older images:</strong> the delete token above only covers the ~10 minutes after upload. To reliably delete images of any age (screenshots or note images), configure a Cloud Monitor Worker URL under Price Alerts and add two secrets to it in the Cloudflare dashboard: <code style="background:var(--bg3);padding:1px 5px;border-radius:3px">CLOUDINARY_API_KEY</code> and <code style="background:var(--bg3);padding:1px 5px;border-radius:3px">CLOUDINARY_API_SECRET</code> (found on your Cloudinary dashboard, next to Cloud Name). Without this, older removed images stay in your Cloudinary account and must be deleted manually.
           </div>
           <div class="frow-inline" style="margin-bottom:12px">
             <div class="frow" style="flex:1;min-width:160px">
@@ -5164,9 +5165,16 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
     <div class="page" id="page-notes">
       <style>
       #page-notes .notes-intro{font-size:11px;color:var(--text3);margin-bottom:14px;line-height:1.5;max-width:760px;}
-      #page-notes .notes-board{display:flex;gap:14px;align-items:flex-start;overflow-x:auto;padding-bottom:10px;}
-      #page-notes .note-col{flex:0 0 260px;width:260px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:12px;display:flex;flex-direction:column;gap:10px;}
+      #page-notes .notes-toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px;}
+      #page-notes .notes-toolbar-hint{font-size:10px;color:var(--text3);}
+      #page-notes .notes-board{position:relative;overflow:auto;height:min(72vh,640px);min-height:420px;border:1px dashed var(--border2);border-radius:var(--radius-lg);background-color:var(--bg2);background-image:radial-gradient(var(--border2) 1px, transparent 1px);background-size:22px 22px;}
+      #page-notes .notes-canvas{position:relative;}
+      #page-notes .note-col{position:absolute;width:260px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:12px;display:flex;flex-direction:column;gap:10px;box-shadow:0 2px 8px rgba(0,0,0,.22);}
+      #page-notes .note-col.dragging-col{box-shadow:0 12px 30px rgba(0,0,0,.5);opacity:.96;}
       #page-notes .note-col-header{display:flex;align-items:center;gap:7px;}
+      #page-notes .note-col-drag{cursor:grab;color:var(--text3);display:flex;align-items:center;flex-shrink:0;touch-action:none;-webkit-user-select:none;user-select:none;}
+      #page-notes .note-col-drag:hover{color:var(--text2);}
+      #page-notes .note-col.dragging-col .note-col-drag{cursor:grabbing;}
       #page-notes .note-col-title{flex:1;font-size:12px;font-weight:700;color:var(--text);cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
       #page-notes .note-col-title:hover{color:var(--accent);}
       #page-notes .note-col-count{font-size:9px;font-weight:700;font-family:DM Mono,monospace;background:var(--bg4);border:1px solid var(--border2);color:var(--text3);border-radius:10px;padding:1px 6px;flex-shrink:0;}
@@ -5174,7 +5182,7 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
       #page-notes .note-col-empty{font-size:11px;color:var(--text3);font-style:italic;text-align:center;padding:14px 4px;border:1px dashed var(--border2);border-radius:var(--radius);}
       #page-notes .note-add-btn{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;padding:7px;border-radius:var(--radius);border:1px dashed var(--border2);background:transparent;color:var(--text3);font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .12s;}
       #page-notes .note-add-btn:hover{color:var(--text);border-color:var(--accent);background:rgba(77,127,255,.06);}
-      #page-notes .note-col-add{flex:0 0 150px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:90px;border-radius:var(--radius-lg);border:1px dashed var(--border2);background:transparent;color:var(--text3);font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .12s;align-self:flex-start;}
+      #page-notes .note-col-add{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:6px 12px;border-radius:var(--radius);border:1px dashed var(--border2);background:transparent;color:var(--text3);font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .12s;}
       #page-notes .note-col-add:hover{color:var(--accent);border-color:var(--accent);background:rgba(77,127,255,.06);}
       #page-notes .note-card{position:relative;border-radius:8px;padding:11px 11px 9px;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.25);transition:transform .12s,box-shadow .12s;color:#2b2418;font-family:'DM Sans',sans-serif;}
       #page-notes .note-col-body .note-card:hover{transform:translateY(-2px);box-shadow:0 6px 14px rgba(0,0,0,.32);}
@@ -5195,8 +5203,25 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
       .note-swatch{width:26px;height:26px;border-radius:50%;border:2px solid transparent;cursor:pointer;padding:0;transition:transform .12s,border-color .12s;}
       .note-swatch:hover{transform:scale(1.1);}
       .note-swatch.active{border-color:var(--text);}
+      /* ── Note images (card footer strip + modal editor) — global, note-modal lives outside #page-notes ── */
+      .note-card-imgs{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px;padding-top:7px;border-top:1px solid rgba(0,0,0,.12);}
+      .note-img-sq{width:26px;height:26px;object-fit:cover;border-radius:4px;border:1px solid rgba(0,0,0,.18);cursor:zoom-in;display:block;transition:transform .12s;}
+      .note-img-sq:hover{transform:scale(1.14);}
+      .note-img-zone{border:1px dashed var(--border2);border-radius:var(--radius);padding:10px;text-align:center;font-size:11px;color:var(--text3);cursor:pointer;transition:all .12s;}
+      .note-img-zone:hover,.note-img-zone.drag{border-color:var(--accent);color:var(--text2);background:rgba(77,127,255,.06);}
+      .note-img-strip{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px;}
+      .note-img-item{position:relative;width:52px;height:52px;}
+      .note-img-item img{width:100%;height:100%;object-fit:cover;border-radius:5px;border:1px solid var(--border2);cursor:zoom-in;display:block;}
+      .note-img-x{position:absolute;top:-5px;right:-5px;width:16px;height:16px;border-radius:50%;border:none;background:var(--red,#e05260);color:#fff;font-size:11px;line-height:1;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;font-family:inherit;}
       </style>
-      <div class="notes-intro">Your personal scratchpad — todo items, something to do later today, or a note about what you learned on an asset. Drag cards between columns. Kept separate from your trade data, and synced to GitHub as its own file (<span class="mono">tj_notes.json</span>), just like your Watchlist and Price Alerts, if configured under Backup &amp; Restore.</div>
+      <div class="notes-intro">Your personal scratchpad — todo items, something to do later today, or a note about what you learned on an asset. Drag a column by its grip handle ⠿ to pin it anywhere on the board, and drag cards between columns as before. Kept separate from your trade data, and synced to GitHub as its own file (<span class="mono">tj_notes.json</span>), just like your Watchlist and Price Alerts, if configured under Backup &amp; Restore.</div>
+      <div class="notes-toolbar">
+        <span class="notes-toolbar-hint">Positions are saved automatically</span>
+        <button class="note-col-add" onclick="notesAddColumn()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span>Add column</span>
+        </button>
+      </div>
       <div class="notes-board" id="notes-board"></div>
     </div><!-- /page-notes -->
     <!-- FXSTREET -->
@@ -5990,6 +6015,13 @@ document.addEventListener('DOMContentLoaded',function(){
       <div class="frow">
         <label class="flabel">Color</label>
         <div class="note-color-row" id="note-color-row"></div>
+      </div>
+      <div class="frow">
+        <label class="flabel">Images <span style="color:var(--text3);font-weight:400">(optional)</span></label>
+        <div class="note-img-zone" id="note-img-zone" onclick="document.getElementById('note-img-file').click()"
+             ondragover="notesImgDragOver(event)" ondragleave="notesImgDragLeave(event)" ondrop="notesImgDrop(event)">Paste, drop or click to add images</div>
+        <input type="file" id="note-img-file" accept="image/*" multiple style="display:none" onchange="notesImgPick(event)">
+        <div class="note-img-strip" id="note-img-strip"></div>
       </div>
       <div style="display:flex;gap:8px;margin-top:4px">
         <button class="btn btn-primary" style="flex:1;justify-content:center" onclick="notesSaveModal()">Save note</button>
@@ -10185,6 +10217,12 @@ if(!window._tjPasteListenerRegistered){
   var items=e.clipboardData&&e.clipboardData.items;if(!items)return;
   var imgItem=null;for(var i=0;i<items.length;i++){if(items[i].type.startsWith('image/')){imgItem=items[i];break;}}
   if(!imgItem)return;
+  // Note modal open? Screenshot belongs to the sticky note being edited, not a trade zone.
+  var _nm=document.getElementById('note-modal');
+  if(_nm&&_nm.classList.contains('open')){
+    var _nf=imgItem.getAsFile();if(_nf)notesAddImageFile(_nf);
+    e.preventDefault();return;
+  }
   var zone=activePasteZone;
   if(!zone){var f=document.querySelector('.img-paste-zone.focused');if(f)zone=f.id.replace('paste-zone-','');else zone='htf-W';}
   var file=imgItem.getAsFile();if(file)addImageToZone(file,zone);
@@ -10276,8 +10314,7 @@ function removePendingImg(zone,idx){
   var img=pendingImages[zone][idx];
   if(img&&img.cloudUrl){
     // Prefer delete_token (valid ~10 min, no signature needed); fall back to publicId
-    if(img.deleteToken)cloudinaryDeleteImage(img.deleteToken,true);
-    else if(img.publicId)cloudinaryDeleteImage(img.publicId,false);
+    if(img.deleteToken||img.publicId)cloudinaryDeleteImage(img);
   }
   pendingImages[zone].splice(idx,1);renderPendingImages(zone);
 }
@@ -10303,8 +10340,7 @@ function deleteStoredImg(imgId,zone,btn){
   // otherwise try publicId (may require signed request; fails silently if not supported)
   dbGet('images',imgId).then(function(img){
     if(!img||!img.cloudUrl)return;
-    if(img.deleteToken)cloudinaryDeleteImage(img.deleteToken,true);
-    else if(img.publicId)cloudinaryDeleteImage(img.publicId,false);
+    if(img.deleteToken||img.publicId)cloudinaryDeleteImage(img);
   }).catch(function(){});
 }
 // ══ Trade # auto-gen ══════════════════════════════
@@ -12841,6 +12877,9 @@ function _lbRender(){
   if(multi)counter.textContent=(_lbIndex+1)+' / '+_lbImages.length;
 }
 function openLightbox(src){_lbImages=[src];_lbIndex=0;_lbRender();document.getElementById('lightbox').classList.add('open');}
+// Open the lightbox on an arbitrary image list (used by note-card image strips) —
+// same full-screen viewer, so ←/→ nav, counter and Esc all work unchanged.
+function openLightboxList(list,idx){if(!list||!list.length)return;_lbImages=list;_lbIndex=idx||0;_lbRender();document.getElementById('lightbox').classList.add('open');}
 function openLightboxAt(idx){_lbImages=_dmImgList;_lbIndex=idx;_lbRender();document.getElementById('lightbox').classList.add('open');}
 function lightboxNav(dir){if(_lbImages.length<2)return;_lbIndex=(_lbIndex+dir+_lbImages.length)%_lbImages.length;_lbRender();}
 function closeLightbox(){document.getElementById('lightbox').classList.remove('open');}
@@ -20611,30 +20650,32 @@ function ghDownloadPagesWorkflow(){
 }
 // ══ Cloudinary Image Hosting ══════════════════════════
 // ══ Cloudinary image deletion ══════════════════════════════════════════════
-// Uses delete_token (returned by Cloudinary at upload time when using unsigned presets).
-// The delete_token is valid for 10 minutes after upload, so it works for immediate removals.
-// For deletions after save (stored images), the token may have expired — in that case
-// deletion must be handled server-side or via the Cloudinary dashboard.
-async function cloudinaryDeleteImage(publicIdOrToken,isToken){
+// Pass {publicId, deleteToken}. Two paths, tried in order:
+//  1. delete_by_token — unsigned, but the token is only valid ~10 min after upload and
+//     requires "Return delete token" ON in the upload preset. Covers immediate removals.
+//  2. Worker /cloudinary-delete — signed server-side deletion by publicId, works no matter
+//     how old the image is. Only available if a Cloud Monitor Worker URL is configured
+//     (Price Alerts panel) and that Worker has CLOUDINARY_API_KEY/CLOUDINARY_API_SECRET
+//     secrets set (Cloudflare dashboard — never sent from this page). No-ops silently if
+//     the Worker isn't set up, same as before.
+async function cloudinaryDeleteImage(img){
   var cfg=cloudinaryGetConfig();
-  if(!cfg.cloudName||!publicIdOrToken)return;
+  if(!cfg.cloudName||!img)return;
+  var publicId=img.publicId||null,token=img.deleteToken||null;
   try{
-    if(isToken){
-      // delete_by_token: valid ~10 min after upload, requires "Return delete token" ON in upload preset
+    if(token){
       var fd=new FormData();
-      fd.append('token',publicIdOrToken);
+      fd.append('token',token);
       var resp=await fetch('https://api.cloudinary.com/v1_1/'+cfg.cloudName+'/delete_by_token',{method:'POST',body:fd});
       if(resp.ok){
         var r=await resp.json().catch(function(){return{};});
         if(r.result==='ok')return;
       }
     }
-    // Fallback: unsigned destroy (requires preset to explicitly allow it — usually not enabled)
-    var fd2=new FormData();
-    fd2.append('public_id',publicIdOrToken);
-    fd2.append('upload_preset',cfg.uploadPreset);
-    await fetch('https://api.cloudinary.com/v1_1/'+cfg.cloudName+'/image/destroy',{method:'POST',body:fd2});
-  }catch(e){/* silent — if deletion fails, remove manually via Cloudinary dashboard */}
+    if(publicId&&typeof cmHasUrl==='function'&&cmHasUrl()){
+      await cmFetch('/cloudinary-delete','POST',{cloudName:cfg.cloudName,publicId:publicId});
+    }
+  }catch(e){/* silent — if deletion fails, remove manually via Cloudinary dashboard, or check the Worker's CLOUDINARY_API_KEY/SECRET secrets */}
 }
 function cloudinaryGetConfig(){
   return{
@@ -25784,6 +25825,12 @@ function cfDownloadWorker(){
  *                                                                              old. Runs on the cron schedule, so
  *                                                                              it works even when the app isn't open.
  *
+ * Cloudinary hard-delete (used by the page's trade-screenshot and note-image
+ * removal, once the unsigned 10-minute delete-token window has passed):
+ *   POST /cloudinary-delete   body: { cloudName, publicId }
+ *   Requires two Worker secrets, set directly in the Cloudflare dashboard —
+ *   never sent from the page: CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET.
+ *
  * SYNC NOTE (for Claude/agents): this file is duplicated verbatim inside the
  * \`cfDownloadWorker()\` template string in trading_journal.html. Any change
  * here MUST be mirrored there so the two stay an exact copy.
@@ -25922,6 +25969,31 @@ async function handleRequest(request) {
       return jsonRes({ symbol: sym.toUpperCase(), price: result.price, provider: result.provider, time: Date.now() }, 200, origin);
     } catch(e) {
       return jsonRes({ error: e.message }, 502, origin);
+    }
+  }
+  if (path === '/cloudinary-delete' && method === 'POST') {
+    var body = await request.json().catch(function() { return null; });
+    if (!body || !body.publicId) return jsonRes({ error: 'Missing publicId' }, 400, origin);
+    var cloudName = body.cloudName || (typeof CLOUDINARY_CLOUD_NAME !== 'undefined' ? CLOUDINARY_CLOUD_NAME : '');
+    if (!cloudName) return jsonRes({ error: 'Missing cloudName' }, 400, origin);
+    if (typeof CLOUDINARY_API_KEY === 'undefined' || typeof CLOUDINARY_API_SECRET === 'undefined') {
+      return jsonRes({ error: 'Worker missing CLOUDINARY_API_KEY / CLOUDINARY_API_SECRET secrets' }, 500, origin);
+    }
+    try {
+      var timestamp = Math.floor(Date.now() / 1000);
+      var toSign = 'public_id=' + body.publicId + '&timestamp=' + timestamp + CLOUDINARY_API_SECRET;
+      var signature = await sha1Hex(toSign);
+      var fd = new FormData();
+      fd.append('public_id', body.publicId);
+      fd.append('timestamp', String(timestamp));
+      fd.append('api_key', CLOUDINARY_API_KEY);
+      fd.append('signature', signature);
+      var r = await fetch('https://api.cloudinary.com/v1_1/' + cloudName + '/image/destroy', { method: 'POST', body: fd });
+      var d = await r.json().catch(function() { return {}; });
+      if (d.result === 'ok' || d.result === 'not found') return jsonRes({ ok: true, result: d.result }, 200, origin);
+      return jsonRes({ ok: false, error: d.error ? d.error.message : ('Cloudinary result: ' + d.result) }, 502, origin);
+    } catch(e) {
+      return jsonRes({ ok: false, error: e.message }, 500, origin);
     }
   }
   return jsonRes({ error: 'Not found' }, 404, origin);
@@ -26354,6 +26426,18 @@ function buildDiscordEmbed(a, price, cfg, provider) {
   var fields = [{ name:'Direction', value: a.dir==='above'?'↑ Above':'↓ Below', inline:true },{ name:'Target', value:fmtPrice(a.target), inline:true },{ name:'Current', value:fmtPrice(price), inline:true },{ name:'Provider', value: providerLabel(provider), inline:true }];
   if (a.note) fields.push({ name: notePrefix ? notePrefix.trim() || 'Note' : 'Note', value: a.note });
   return { embeds:[{ title: titlePrefix + a.symbol, color: a.dir==='above' ? colorAbove : colorBelow, fields:fields, footer:{text: footerText}, timestamp:new Date().toISOString() }] };
+}
+
+// SHA-1 hex digest via Web Crypto — used to sign the Cloudinary destroy call below.
+// Cloudinary's signing scheme requires SHA-1 specifically; it's fine for this purpose
+// even though SHA-1 is deprecated for general cryptographic use.
+async function sha1Hex(str) {
+  var enc = new TextEncoder().encode(str);
+  var hash = await crypto.subtle.digest('SHA-1', enc);
+  var bytes = new Uint8Array(hash);
+  var hex = '';
+  for (var i = 0; i < bytes.length; i++) hex += bytes[i].toString(16).padStart(2, '0');
+  return hex;
 }
 
 async function sendTelegram(text, cfg) {
@@ -27149,7 +27233,10 @@ nav = function(id, btn){
   if(id === 'watchlist') wlInit();
 };
 // ══ Notes (sticky-note Kanban board) ═════════════════════════════════
-// Stored under settings key 'notes-board': {columns:[{id,title}], notes:[{id,colId,text,tag,color,createdAt,updatedAt}]}
+// Stored under settings key 'notes-board': {columns:[{id,title,x,y}], notes:[{id,colId,text,tag,color,createdAt,updatedAt}]}
+// x/y are the column's pinned pixel position on the freeform board (top-left corner,
+// relative to the canvas). Columns keep their old vertical note-stacking behavior inside —
+// it's only the columns themselves that are now free to drag anywhere.
 // A note's position among other notes sharing the same colId (i.e. its index within the
 // `notes` array, filtered to that column) is its row order within the column — used for
 // drag-reorder, same "array order = display order" idea as watchlist items.
@@ -27161,17 +27248,32 @@ nav = function(id, btn){
 // on Manual/Automatic Backup (ghSnapshot()), restorable/mergeable via ghRestoreNotesBackup()/
 // ghMergeNotesBackup() — same split as config/FX/watchlist.
 var NOTES_DEFAULT_COLUMNS=[
-  {id:'todo',title:'To Do'},
-  {id:'today',title:'Today'},
-  {id:'ideas',title:'Ideas & Learnings'}
+  {id:'todo',title:'To Do',x:20,y:20},
+  {id:'today',title:'Today',x:300,y:20},
+  {id:'ideas',title:'Ideas & Learnings',x:580,y:20}
 ];
 var NOTE_COLORS=['yellow','pink','blue','green','purple','orange'];
+// Any column loaded without a saved x/y (older boards, fresh merges/restores) gets a
+// cascaded default position so it doesn't stack at (0,0) on top of everything else.
+// Returns true if it had to fill anything in, so the caller knows to persist the fix.
+function notesEnsureColPositions(data){
+  var changed=false;
+  data.columns.forEach(function(col,i){
+    if(typeof col.x!=='number'||typeof col.y!=='number'||isNaN(col.x)||isNaN(col.y)){
+      col.x=20+(i%4)*300;
+      col.y=20+Math.floor(i/4)*380;
+      changed=true;
+    }
+  });
+  return changed;
+}
 async function getNotesBoard(){
   var data=await getSetting('notes-board',null);
   if(!data||typeof data!=='object'||!Array.isArray(data.columns)||!data.columns.length){
     data={columns:JSON.parse(JSON.stringify(NOTES_DEFAULT_COLUMNS)),notes:(data&&Array.isArray(data.notes))?data.notes:[]};
   }
   if(!Array.isArray(data.notes))data.notes=[];
+  if(notesEnsureColPositions(data)) await setSetting('notes-board',data);
   return data;
 }
 async function saveNotesBoard(data){ await setSetting('notes-board', data); }
@@ -27199,6 +27301,109 @@ async function notesPopulateTagSuggestions(){
     dl.innerHTML=opts.map(function(o){return '<option value="'+escHtml(o)+'">';}).join('');
   }catch(e){}
 }
+// ── Note images ───────────────────────────────────────────────────────────
+// Same storage split as trade screenshots: if Cloudinary is configured the file is
+// uploaded and only {cloudUrl,publicId,deleteToken} is kept on the note; otherwise the
+// base64 blob goes into the IndexedDB 'images' store and the note keeps just {imgId}.
+// Either way the note itself (and tj_notes.json) stays tiny. Note shape gains:
+//   images:[{id, cloudUrl?, publicId?, deleteToken?, imgId?}]
+var _noteImgCache={};   // imgId -> dataUrl/cloudUrl, filled by notesPreloadImgs() before a render
+var _noteCardImgs={};   // noteId -> [src,...] in card order, used by the lightbox strip
+var _noteImgs=[];       // images of the note currently open in the modal
+var _noteImgDel=[];     // imgIds to remove from IndexedDB when the modal is saved
+var _noteImgSrc={};     // modal entry id -> preview src
+function _noteUid(){return Date.now().toString(36)+Math.random().toString(36).slice(2);}
+// Resolve every locally-stored note image up-front so notesCardHtml() can stay synchronous.
+async function notesPreloadImgs(notes){
+  var ids=[];
+  (notes||[]).forEach(function(n){(n.images||[]).forEach(function(im){
+    if(im.imgId&&!_noteImgCache[im.imgId]&&ids.indexOf(im.imgId)===-1)ids.push(im.imgId);
+  });});
+  for(var i=0;i<ids.length;i++){
+    try{var rec=await dbGet('images',ids[i]);if(rec)_noteImgCache[ids[i]]=rec.cloudUrl||rec.dataUrl||'';}catch(e){}
+  }
+}
+function notesImgSrc(im){return im.cloudUrl||(im.imgId?_noteImgCache[im.imgId]:'')||'';}
+// Opens the same full-screen lightbox used by trade screenshots, scoped to one note.
+function notesOpenImg(noteId,idx){openLightboxList(_noteCardImgs[noteId]||[],idx);}
+// ── Modal image editor ──
+function notesRenderModalImgs(){
+  var strip=document.getElementById('note-img-strip');
+  if(!strip)return;
+  strip.innerHTML=_noteImgs.map(function(e,i){
+    var src=_noteImgSrc[e.id]||'';
+    return '<div class="note-img-item"><img src="'+src+'" onclick="notesModalImgZoom('+i+')">'
+      +'<button class="note-img-x" title="Remove" onclick="notesRemoveModalImg('+i+')">&times;</button></div>';
+  }).join('');
+}
+function notesModalImgZoom(idx){
+  var list=_noteImgs.map(function(e){return _noteImgSrc[e.id]||'';}).filter(Boolean);
+  openLightboxList(list,idx);
+}
+function notesImgDragOver(e){e.preventDefault();e.currentTarget.classList.add('drag');}
+function notesImgDragLeave(e){e.currentTarget.classList.remove('drag');}
+function notesImgDrop(e){
+  e.preventDefault();e.stopPropagation();e.currentTarget.classList.remove('drag');
+  Array.from(e.dataTransfer.files||[]).forEach(function(f){if(f.type.startsWith('image/'))notesAddImageFile(f);});
+}
+function notesImgPick(e){
+  Array.from(e.target.files||[]).forEach(function(f){if(f.type.startsWith('image/'))notesAddImageFile(f);});
+  e.target.value='';
+}
+// Cloudinary when configured (with a silent fall back to local on failure), IndexedDB otherwise.
+// New local blobs are only written to the DB on save — see notesSaveModal().
+async function notesAddImageFile(file){
+  var cld=(typeof cloudinaryGetConfig==='function')?cloudinaryGetConfig():{};
+  var uid=_noteUid();
+  if(cld.cloudName&&cld.uploadPreset){
+    try{
+      var publicId='trading-journal/notes/note_'+uid;
+      var fd=new FormData();
+      fd.append('file',file);fd.append('upload_preset',cld.uploadPreset);fd.append('public_id',publicId);
+      var resp=await fetch('https://api.cloudinary.com/v1_1/'+cld.cloudName+'/image/upload',{method:'POST',body:fd});
+      if(!resp.ok)throw new Error('HTTP '+resp.status);
+      var d=await resp.json();
+      if(d.error)throw new Error(d.error.message);
+      var ent={id:uid,cloudUrl:d.secure_url,publicId:d.public_id||publicId,deleteToken:d.delete_token||null};
+      _noteImgs.push(ent);_noteImgSrc[uid]=ent.cloudUrl;notesRenderModalImgs();
+      return;
+    }catch(err){ toast('Cloudinary upload failed: '+err.message+' — saved locally','err'); }
+  }
+  var reader=new FileReader();
+  reader.onload=function(ev){
+    var ent={id:uid,imgId:'note_'+uid,_dataUrl:ev.target.result,_new:true};
+    _noteImgs.push(ent);_noteImgSrc[uid]=ent._dataUrl;notesRenderModalImgs();
+  };
+  reader.readAsDataURL(file);
+}
+function notesRemoveModalImg(idx){
+  var e=_noteImgs[idx];if(!e)return;
+  if(e.cloudUrl&&typeof cloudinaryDeleteImage==='function'){
+    if(e.deleteToken||e.publicId)cloudinaryDeleteImage(e);
+  }
+  if(e.imgId&&!e._new)_noteImgDel.push(e.imgId);
+  delete _noteImgSrc[e.id];
+  _noteImgs.splice(idx,1);notesRenderModalImgs();
+}
+// Deleting a note (or a column of notes) removes its images everywhere: the IndexedDB
+// record for local blobs, and the Cloudinary copy for hosted ones. This differs from trade
+// deletion on purpose — trades keep their Cloudinary files so a restore brings them back,
+// whereas a deleted note is gone for good and shouldn't leave files behind in the account.
+// Cloudinary removal uses the delete_token when it's still valid (~10 min after upload,
+// requires "Return delete token = Yes" on the preset), otherwise falls back to a destroy
+// call by publicId, which fails silently on unsigned presets — see cloudinaryDeleteImage().
+async function notesDropImgRecords(notes){
+  for(var i=0;i<notes.length;i++){
+    var ims=notes[i].images||[];
+    for(var j=0;j<ims.length;j++){
+      var im=ims[j];
+      if(im.imgId){try{await dbDelete('images',im.imgId);delete _noteImgCache[im.imgId];}catch(e){}}
+      if(im.cloudUrl&&typeof cloudinaryDeleteImage==='function'){
+        if(im.deleteToken||im.publicId)cloudinaryDeleteImage(im);
+      }
+    }
+  }
+}
 function notesTimeAgo(ts){
   if(!ts)return'';
   var mins=Math.max(0,Math.round((Date.now()-ts)/60000));
@@ -27215,11 +27420,23 @@ async function notesRender(){
   if(!container)return;
   var data=await getNotesBoard();
   var cols=data.columns,notes=data.notes;
-  var html='';
+  await notesPreloadImgs(notes);
+  // Canvas needs to be at least as big as the board viewport, and grow to fit any
+  // column that's been dragged out toward the edge (so it stays scrollable-to, never clipped).
+  var maxX=900,maxY=680;
+  cols.forEach(function(col){
+    maxX=Math.max(maxX,(col.x||0)+300);
+    maxY=Math.max(maxY,(col.y||0)+420);
+  });
+  var html='<div class="notes-canvas" id="notes-canvas" style="width:'+maxX+'px;height:'+maxY+'px;">';
   cols.forEach(function(col){
     var colNotes=notes.filter(function(n){return n.colId===col.id;});
-    html+='<div class="note-col">'
+    html+='<div class="note-col" data-col-id="'+col.id+'" style="left:'+(col.x||0)+'px;top:'+(col.y||0)+'px;">'
       +'<div class="note-col-header">'
+        +'<span class="note-col-drag" title="Drag to move this column" '
+          +'onmousedown="notesColDragStart(event,\''+col.id+'\')" ontouchstart="notesColDragStart(event,\''+col.id+'\')">'
+          +'<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><circle cx="8" cy="6" r="1.5"/><circle cx="16" cy="6" r="1.5"/><circle cx="8" cy="12" r="1.5"/><circle cx="16" cy="12" r="1.5"/><circle cx="8" cy="18" r="1.5"/><circle cx="16" cy="18" r="1.5"/></svg>'
+        +'</span>'
         +'<span class="note-col-title" title="Click to rename" onclick="notesRenameColumn(\''+col.id+'\')">'+escHtml(col.title)+'</span>'
         +'<span class="note-col-count">'+colNotes.length+'</span>'
         +'<button class="btn btn-ghost btn-icon btn-sm" title="Rename column" onclick="notesRenameColumn(\''+col.id+'\')">'
@@ -27241,16 +27458,20 @@ async function notesRender(){
       +'</button>'
     +'</div>';
   });
-  html+='<button class="note-col-add" onclick="notesAddColumn()">'
-    +'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>'
-    +'<span>Add column</span>'
-  +'</button>';
+  html+='</div>';
   container.innerHTML=html;
 }
 function notesCardHtml(n){
   var color=NOTE_COLORS.indexOf(n.color)!==-1?n.color:'yellow';
   var textHtml=escHtml(n.text||'').replace(/\n/g,'<br>');
   var tagHtml=n.tag?'<div class="note-tag">'+escHtml(n.tag)+'</div>':'';
+  // Small square thumbnails in a footer strip — the card itself keeps its size; clicking a
+  // square opens the full-screen lightbox with ←/→ nav across that note's images.
+  var srcs=(n.images||[]).map(notesImgSrc).filter(Boolean);
+  _noteCardImgs[n.id]=srcs;
+  var imgHtml=srcs.length?'<div class="note-card-imgs">'+srcs.map(function(src,i){
+    return '<img class="note-img-sq" src="'+src+'" loading="lazy" alt="" onclick="event.stopPropagation();notesOpenImg(\''+n.id+'\','+i+')">';
+  }).join('')+'</div>':'';
   return '<div class="note-card note-'+color+'" draggable="true" data-id="'+n.id+'" '
     +'ondragstart="notesDragStart(event,\''+n.id+'\')" ondragend="notesDragEnd(event)" onclick="notesOpenEdit(\''+n.id+'\')">'
     +'<button class="note-del-btn" title="Delete note" onclick="event.stopPropagation();notesQuickDelete(\''+n.id+'\')">'
@@ -27258,6 +27479,7 @@ function notesCardHtml(n){
     +'</button>'
     +tagHtml
     +'<div class="note-text">'+textHtml+'</div>'
+    +imgHtml
     +'<div class="note-meta">'+notesTimeAgo(n.updatedAt||n.createdAt)+'</div>'
   +'</div>';
 }
@@ -27303,9 +27525,70 @@ async function notesHandleDrop(e,colId){
   await notesRender();
   ghAutoSyncNotes();
 }
+// ── Freeform column dragging — grab the ⠿ handle in a column header and drop it anywhere
+// on the board. Mirrors the note-card drag pattern above but moves the whole column via
+// absolute-position math instead of HTML5 dataTransfer, since this is a free x/y move, not
+// a reorder. Position is saved into the same notes-board object notes already live in, so
+// it rides along with the existing local save + GitHub sync (ghAutoSyncNotes) for free. ──
+var _colDrag=null; // {id, el, offsetX, offsetY, x, y} while a column is being dragged
+function _notesPointerXY(e){
+  if(e.touches&&e.touches.length)return{x:e.touches[0].clientX,y:e.touches[0].clientY};
+  if(e.changedTouches&&e.changedTouches.length)return{x:e.changedTouches[0].clientX,y:e.changedTouches[0].clientY};
+  return{x:e.clientX,y:e.clientY};
+}
+function notesColDragStart(e,colId){
+  e.preventDefault();
+  e.stopPropagation();
+  var colEl=document.querySelector('.note-col[data-col-id="'+colId+'"]');
+  var canvas=document.getElementById('notes-canvas');
+  if(!colEl||!canvas)return;
+  var canvasRect=canvas.getBoundingClientRect();
+  var colRect=colEl.getBoundingClientRect();
+  var p=_notesPointerXY(e);
+  _colDrag={id:colId,el:colEl,offsetX:p.x-colRect.left,offsetY:p.y-colRect.top,x:null,y:null};
+  colEl.classList.add('dragging-col');
+  colEl.style.zIndex=999;
+  document.addEventListener('mousemove',notesColDragMove);
+  document.addEventListener('mouseup',notesColDragEnd);
+  document.addEventListener('touchmove',notesColDragMove,{passive:false});
+  document.addEventListener('touchend',notesColDragEnd);
+}
+function notesColDragMove(e){
+  if(!_colDrag)return;
+  e.preventDefault();
+  var canvas=document.getElementById('notes-canvas');
+  if(!canvas)return;
+  var canvasRect=canvas.getBoundingClientRect();
+  var p=_notesPointerXY(e);
+  var x=Math.max(0,Math.round(p.x-canvasRect.left-_colDrag.offsetX));
+  var y=Math.max(0,Math.round(p.y-canvasRect.top-_colDrag.offsetY));
+  _colDrag.x=x; _colDrag.y=y;
+  _colDrag.el.style.left=x+'px';
+  _colDrag.el.style.top=y+'px';
+}
+async function notesColDragEnd(e){
+  if(!_colDrag)return;
+  document.removeEventListener('mousemove',notesColDragMove);
+  document.removeEventListener('mouseup',notesColDragEnd);
+  document.removeEventListener('touchmove',notesColDragMove);
+  document.removeEventListener('touchend',notesColDragEnd);
+  var id=_colDrag.id,x=_colDrag.x,y=_colDrag.y,el=_colDrag.el;
+  el.classList.remove('dragging-col');
+  el.style.zIndex='';
+  _colDrag=null;
+  if(x===null||y===null)return; // click without an actual move — nothing to save
+  var data=await getNotesBoard();
+  var col=data.columns.find(function(c){return c.id===id;});
+  if(!col)return;
+  col.x=x; col.y=y;
+  await saveNotesBoard(data);
+  await notesRender(); // re-render so canvas size recalculates if it was dragged toward an edge
+  ghAutoSyncNotes();
+}
 async function notesQuickDelete(id){
   if(!confirm('Delete this note?'))return;
   var data=await getNotesBoard();
+  await notesDropImgRecords(data.notes.filter(function(n){return n.id===id;}));
   data.notes=data.notes.filter(function(n){return n.id!==id;});
   await saveNotesBoard(data);
   await notesRender();
@@ -27317,7 +27600,11 @@ async function notesAddColumn(){
   if(!title)return;
   var data=await getNotesBoard();
   var id=Date.now().toString(36)+Math.random().toString(36).slice(2);
-  data.columns.push({id:id,title:title});
+  // Place it just to the right of whichever existing column extends furthest, so new
+  // columns don't land stacked on top of each other — still freely draggable after.
+  var nextX=20;
+  data.columns.forEach(function(c){ nextX=Math.max(nextX,(c.x||0)+280); });
+  data.columns.push({id:id,title:title,x:nextX,y:20});
   await saveNotesBoard(data);
   await notesRender();
   toast('Column added','ok');
@@ -27343,6 +27630,7 @@ async function notesDeleteColumn(colId){
   var msg='Delete column "'+col.title+'"?'+(count?' Its '+count+' note'+(count===1?'':'s')+' will be deleted too.':'');
   if(!confirm(msg))return;
   data.columns=data.columns.filter(function(c){return c.id!==colId;});
+  await notesDropImgRecords(data.notes.filter(function(n){return n.colId===colId;}));
   data.notes=data.notes.filter(function(n){return n.colId!==colId;});
   await saveNotesBoard(data);
   await notesRender();
@@ -27353,6 +27641,7 @@ async function notesDeleteColumn(colId){
 async function notesOpenAdd(colId){
   _noteEditingId=null;
   _noteEditColor='yellow';
+  _noteImgs=[];_noteImgDel=[];_noteImgSrc={};notesRenderModalImgs();
   await notesPopulateColSelect(colId);
   document.getElementById('note-modal-title').textContent='New note';
   document.getElementById('note-text-inp').value='';
@@ -27368,6 +27657,10 @@ async function notesOpenEdit(id){
   if(!n)return;
   _noteEditingId=id;
   _noteEditColor=NOTE_COLORS.indexOf(n.color)!==-1?n.color:'yellow';
+  _noteImgs=JSON.parse(JSON.stringify(n.images||[]));_noteImgDel=[];_noteImgSrc={};
+  await notesPreloadImgs([n]);
+  _noteImgs.forEach(function(e){_noteImgSrc[e.id]=notesImgSrc(e);});
+  notesRenderModalImgs();
   await notesPopulateColSelect(n.colId);
   document.getElementById('note-modal-title').textContent='Edit note';
   document.getElementById('note-text-inp').value=n.text||'';
@@ -27393,16 +27686,35 @@ function notesSetColor(c){ _noteEditColor=c; notesRenderColorRow(); }
 function notesCloseModal(){ document.getElementById('note-modal').classList.remove('open'); }
 async function notesSaveModal(){
   var text=(document.getElementById('note-text-inp').value||'').trim();
-  if(!text){ toast('Write something first','err'); return; }
+  if(!text&&!_noteImgs.length){ toast('Write something first','err'); return; }
   var tag=(document.getElementById('note-tag-inp').value||'').trim();
   var colId=document.getElementById('note-col-inp').value;
+  // Flush new local blobs into the IndexedDB 'images' store, drop the ones removed in this
+  // edit, then keep only lean metadata on the note itself.
+  for(var _i=0;_i<_noteImgs.length;_i++){
+    var _e=_noteImgs[_i];
+    if(_e._new&&_e._dataUrl){
+      try{
+        await dbPut('images',{id:_e.imgId,dataUrl:_e._dataUrl,cloudUrl:null,publicId:null,deleteToken:null,name:_e.imgId,zone:'note'});
+        _noteImgCache[_e.imgId]=_e._dataUrl;
+      }catch(err){ toast('Could not save image locally','err'); }
+    }
+  }
+  for(var _d=0;_d<_noteImgDel.length;_d++){try{await dbDelete('images',_noteImgDel[_d]);delete _noteImgCache[_noteImgDel[_d]];}catch(err){}}
+  var imgMeta=_noteImgs.map(function(e){
+    var o={id:e.id};
+    if(e.cloudUrl){o.cloudUrl=e.cloudUrl;o.publicId=e.publicId||null;o.deleteToken=e.deleteToken||null;}
+    if(e.imgId)o.imgId=e.imgId;
+    return o;
+  });
   var data=await getNotesBoard();
   if(_noteEditingId){
     var n=data.notes.find(function(x){return x.id===_noteEditingId;});
-    if(n){ n.text=text; n.tag=tag; n.colId=colId; n.color=_noteEditColor; n.updatedAt=Date.now(); }
+    if(n){ n.text=text; n.tag=tag; n.colId=colId; n.color=_noteEditColor; n.images=imgMeta; n.updatedAt=Date.now(); }
   } else {
-    data.notes.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2),colId:colId,text:text,tag:tag,color:_noteEditColor,createdAt:Date.now(),updatedAt:Date.now()});
+    data.notes.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2),colId:colId,text:text,tag:tag,color:_noteEditColor,images:imgMeta,createdAt:Date.now(),updatedAt:Date.now()});
   }
+  _noteImgs=[];_noteImgDel=[];_noteImgSrc={};
   await saveNotesBoard(data);
   notesCloseModal();
   await notesRender();
@@ -27413,6 +27725,7 @@ async function notesDeleteModal(){
   if(!_noteEditingId)return;
   if(!confirm('Delete this note?'))return;
   var data=await getNotesBoard();
+  await notesDropImgRecords(data.notes.filter(function(n){return n.id===_noteEditingId;}));
   data.notes=data.notes.filter(function(n){return n.id!==_noteEditingId;});
   await saveNotesBoard(data);
   notesCloseModal();
