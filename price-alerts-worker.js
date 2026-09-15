@@ -17,6 +17,12 @@
  *                                                                              old. Runs on the cron schedule, so
  *                                                                              it works even when the app isn't open.
  *
+ * Cloudinary hard-delete (used by the page's trade-screenshot and note-image
+ * removal, once the unsigned 10-minute delete-token window has passed):
+ *   POST /cloudinary-delete   body: { cloudName, publicId }
+ *   Requires two Worker secrets, set directly in the Cloudflare dashboard —
+ *   never sent from the page: CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET.
+ *
  * SYNC NOTE (for Claude/agents): this file is duplicated verbatim inside the
  * `cfDownloadWorker()` template string in trading_journal.html. Any change
  * here MUST be mirrored there so the two stay an exact copy.
@@ -155,6 +161,31 @@ async function handleRequest(request) {
       return jsonRes({ symbol: sym.toUpperCase(), price: result.price, provider: result.provider, time: Date.now() }, 200, origin);
     } catch(e) {
       return jsonRes({ error: e.message }, 502, origin);
+    }
+  }
+  if (path === '/cloudinary-delete' && method === 'POST') {
+    var body = await request.json().catch(function() { return null; });
+    if (!body || !body.publicId) return jsonRes({ error: 'Missing publicId' }, 400, origin);
+    var cloudName = body.cloudName || (typeof CLOUDINARY_CLOUD_NAME !== 'undefined' ? CLOUDINARY_CLOUD_NAME : '');
+    if (!cloudName) return jsonRes({ error: 'Missing cloudName' }, 400, origin);
+    if (typeof CLOUDINARY_API_KEY === 'undefined' || typeof CLOUDINARY_API_SECRET === 'undefined') {
+      return jsonRes({ error: 'Worker missing CLOUDINARY_API_KEY / CLOUDINARY_API_SECRET secrets' }, 500, origin);
+    }
+    try {
+      var timestamp = Math.floor(Date.now() / 1000);
+      var toSign = 'public_id=' + body.publicId + '&timestamp=' + timestamp + CLOUDINARY_API_SECRET;
+      var signature = await sha1Hex(toSign);
+      var fd = new FormData();
+      fd.append('public_id', body.publicId);
+      fd.append('timestamp', String(timestamp));
+      fd.append('api_key', CLOUDINARY_API_KEY);
+      fd.append('signature', signature);
+      var r = await fetch('https://api.cloudinary.com/v1_1/' + cloudName + '/image/destroy', { method: 'POST', body: fd });
+      var d = await r.json().catch(function() { return {}; });
+      if (d.result === 'ok' || d.result === 'not found') return jsonRes({ ok: true, result: d.result }, 200, origin);
+      return jsonRes({ ok: false, error: d.error ? d.error.message : ('Cloudinary result: ' + d.result) }, 502, origin);
+    } catch(e) {
+      return jsonRes({ ok: false, error: e.message }, 500, origin);
     }
   }
   return jsonRes({ error: 'Not found' }, 404, origin);
@@ -587,6 +618,18 @@ function buildDiscordEmbed(a, price, cfg, provider) {
   var fields = [{ name:'Direction', value: a.dir==='above'?'↑ Above':'↓ Below', inline:true },{ name:'Target', value:fmtPrice(a.target), inline:true },{ name:'Current', value:fmtPrice(price), inline:true },{ name:'Provider', value: providerLabel(provider), inline:true }];
   if (a.note) fields.push({ name: notePrefix ? notePrefix.trim() || 'Note' : 'Note', value: a.note });
   return { embeds:[{ title: titlePrefix + a.symbol, color: a.dir==='above' ? colorAbove : colorBelow, fields:fields, footer:{text: footerText}, timestamp:new Date().toISOString() }] };
+}
+
+// SHA-1 hex digest via Web Crypto — used to sign the Cloudinary destroy call below.
+// Cloudinary's signing scheme requires SHA-1 specifically; it's fine for this purpose
+// even though SHA-1 is deprecated for general cryptographic use.
+async function sha1Hex(str) {
+  var enc = new TextEncoder().encode(str);
+  var hash = await crypto.subtle.digest('SHA-1', enc);
+  var bytes = new Uint8Array(hash);
+  var hex = '';
+  for (var i = 0; i < bytes.length; i++) hex += bytes[i].toString(16).padStart(2, '0');
+  return hex;
 }
 
 async function sendTelegram(text, cfg) {
