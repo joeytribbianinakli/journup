@@ -10240,6 +10240,11 @@ function onDrop(e,zone){
   e.preventDefault();var el=document.getElementById('paste-zone-'+zone);if(el)el.classList.remove('drag');
   Array.from(e.dataTransfer.files).forEach(function(f){if(f.type.startsWith('image/'))addImageToZone(f,zone)});
 }
+// INTENTIONAL — uploads immediately, not deferred to Save: guarantees the image exists
+// (Cloudinary or local-blob fallback below) before the trade record does, so Save can never
+// succeed while a screenshot silently failed to attach. Do not change to upload-on-save —
+// that would risk either blocking the whole trade save on a flaky upload, or saving the
+// trade with a missing image.
 async function addImageToZone(file,zone){
   var cld=cloudinaryGetConfig();
   if(cld.cloudName&&cld.uploadPreset){
@@ -10313,7 +10318,7 @@ function renderPendingImages(zone){
 function removePendingImg(zone,idx){
   var img=pendingImages[zone][idx];
   if(img&&img.cloudUrl){
-    // Prefer delete_token (valid ~10 min, no signature needed); fall back to publicId
+    // delete_token if still valid (~10 min), else signed delete via the Worker — see cloudinaryDeleteImage()
     if(img.deleteToken||img.publicId)cloudinaryDeleteImage(img);
   }
   pendingImages[zone].splice(idx,1);renderPendingImages(zone);
@@ -10336,12 +10341,9 @@ function deleteStoredImg(imgId,zone,btn){
   btn.closest('.img-thumb').remove();
   if(!pendingImages._deleted)pendingImages._deleted=[];
   pendingImages._deleted.push(imgId);
-  // Also delete from Cloudinary — use deleteToken if available (works ~10min after upload),
-  // otherwise try publicId (may require signed request; fails silently if not supported)
-  dbGet('images',imgId).then(function(img){
-    if(!img||!img.cloudUrl)return;
-    if(img.deleteToken||img.publicId)cloudinaryDeleteImage(img);
-  }).catch(function(){});
+  // INTENTIONAL — deletion is deferred to saveTrade()'s pendingImages._deleted loop, not
+  // fired here, so canceling the edit (Clear form / navigating away / editing a different
+  // trade) leaves this stored screenshot, cloud copy included, completely untouched.
 }
 // ══ Trade # auto-gen ══════════════════════════════
 async function generateTradeNum(){
@@ -10533,7 +10535,13 @@ async function saveTrade(){
     if(old){imageIds=JSON.parse(JSON.stringify(old.imageIds||_emptyIds));oldSessionId=old.sessionId||null;_oldLoggedAt=old.loggedAt||null;num=old.num||num;_oldStarred=!!old.starred;_oldReviewed=!!old.reviewed;}
     if(pendingImages._deleted){
       for(var z2 in imageIds)imageIds[z2]=(imageIds[z2]||[]).filter(function(id){return!pendingImages._deleted.includes(id)});
-      for(var did of pendingImages._deleted)await dbDelete('images',did);
+      for(var did of pendingImages._deleted){
+        // Only actually hits Cloudinary once the trade save has gotten this far — see the
+        // comment in deleteStoredImg() for why this is deferred rather than immediate.
+        var _delImg=await dbGet('images',did).catch(function(){return null;});
+        if(_delImg&&_delImg.cloudUrl&&(_delImg.deleteToken||_delImg.publicId))cloudinaryDeleteImage(_delImg);
+        await dbDelete('images',did);
+      }
     }
   }
   for(var zone of SS_ZONES){
@@ -27311,6 +27319,7 @@ var _noteImgCache={};   // imgId -> dataUrl/cloudUrl, filled by notesPreloadImgs
 var _noteCardImgs={};   // noteId -> [src,...] in card order, used by the lightbox strip
 var _noteImgs=[];       // images of the note currently open in the modal
 var _noteImgDel=[];     // imgIds to remove from IndexedDB when the modal is saved
+var _noteCloudDel=[];   // {publicId,deleteToken} of already-saved hosted images to remove from Cloudinary on save
 var _noteImgSrc={};     // modal entry id -> preview src
 function _noteUid(){return Date.now().toString(36)+Math.random().toString(36).slice(2);}
 // Resolve every locally-stored note image up-front so notesCardHtml() can stay synchronous.
@@ -27352,6 +27361,8 @@ function notesImgPick(e){
 }
 // Cloudinary when configured (with a silent fall back to local on failure), IndexedDB otherwise.
 // New local blobs are only written to the DB on save — see notesSaveModal().
+// INTENTIONAL — same reasoning as addImageToZone() for trades: upload immediately, never
+// defer to Save, so a note can't end up saved with an image that silently failed to attach.
 async function notesAddImageFile(file){
   var cld=(typeof cloudinaryGetConfig==='function')?cloudinaryGetConfig():{};
   var uid=_noteUid();
@@ -27364,7 +27375,7 @@ async function notesAddImageFile(file){
       if(!resp.ok)throw new Error('HTTP '+resp.status);
       var d=await resp.json();
       if(d.error)throw new Error(d.error.message);
-      var ent={id:uid,cloudUrl:d.secure_url,publicId:d.public_id||publicId,deleteToken:d.delete_token||null};
+      var ent={id:uid,cloudUrl:d.secure_url,publicId:d.public_id||publicId,deleteToken:d.delete_token||null,_new:true};
       _noteImgs.push(ent);_noteImgSrc[uid]=ent.cloudUrl;notesRenderModalImgs();
       return;
     }catch(err){ toast('Cloudinary upload failed: '+err.message+' — saved locally','err'); }
@@ -27378,8 +27389,17 @@ async function notesAddImageFile(file){
 }
 function notesRemoveModalImg(idx){
   var e=_noteImgs[idx];if(!e)return;
-  if(e.cloudUrl&&typeof cloudinaryDeleteImage==='function'){
-    if(e.deleteToken||e.publicId)cloudinaryDeleteImage(e);
+  if(e.cloudUrl){
+    if(e._new){
+      // Uploaded earlier in this same, still-unsaved edit — nothing else can reference it
+      // yet, so it's safe to delete from Cloudinary right away.
+      if(typeof cloudinaryDeleteImage==='function'&&(e.deleteToken||e.publicId))cloudinaryDeleteImage(e);
+    } else {
+      // INTENTIONAL — was already part of the saved note, so deletion is deferred to
+      // notesSaveModal(); closing this modal without saving must leave the note (and its
+      // Cloudinary copy) untouched.
+      _noteCloudDel.push({publicId:e.publicId,deleteToken:e.deleteToken});
+    }
   }
   if(e.imgId&&!e._new)_noteImgDel.push(e.imgId);
   delete _noteImgSrc[e.id];
@@ -27391,7 +27411,7 @@ function notesRemoveModalImg(idx){
 // whereas a deleted note is gone for good and shouldn't leave files behind in the account.
 // Cloudinary removal uses the delete_token when it's still valid (~10 min after upload,
 // requires "Return delete token = Yes" on the preset), otherwise falls back to a destroy
-// call by publicId, which fails silently on unsigned presets — see cloudinaryDeleteImage().
+// call routed through the Worker's signed /cloudinary-delete — see cloudinaryDeleteImage().
 async function notesDropImgRecords(notes){
   for(var i=0;i<notes.length;i++){
     var ims=notes[i].images||[];
@@ -27641,7 +27661,7 @@ async function notesDeleteColumn(colId){
 async function notesOpenAdd(colId){
   _noteEditingId=null;
   _noteEditColor='yellow';
-  _noteImgs=[];_noteImgDel=[];_noteImgSrc={};notesRenderModalImgs();
+  _noteImgs=[];_noteImgDel=[];_noteCloudDel=[];_noteImgSrc={};notesRenderModalImgs();
   await notesPopulateColSelect(colId);
   document.getElementById('note-modal-title').textContent='New note';
   document.getElementById('note-text-inp').value='';
@@ -27657,7 +27677,7 @@ async function notesOpenEdit(id){
   if(!n)return;
   _noteEditingId=id;
   _noteEditColor=NOTE_COLORS.indexOf(n.color)!==-1?n.color:'yellow';
-  _noteImgs=JSON.parse(JSON.stringify(n.images||[]));_noteImgDel=[];_noteImgSrc={};
+  _noteImgs=JSON.parse(JSON.stringify(n.images||[]));_noteImgDel=[];_noteCloudDel=[];_noteImgSrc={};
   await notesPreloadImgs([n]);
   _noteImgs.forEach(function(e){_noteImgSrc[e.id]=notesImgSrc(e);});
   notesRenderModalImgs();
@@ -27701,6 +27721,7 @@ async function notesSaveModal(){
     }
   }
   for(var _d=0;_d<_noteImgDel.length;_d++){try{await dbDelete('images',_noteImgDel[_d]);delete _noteImgCache[_noteImgDel[_d]];}catch(err){}}
+  for(var _cd=0;_cd<_noteCloudDel.length;_cd++){var _ce=_noteCloudDel[_cd];if(_ce.deleteToken||_ce.publicId)cloudinaryDeleteImage(_ce);}
   var imgMeta=_noteImgs.map(function(e){
     var o={id:e.id};
     if(e.cloudUrl){o.cloudUrl=e.cloudUrl;o.publicId=e.publicId||null;o.deleteToken=e.deleteToken||null;}
@@ -27714,7 +27735,7 @@ async function notesSaveModal(){
   } else {
     data.notes.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2),colId:colId,text:text,tag:tag,color:_noteEditColor,images:imgMeta,createdAt:Date.now(),updatedAt:Date.now()});
   }
-  _noteImgs=[];_noteImgDel=[];_noteImgSrc={};
+  _noteImgs=[];_noteImgDel=[];_noteCloudDel=[];_noteImgSrc={};
   await saveNotesBoard(data);
   notesCloseModal();
   await notesRender();
