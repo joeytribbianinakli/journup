@@ -17562,7 +17562,12 @@ async function calcSyncAssets(){
         } else if(tab==='stocks'){
           entry={sym:p, pip:0.01, contract:1, pvp:0.01, quote:'USD', lev:[1,2,4,5,10,20], defLev:5, desc:at.name+' — '+p, breakdownType:'shares', unitLabel:'Shares'};
         } else {
-          entry={sym:p, pip:0.1, contract:1, pvp:0.1, quote:'USD', lev:[1,2,5,10,20,50,100,200], defLev:50, desc:at.name+' — '+p, breakdownType:'contracts', unitLabel:'Lots'};
+          // tickVal is required here: breakdownType:'contracts' makes calcCalc() divide by
+          // inst.tickVal (not pvp) for any custom index/future pair not already in
+          // CALC_KNOWN_SPECS (e.g. a user-added ETF like XEQT.TO) — omitting it produced NaN
+          // across the whole calculator. Matches the hardcoded US500/NAS100/UK100/GER40 entries
+          // above, which all use pip=tickVal=pvp=0.1 for this same "1 unit, $1/point" CFD shape.
+          entry={sym:p, pip:0.1, contract:1, pvp:0.1, tickVal:0.1, quote:'USD', lev:[1,2,5,10,20,50,100,200], defLev:50, desc:at.name+' — '+p, breakdownType:'contracts', unitLabel:'Lots'};
         }
       }
       rebuilt[tab].push(entry);
@@ -27405,22 +27410,18 @@ function notesRemoveModalImg(idx){
   delete _noteImgSrc[e.id];
   _noteImgs.splice(idx,1);notesRenderModalImgs();
 }
-// Deleting a note (or a column of notes) removes its images everywhere: the IndexedDB
-// record for local blobs, and the Cloudinary copy for hosted ones. This differs from trade
-// deletion on purpose — trades keep their Cloudinary files so a restore brings them back,
-// whereas a deleted note is gone for good and shouldn't leave files behind in the account.
-// Cloudinary removal uses the delete_token when it's still valid (~10 min after upload,
-// requires "Return delete token = Yes" on the preset), otherwise falls back to a destroy
-// call routed through the Worker's signed /cloudinary-delete — see cloudinaryDeleteImage().
+// INTENTIONAL — deletes the local IndexedDB record ONLY, same as trades' deleteTrade().
+// Cloudinary copies are deliberately kept: notes have their own GitHub backup/restore and
+// merge (ghRestoreNotesBackup/ghMergeNotesBackup, tj_notes.json), so a note deleted today
+// can come back later via restore or merge with its old cloudUrl intact — if that file had
+// been deleted from Cloudinary, the restored note would show a broken image forever. Do not
+// add a cloudinaryDeleteImage() call here without re-checking that reasoning first.
 async function notesDropImgRecords(notes){
   for(var i=0;i<notes.length;i++){
     var ims=notes[i].images||[];
     for(var j=0;j<ims.length;j++){
       var im=ims[j];
       if(im.imgId){try{await dbDelete('images',im.imgId);delete _noteImgCache[im.imgId];}catch(e){}}
-      if(im.cloudUrl&&typeof cloudinaryDeleteImage==='function'){
-        if(im.deleteToken||im.publicId)cloudinaryDeleteImage(im);
-      }
     }
   }
 }
