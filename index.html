@@ -5776,7 +5776,7 @@ document.addEventListener('DOMContentLoaded',function(){
             <input type="hidden" id="sm-type-val" value="live">
             <div id="sm-type-lock-hint" style="display:none;font-size:10px;color:var(--purple);margin-top:6px;line-height:1.4">✦ Locked to Demo — this session was created with the demo generator, so it must stay categorized as Demo.</div>
           </div>
-          <div class="frow" style="margin-bottom:12px"><label class="flabel">Session name <span style="color:var(--text3);font-weight:400">(auto-generated)</span></label><input type="text" id="sm-name" placeholder="Auto-filled from type &amp; dates — edit to override" oninput="sessionNameDirty=true"><div style="font-size:10px;color:var(--text3);margin-top:5px;line-height:1.4">Automatically built from the session number, type, and date range — updates as you change the type or dates above, e.g. <span class="mono" style="font-size:10px">[3] [Live] Jul 16 - Present [2026]</span>. Type your own and it's kept: the <span class="mono" style="font-size:10px">[number]</span>, <span class="mono" style="font-size:10px">[type]</span> and <span class="mono" style="font-size:10px">[year]</span> tags stay in sync, the middle stops auto-updating.</div></div>
+          <div class="frow" style="margin-bottom:12px"><label class="flabel">Session name <span style="color:var(--text3);font-weight:400">(auto-generated)</span></label><input type="text" id="sm-name" placeholder="Auto-filled from type &amp; dates — edit to override" oninput="sessionNameDirty=true"><div style="font-size:10px;color:var(--text3);margin-top:5px;line-height:1.4">Automatically built from the session number, type, and date range — updates as you change the type or dates above, e.g. <span class="mono" style="font-size:10px">[3] [Live] Jul 16 - Present [2026]</span>. Type your own and it's saved exactly as typed — nothing is added, and it stops auto-updating.</div></div>
           <div class="frow-inline" style="margin-bottom:12px">
             <div class="frow"><label class="flabel">Start date</label><input type="date" id="sm-start" min="1000-01-01" max="9999-12-31" onchange="refreshSessionAutoDateRange()"></div>
             <div class="frow"><label class="flabel">End date</label><input type="date" id="sm-end" min="1000-01-01" max="9999-12-31" onchange="refreshSessionAutoDateRange()"></div>
@@ -8103,13 +8103,13 @@ function setSessionTypePillUI(type){
   if(hidden)hidden.value=type;
 }
 // ── Session name auto-format: "[number] [Type] Month Day - Month Day/Present [Year]" ────
-// The number and type live at the front, the year at the back; the middle segment defaults
-// to the session's date range (derived from the Start/End date fields) but is free-typed
-// text the moment the user edits it — see sessionNameDirty below.
-// True once the user has typed in the name field, meaning the middle segment is now *their*
-// text and must never be silently rebuilt from the date inputs. Reset whenever the modal is
-// (re)opened: false for a fresh auto-name, true when editing a session whose stored name
-// isn't a stock auto-name. The [N]/[Type]/[Year] brackets stay app-managed either way.
+// This format only ever applies to an untouched, still-auto-generated name. The moment the
+// user types anything in the field, it's free text from then on — saved exactly as typed,
+// with no [number]/[Type]/[Year] added, and immune to type-pill or date changes for the
+// rest of this modal session. See sessionNameDirty below.
+// True once the user has typed in the name field. Reset whenever the modal is (re)opened:
+// false for a fresh auto-name, true when editing a session whose stored name isn't a stock
+// auto-name (i.e. anything without the full [N] [Type] ... [Year] wrapper).
 var sessionNameDirty=false;
 function parseSessionName(name){
   var s=(name||'').trim();
@@ -8173,13 +8173,12 @@ function nextSessionNumberForType(allSessions,type,excludeId){
 async function applySessionTypePrefix(type){
   var nameInput=document.getElementById('sm-name');
   if(!nameInput)return;
+  if(sessionNameDirty)return; // user wrote their own name — don't touch it, not even the brackets
   var parsed=parseSessionName(nameInput.value);
   var year=parsed.year||new Date().getFullYear();
   var startVal=(document.getElementById('sm-start')||{}).value;
   var endVal=(document.getElementById('sm-end')||{}).value;
-  // If the user has typed their own middle segment, keep it — only the bracketed
-  // number/type/year are re-synced. Otherwise the middle stays the auto date range.
-  var core=(sessionNameDirty&&parsed.core)?parsed.core:sessionDateRangeLabel(startVal,endVal);
+  var core=sessionDateRangeLabel(startVal,endVal);
   var allSessions=await dbGetAllCached('sessions');
   var nextNum=nextSessionNumberForType(allSessions,type,editingSessionId);
   nameInput.value=composeSessionName(nextNum,type,core,year);
@@ -8219,22 +8218,22 @@ function lockSessionTypePills(lock){
 }
 // Safety net applied right before saving: guarantees the stored name always follows the
 // "[N] [Type] Month Day - Month Day/Present [Year]" format, regardless of what the user typed
-// or whether JS state drifted. Reuses whatever number/year are already in the name; only
-// recalculates the number fresh (last-used-in-category + 1) if the name doesn't have one
-// (e.g. field was cleared).
-// The middle segment is the user's if they typed one (sessionNameDirty) — including a name
-// typed with no brackets at all, which simply becomes the middle segment of a well-formed
-// name. Only when the field is still untouched auto-text is that segment rebuilt from the
-// current Start/End dates, so an auto-name can never go stale.
+// or whether JS state drifted. If the user has typed their own name (sessionNameDirty), it is
+// saved exactly as they typed it — no [number]/[Type]/[Year] is added, changed, or removed.
+// Only an untouched auto-name (or a name field left empty) still gets the bracketed
+// "[N] [Type] Month Day - Month Day/Present [Year]" format, rebuilt from the current
+// Start/End dates so it can never go stale.
 async function ensureSessionNamePrefix(name,type,startVal,endVal){
-  var parsed=parseSessionName(name);
+  var trimmed=(name||'').trim();
+  if(sessionNameDirty&&trimmed)return trimmed;
+  var parsed=parseSessionName(trimmed);
   var year=parsed.year||new Date().getFullYear();
   var num=parseInt(parsed.num,10);
   if(isNaN(num)){
     var allSessions=await dbGetAllCached('sessions');
     num=nextSessionNumberForType(allSessions,type,editingSessionId);
   }
-  var core=(sessionNameDirty&&parsed.core)?parsed.core:sessionDateRangeLabel(startVal,endVal);
+  var core=sessionDateRangeLabel(startVal,endVal);
   return composeSessionName(num,type,core,year);
 }
 // ── Retro panel toggle ─────────────────────────────────────────────────
