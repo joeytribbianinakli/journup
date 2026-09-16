@@ -5776,7 +5776,7 @@ document.addEventListener('DOMContentLoaded',function(){
             <input type="hidden" id="sm-type-val" value="live">
             <div id="sm-type-lock-hint" style="display:none;font-size:10px;color:var(--purple);margin-top:6px;line-height:1.4">✦ Locked to Demo — this session was created with the demo generator, so it must stay categorized as Demo.</div>
           </div>
-          <div class="frow" style="margin-bottom:12px"><label class="flabel">Session name <span style="color:var(--text3);font-weight:400">(auto-generated)</span></label><input type="text" id="sm-name" placeholder="Auto-filled from type &amp; dates — edit to override"><div style="font-size:10px;color:var(--text3);margin-top:5px;line-height:1.4">Automatically built from the session number, type, and date range — updates as you change the type or dates above, e.g. <span class="mono" style="font-size:10px">[3] [Live] Jul 16 - Present [2026]</span></div></div>
+          <div class="frow" style="margin-bottom:12px"><label class="flabel">Session name <span style="color:var(--text3);font-weight:400">(auto-generated)</span></label><input type="text" id="sm-name" placeholder="Auto-filled from type &amp; dates — edit to override" oninput="sessionNameDirty=true"><div style="font-size:10px;color:var(--text3);margin-top:5px;line-height:1.4">Automatically built from the session number, type, and date range — updates as you change the type or dates above, e.g. <span class="mono" style="font-size:10px">[3] [Live] Jul 16 - Present [2026]</span>. Type your own and it's kept: the <span class="mono" style="font-size:10px">[number]</span>, <span class="mono" style="font-size:10px">[type]</span> and <span class="mono" style="font-size:10px">[year]</span> tags stay in sync, the middle stops auto-updating.</div></div>
           <div class="frow-inline" style="margin-bottom:12px">
             <div class="frow"><label class="flabel">Start date</label><input type="date" id="sm-start" min="1000-01-01" max="9999-12-31" onchange="refreshSessionAutoDateRange()"></div>
             <div class="frow"><label class="flabel">End date</label><input type="date" id="sm-end" min="1000-01-01" max="9999-12-31" onchange="refreshSessionAutoDateRange()"></div>
@@ -6878,8 +6878,40 @@ async function populateErrorFilterSelect(){
 // "Tag, Tag — optional detail"; anything that doesn't parse as a known-tag list (i.e. every
 // trade logged before this UI existed) is treated as legacy free text and shown in the
 // detail field untouched rather than discarded, so no past journal entry is ever lost.
-var DEFAULT_EMOTION_TAGS=['Calm','FOMO','Anxious','Procrastination'];
-async function getEmotionTags(){return await getSetting('emotionTags',DEFAULT_EMOTION_TAGS.slice());}
+var DEFAULT_EMOTION_TAGS=['Calm','Impatient','Fear','FOMO','Anxious','Procrastination'];
+var _emoTagsMigrationChecked=false;
+async function getEmotionTags(){
+  // One-time migration: Fear and Impatient were added after some installs already had their
+  // own saved emotionTags list (which DEFAULT_EMOTION_TAGS above doesn't touch, since it's
+  // only ever read as the seed value for a brand-new install). Positions them to match a
+  // fresh install — Impatient right after Calm, Fear right before FOMO — falling back to
+  // appending either one if its anchor tag isn't present. Gated by an in-memory flag (mutex
+  // within this session) plus a persisted setting, so it runs exactly once ever and never
+  // re-adds a tag the user later deletes. Any other tags the user added are left untouched.
+  if(!_emoTagsMigrationChecked){
+    _emoTagsMigrationChecked=true;
+    var alreadyMigrated=await getSetting('emo-fear-impatient-migrated',false);
+    if(!alreadyMigrated){
+      var existing=await getSetting('emotionTags',null);
+      if(existing){
+        var changed=false;
+        if(existing.indexOf('Impatient')===-1){
+          var calmIdx=existing.indexOf('Calm');
+          if(calmIdx!==-1)existing.splice(calmIdx+1,0,'Impatient');else existing.push('Impatient');
+          changed=true;
+        }
+        if(existing.indexOf('Fear')===-1){
+          var fomoIdx=existing.indexOf('FOMO');
+          if(fomoIdx!==-1)existing.splice(fomoIdx,0,'Fear');else existing.push('Fear');
+          changed=true;
+        }
+        if(changed)await setSetting('emotionTags',existing);
+      }
+      await setSetting('emo-fear-impatient-migrated',true);
+    }
+  }
+  return await getSetting('emotionTags',DEFAULT_EMOTION_TAGS.slice());
+}
 var EMO_PILL_COLORS=['opt-blue','opt-teal','opt-amber','opt-purple','opt-green','opt-gray','opt-red'];
 function _emoParse(raw,knownTags){
   raw=(raw||'').trim();
@@ -8071,8 +8103,14 @@ function setSessionTypePillUI(type){
   if(hidden)hidden.value=type;
 }
 // ── Session name auto-format: "[number] [Type] Month Day - Month Day/Present [Year]" ────
-// The number and type live at the front, the year at the back; the middle segment is always
-// the session's date range (derived from the Start/End date fields), not free-typed text.
+// The number and type live at the front, the year at the back; the middle segment defaults
+// to the session's date range (derived from the Start/End date fields) but is free-typed
+// text the moment the user edits it — see sessionNameDirty below.
+// True once the user has typed in the name field, meaning the middle segment is now *their*
+// text and must never be silently rebuilt from the date inputs. Reset whenever the modal is
+// (re)opened: false for a fresh auto-name, true when editing a session whose stored name
+// isn't a stock auto-name. The [N]/[Type]/[Year] brackets stay app-managed either way.
+var sessionNameDirty=false;
 function parseSessionName(name){
   var s=(name||'').trim();
   var numMatch=s.match(/^\[(\d+)\]\s*/);
@@ -8139,10 +8177,12 @@ async function applySessionTypePrefix(type){
   var year=parsed.year||new Date().getFullYear();
   var startVal=(document.getElementById('sm-start')||{}).value;
   var endVal=(document.getElementById('sm-end')||{}).value;
-  var dateLabel=sessionDateRangeLabel(startVal,endVal);
+  // If the user has typed their own middle segment, keep it — only the bracketed
+  // number/type/year are re-synced. Otherwise the middle stays the auto date range.
+  var core=(sessionNameDirty&&parsed.core)?parsed.core:sessionDateRangeLabel(startVal,endVal);
   var allSessions=await dbGetAllCached('sessions');
   var nextNum=nextSessionNumberForType(allSessions,type,editingSessionId);
-  nameInput.value=composeSessionName(nextNum,type,dateLabel,year);
+  nameInput.value=composeSessionName(nextNum,type,core,year);
 }
 // Rebuilds just the date-range segment of the name field in place — used when the Start/End
 // date inputs change. Deliberately does NOT touch the number (so tweaking a date never
@@ -8150,6 +8190,7 @@ async function applySessionTypePrefix(type){
 function refreshSessionAutoDateRange(){
   var nameInput=document.getElementById('sm-name');
   if(!nameInput)return;
+  if(sessionNameDirty)return; // user wrote their own name — don't stomp on it
   var parsed=parseSessionName(nameInput.value);
   if(!parsed.num)return; // nothing auto-generated to refresh
   var type=parsed.type||(document.getElementById('sm-type-val')||{}).value||'live';
@@ -8180,8 +8221,11 @@ function lockSessionTypePills(lock){
 // "[N] [Type] Month Day - Month Day/Present [Year]" format, regardless of what the user typed
 // or whether JS state drifted. Reuses whatever number/year are already in the name; only
 // recalculates the number fresh (last-used-in-category + 1) if the name doesn't have one
-// (e.g. field was cleared). The date-range segment is always rebuilt from the current
-// Start/End date values so it can never go stale.
+// (e.g. field was cleared).
+// The middle segment is the user's if they typed one (sessionNameDirty) — including a name
+// typed with no brackets at all, which simply becomes the middle segment of a well-formed
+// name. Only when the field is still untouched auto-text is that segment rebuilt from the
+// current Start/End dates, so an auto-name can never go stale.
 async function ensureSessionNamePrefix(name,type,startVal,endVal){
   var parsed=parseSessionName(name);
   var year=parsed.year||new Date().getFullYear();
@@ -8190,8 +8234,8 @@ async function ensureSessionNamePrefix(name,type,startVal,endVal){
     var allSessions=await dbGetAllCached('sessions');
     num=nextSessionNumberForType(allSessions,type,editingSessionId);
   }
-  var dateLabel=sessionDateRangeLabel(startVal,endVal);
-  return composeSessionName(num,type,dateLabel,year);
+  var core=(sessionNameDirty&&parsed.core)?parsed.core:sessionDateRangeLabel(startVal,endVal);
+  return composeSessionName(num,type,core,year);
 }
 // ── Retro panel toggle ─────────────────────────────────────────────────
 function _syncRetroButtonLabel(){
@@ -8245,6 +8289,7 @@ async function openNewSessionModal(){
   // Clear the name field and set the default start date first, so selectSessionType() below
   // builds a fresh auto-name that already reflects today's date, e.g. "[3] [Live] Jul 16 - Present [2026]".
   document.getElementById('sm-name').value='';
+  sessionNameDirty=false; // fresh auto-name; nothing typed by the user yet
   document.getElementById('sm-start').value=new Date().toISOString().slice(0,10);
   document.getElementById('sm-end').value='';
   // Reset session type to Live and make sure the picker is unlocked (in case a prior demo
@@ -8279,6 +8324,13 @@ function openEditSessionModal(sess,hasTrades){
   editingSessionId=sess.id;
   document.getElementById('sm-title').textContent='Edit Session';
   document.getElementById('sm-name').value=sess.name||'';
+  // Decide whether the stored name is stock auto-text or something the user wrote: it's only
+  // "auto" if it's fully bracketed AND its middle segment still equals the date range implied
+  // by the session's own dates. Custom names (and legacy pre-auto-format names) count as
+  // user-owned, so opening and re-saving the session can't quietly rewrite them.
+  var parsedStored=parseSessionName(sess.name||'');
+  sessionNameDirty=!(parsedStored.num&&parsedStored.type&&parsedStored.year&&
+    parsedStored.core===sessionDateRangeLabel(sess.startDate||'',sess.endDate||''));
   // Show the session's saved type (defaults to 'live' for sessions created before this
   // feature existed) — do NOT rewrite the name field just from opening the modal.
   var initType=sess.type||(sess.isDemo?'demo':'live');
