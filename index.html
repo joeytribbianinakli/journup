@@ -1086,8 +1086,8 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
 .partial-tp-row{display:flex;align-items:center;gap:7px;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:6px;flex-wrap:wrap}
 .partial-tp-row input{flex:1;min-width:0}
 .partial-tp-row .partial-tp-label{font-size:10px;font-weight:700;color:var(--text3);white-space:nowrap;min-width:18px;text-align:center;font-family:DM Mono,monospace}
-.bias-chip-remove{display:inline-flex;align-items:center;justify-content:center;margin-left:4px;width:14px;height:14px;border-radius:50%;font-size:12px;line-height:1;font-weight:700;color:var(--text3);background:none;border:none;cursor:pointer;padding:0;vertical-align:middle;flex-shrink:0;transition:color .1s,background .1s}
-.bias-chip-remove:hover{color:var(--red);background:rgba(255,80,80,.12)}
+.bias-chip-remove,.opt-pill-remove{display:inline-flex;align-items:center;justify-content:center;margin-left:4px;width:14px;height:14px;border-radius:50%;font-size:12px;line-height:1;font-weight:700;color:var(--text3);background:none;border:none;cursor:pointer;padding:0;vertical-align:middle;flex-shrink:0;transition:color .1s,background .1s}
+.bias-chip-remove:hover,.opt-pill-remove:hover{color:var(--red);background:rgba(255,80,80,.12)}
 .partial-tp-add-btn{display:inline-flex;align-items:center;gap:5px;padding:5px 11px;border-radius:var(--radius);font-size:11px;font-weight:600;cursor:pointer;border:1px dashed var(--border2);background:transparent;color:var(--text3);transition:all .12s;font-family:inherit}
 .partial-tp-add-btn:hover{border-color:var(--accent);color:var(--accent);background:rgba(77,127,255,.06)}
 .partial-tp-section{margin-top:10px;padding-top:10px;border-top:1px solid var(--border)}
@@ -3185,19 +3185,19 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
             <div class="frow">
               <label class="flabel">Before placing trade <span style="color:var(--red);margin-left:2px">*</span></label>
               <div class="opt-group" id="opt-emo-before"></div>
-              <input type="text" class="emo-note-inp" id="emo-note-before" placeholder="add detail (optional)" oninput="onEmotionNoteInput('before')" style="margin-top:6px;font-size:11px;padding:5px 8px">
+              <textarea class="emo-note-inp" id="emo-note-before" placeholder="add detail (optional)" oninput="onEmotionNoteInput('before')" rows="2" style="margin-top:6px;font-size:11px;padding:5px 8px;resize:vertical;font-family:inherit;line-height:1.4;min-height:0;height:42px"></textarea>
               <input type="hidden" id="emo-before" value="">
             </div>
             <div class="frow">
               <label class="flabel">After placing trade <span style="color:var(--red);margin-left:2px">*</span></label>
               <div class="opt-group" id="opt-emo-after"></div>
-              <input type="text" class="emo-note-inp" id="emo-note-after" placeholder="add detail (optional)" oninput="onEmotionNoteInput('after')" style="margin-top:6px;font-size:11px;padding:5px 8px">
+              <textarea class="emo-note-inp" id="emo-note-after" placeholder="add detail (optional)" oninput="onEmotionNoteInput('after')" rows="2" style="margin-top:6px;font-size:11px;padding:5px 8px;resize:vertical;font-family:inherit;line-height:1.4;min-height:0;height:42px"></textarea>
               <input type="hidden" id="emo-after" value="">
             </div>
             <div class="frow">
               <label class="flabel">After trade completed <span style="color:var(--text3);font-weight:400;text-transform:none;letter-spacing:0;font-size:9.5px">(required to close the trade)</span></label>
               <div class="opt-group" id="opt-emo-complete"></div>
-              <input type="text" class="emo-note-inp" id="emo-note-complete" placeholder="add detail (optional)" oninput="onEmotionNoteInput('complete')" style="margin-top:6px;font-size:11px;padding:5px 8px">
+              <textarea class="emo-note-inp" id="emo-note-complete" placeholder="add detail (optional)" oninput="onEmotionNoteInput('complete')" rows="2" style="margin-top:6px;font-size:11px;padding:5px 8px;resize:vertical;font-family:inherit;line-height:1.4;min-height:0;height:42px"></textarea>
               <input type="hidden" id="emo-complete" value="">
             </div>
           </div>
@@ -6880,6 +6880,7 @@ async function populateErrorFilterSelect(){
 // detail field untouched rather than discarded, so no past journal entry is ever lost.
 var DEFAULT_EMOTION_TAGS=['Calm','Impatient','Fear','FOMO','Anxious','Procrastination'];
 var _emoTagsMigrationChecked=false;
+var _emoTagsJustMigrated=false; // true only if THIS boot's migration actually wrote a change — see the checklist's _clOptionalJustSeeded for the same pattern
 async function getEmotionTags(){
   // One-time migration: Fear and Impatient were added after some installs already had their
   // own saved emotionTags list (which DEFAULT_EMOTION_TAGS above doesn't touch, since it's
@@ -6905,7 +6906,7 @@ async function getEmotionTags(){
           if(fomoIdx!==-1)existing.splice(fomoIdx,0,'Fear');else existing.push('Fear');
           changed=true;
         }
-        if(changed)await setSetting('emotionTags',existing);
+        if(changed){await setSetting('emotionTags',existing);_emoTagsJustMigrated=true;}
       }
       await setSetting('emo-fear-impatient-migrated',true);
     }
@@ -6937,7 +6938,10 @@ async function populateEmotionPills(){
     grp.innerHTML=tags.map(function(t,i){
       var cls=EMO_PILL_COLORS[i%EMO_PILL_COLORS.length];
       var sel=parsed.tags.indexOf(t)!==-1?' selected':'';
-      return'<span class="opt-pill '+cls+sel+'" data-val="'+escHtml(t)+'" onclick="toggleEmotionPill(this,\''+field+'\')">'+escHtml(t)+'</span>';
+      return'<span class="opt-pill '+cls+sel+'" data-val="'+escHtml(t)+'" onclick="toggleEmotionPill(this,\''+field+'\')">'+escHtml(t)
+        +'<button type="button" class="opt-pill-remove" title="Rename emotion" onclick="event.stopPropagation();renameEmotionTag(\''+escHtml(t).replace(/'/g,"\\'")+'\')"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>'
+        +'<button type="button" class="opt-pill-remove" title="Remove emotion" onclick="event.stopPropagation();removeEmotionTag(\''+escHtml(t).replace(/'/g,"\\'")+'\')">\u00d7</button>'
+        +'</span>';
     }).join('');
     var noteEl=document.getElementById('emo-note-'+field);
     if(noteEl)noteEl.value=parsed.note;
@@ -6990,6 +6994,71 @@ async function addEmotionTag(){
   hideAddEmotionTag();
   await populateEmotionPills();
   toast('Emotion added ✓','ok');
+  // emotionTags is a plain settings key, not one of the named fields in tj_config.json —
+  // it travels inside tj_data.json's blanket settings dump instead, so a full sync (not
+  // ghAutoSyncConfig) is what actually gets this change to GitHub.
+  ghAutoSync();
+}
+// Removes a tag from the shared emotion vocabulary — mirrors deleteErrorType's guard: blocked
+// if any trade (including archived) still has this tag selected in before/after/complete, so
+// no trade is left pointing at a tag that no longer exists. Uses the pre-removal tag list to
+// parse each trade's stored string, since a tag not yet removed is still "known" for parsing.
+async function removeEmotionTag(name){
+  var tags=await getEmotionTags();
+  var idx=tags.indexOf(name);
+  if(idx===-1)return;
+  var trades=await dbGetAll('trades');
+  var using=trades.filter(function(t){
+    return['emoBefore','emoAfter','emoComplete'].some(function(f){
+      return _emoParse(t[f],tags).tags.indexOf(name)!==-1;
+    });
+  });
+  if(using.length){toast('Cannot remove "'+name+'" — used in '+using.length+' trade'+(using.length>1?'s':'')+' (including archived)','err');return;}
+  if(!confirm('Remove "'+name+'" from the emotion list?'))return;
+  tags.splice(idx,1);
+  await setSetting('emotionTags',tags);
+  await populateEmotionPills();
+  toast('Emotion removed ✓','ok');
+  ghAutoSync(); // see note in addEmotionTag — emotionTags rides in tj_data.json, not tj_config.json
+}
+// Renames a tag in the shared emotion vocabulary and cascades it into every trade that had it
+// selected — same idea as updateErrorType's cascading rename. Uses the pre-rename tag list to
+// parse each trade's stored string (so the old name is still recognized), swaps just that one
+// tag inside the parsed tags array, then rebuilds the string — the free-text detail note is
+// carried over untouched either way, and legacy free-text entries (not parsed as tags at all)
+// are left alone since they were never tag references to begin with.
+async function renameEmotionTag(oldName){
+  var tags=await getEmotionTags();
+  var idx=tags.indexOf(oldName);
+  if(idx===-1)return;
+  var newName=prompt('Rename emotion:',oldName);
+  if(newName===null)return; // cancelled
+  newName=newName.trim();
+  if(!newName||newName===oldName)return;
+  if(tags.some(function(t,i){return i!==idx&&t.toLowerCase()===newName.toLowerCase();})){toast('Already exists','err');return;}
+  var oldTagsForParse=tags.slice();
+  tags[idx]=newName;
+  await setSetting('emotionTags',tags);
+  var trades=await dbGetAll('trades');
+  var updated=0;
+  for(var t of trades){
+    var changed=false;
+    ['emoBefore','emoAfter','emoComplete'].forEach(function(f){
+      var parsed=_emoParse(t[f],oldTagsForParse);
+      var tIdx=parsed.tags.indexOf(oldName);
+      if(tIdx!==-1){
+        parsed.tags[tIdx]=newName;
+        t[f]=_emoBuild(parsed.tags,parsed.note);
+        changed=true;
+      }
+    });
+    if(changed){await dbPut('trades',t);updated++;}
+  }
+  await populateEmotionPills();
+  toast('Emotion renamed'+(updated?' — updated '+updated+' trade'+(updated>1?'s':''):'')+' ✓','ok');
+  // Push full sync (trades + settings) so any renamed trades reach GitHub too — same
+  // reasoning as updateStrategy/updateErrorType's rename.
+  ghAutoSync();
 }
 // ══ Checklist editor ══════════════════════════════
 // The checklist (array of {section, items[]}) is edited via an in-memory draft
@@ -10802,7 +10871,7 @@ async function editTrade(id){
     var _acctEl=document.getElementById('f-acct');
     if(_acctEl&&editingId===_idClosure){_acctEl.value=_preTradeEquity;recalc();}
   })(trade,id);
-  s('f-riskpct',trade.riskpct);s('f-entry',trade.entryPrice);s('f-sl-price',trade.stopLoss||'');s('f-exit',trade.exitPrice);s('f-qty',trade.qty);s('f-trr',trade.targetRR);
+  s('f-riskpct',trade.riskpct);s('f-entry',trade.entryPrice);s('f-sl-price',trade.stopLoss||'');s('f-exit',trade.exitPrice||'');s('f-qty',trade.qty);s('f-trr',trade.targetRR);
   if(trade.entryTime){setDT('f-etime-date','f-etime-time',trade.entryTime);}
   if(trade.exitTime){setDT('f-xtime-date','f-xtime-time',trade.exitTime);}
   if(trade.trailDetail){s('trail-notes',trade.trailDetail.notes);s('trail-trigger',trade.trailDetail.trigger);s('trail-count',trade.trailDetail.count);s('trail-final-sl',trade.trailDetail.finalSl);}
@@ -16567,6 +16636,13 @@ openDB().then(async function(){
   // the normal debounced ghAutoSyncConfig) specifically so it can be awaited here.
   if(_clOptionalJustSeeded&&_cfg.user&&_cfg.repo&&_cfg.token){
     try{await ghPushConfigFile(_cfg);}catch(e){console.warn('Post-migration config push failed:',e.message);}
+  }
+  // Same protection, for the Fear/Impatient emotion-tags migration — but emotionTags rides
+  // in tj_data.json's blanket settings dump (it isn't a named tj_config.json field), so this
+  // needs the full data push, not ghPushConfigFile. ghPush is awaitable here for the same
+  // reason: it must land before ghAutoPullOnSetup() below can overwrite it with stale cloud data.
+  if(_emoTagsJustMigrated&&_cfg.user&&_cfg.repo&&_cfg.token){
+    try{await ghPush(false);}catch(e){console.warn('Post-migration data push failed:',e.message);}
   }
   if(_cfg.user&&_cfg.repo&&_cfg.token)ghAutoPullOnSetup();
 });
