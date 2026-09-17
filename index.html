@@ -3605,7 +3605,7 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
                   </div>
                   <div class="bc-title">Restore / Merge Latest Trade Backup</div>
-                  <div class="bc-desc">Uses the most recent snapshot in <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;font-size:10px">bkp/trades/</code>. To restore your config (strategies/checklist/pairs), use the Snapshots list below. <strong style="color:var(--amber)">Restore</strong> deletes your current trades, images and sessions first, then loads only what's in the snapshot. <strong style="color:var(--text2)">Merge</strong> keeps your current data and adds in the snapshot's trades, images, sessions and settings — duplicate trades are skipped.</div>
+                  <div class="bc-desc">Uses the most recent snapshot in <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;font-size:10px">bkp/trades/</code>. To restore your config (strategies/checklist/pairs), use the Snapshots list below. <strong style="color:var(--amber)">Restore</strong> deletes your current trades, images and sessions first, then loads only what's in the snapshot. <strong style="color:var(--text2)">Merge</strong> keeps your current data and adds in the snapshot's trades, images and sessions — duplicate trades are skipped. Trade snapshots hold trade data only; settings and config live in the config backup.</div>
                   <div style="display:flex;gap:8px;flex-wrap:wrap">
                     <button class="btn" style="border-color:rgba(155,127,240,.3);color:var(--purple)" onclick="ghRestoreLatestBackup()">
                       <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
@@ -6685,8 +6685,10 @@ async function updateStrategy(idx,name){
   }
   populateStrategySelect();
   if(updated)toast('Strategy renamed — updated '+updated+' trade'+(updated>1?'s':''),'ok');
-  // Push full sync (trades + config) so any renamed trades reach GitHub too —
-  // config-only sync would leave the remote trades file with the stale name.
+  // Renames straddle both files: the list itself is config, but the cascade rewrote trades.
+  // ghAutoSync() alone used to cover both only because settings rode inside tj_data.json;
+  // now that tj_data.json is trades-only, the config push has to be explicit.
+  ghAutoSyncConfig();
   ghAutoSync();
 }
 // Rebuilds the Log Trade form's strategy dropdown from settings, preserving the
@@ -6799,6 +6801,8 @@ async function updateErrorType(idx,name){
   }
   populateErrorTypeSelect();
   if(updated)toast('Error type renamed — updated '+updated+' trade'+(updated>1?'s':''),'ok');
+  // Both files — see updateStrategy() for why ghAutoSync() alone no longer carries config.
+  ghAutoSyncConfig();
   ghAutoSync();
 }
 // Rebuilds the Log Trade form's error-type dropdown from settings, preserving the
@@ -6994,10 +6998,7 @@ async function addEmotionTag(){
   hideAddEmotionTag();
   await populateEmotionPills();
   toast('Emotion added ✓','ok');
-  // emotionTags is a plain settings key, not one of the named fields in tj_config.json —
-  // it travels inside tj_data.json's blanket settings dump instead, so a full sync (not
-  // ghAutoSyncConfig) is what actually gets this change to GitHub.
-  ghAutoSync();
+  ghAutoSyncConfig(); // emotionTags is a settings key → tj_config.json
 }
 // Removes a tag from the shared emotion vocabulary — mirrors deleteErrorType's guard: blocked
 // if any trade (including archived) still has this tag selected in before/after/complete, so
@@ -7019,7 +7020,7 @@ async function removeEmotionTag(name){
   await setSetting('emotionTags',tags);
   await populateEmotionPills();
   toast('Emotion removed ✓','ok');
-  ghAutoSync(); // see note in addEmotionTag — emotionTags rides in tj_data.json, not tj_config.json
+  ghAutoSyncConfig(); // emotionTags is a settings key → tj_config.json
 }
 // Renames a tag in the shared emotion vocabulary and cascades it into every trade that had it
 // selected — same idea as updateErrorType's cascading rename. Uses the pre-rename tag list to
@@ -7056,9 +7057,9 @@ async function renameEmotionTag(oldName){
   }
   await populateEmotionPills();
   toast('Emotion renamed'+(updated?' — updated '+updated+' trade'+(updated>1?'s':''):'')+' ✓','ok');
-  // Push full sync (trades + settings) so any renamed trades reach GitHub too — same
-  // reasoning as updateStrategy/updateErrorType's rename.
-  ghAutoSync();
+  // Rename straddles both files: the tag list is config, but the cascade rewrote trades too.
+  ghAutoSyncConfig();
+  if(updated)ghAutoSync();
 }
 // ══ Checklist editor ══════════════════════════════
 // The checklist (array of {section, items[]}) is edited via an in-memory draft
@@ -15459,6 +15460,9 @@ function detectBackupShape(data){
     if(Array.isArray(data.conversions))return'fx';
     if(Array.isArray(data.watchlists))return'watchlist';
     if(data.board&&typeof data.board==='object'&&(Array.isArray(data.board.notes)||Array.isArray(data.board.columns)))return'notes';
+    // v3 config: a bare `settings` array (the trades check above already ruled out tj_data).
+    if(Array.isArray(data.settings))return'config';
+    // v2 config: hand-listed named fields.
     if(data.checklist||data.strategies||data.assets||data.setupRatings||data.errorTypes||data.histCols||data.aiConfig||data.cloudinaryConfig)return'config';
   }
   return null;
@@ -15517,7 +15521,10 @@ async function applyBackupPayload(data,mode){
   }
   // Config: either nested inside an older combined export (data.config), or the standalone
   // config JSON file's top-level payload itself (ghBuildConfigPayload() shape).
-  var configData=data.config||(!isTradeData&&(data.checklist||data.strategies||data.assets||data.setupRatings||data.errorTypes||data.histCols||data.aiConfig||data.cloudinaryConfig)?data:null);
+  // v3 config is identified by its generic `settings` array; v2 by any of its named fields.
+  // The !isTradeData guard matters for older v5 tj_data.json files, which also carry a
+  // top-level `settings` array — those are handled by the trade branch above, not here.
+  var configData=data.config||(!isTradeData&&(Array.isArray(data.settings)||data.checklist||data.strategies||data.assets||data.setupRatings||data.errorTypes||data.histCols||data.aiConfig||data.cloudinaryConfig)?data:null);
   if(configData){await ghApplyConfigData(configData);result.configRestored=true;}
   // FX: explicit `fx` field (combined export), the older localData[FX_KEY] shape, or the
   // standalone FX JSON file's top-level `conversions` array.
@@ -16325,6 +16332,7 @@ function offerBreak(){
 function setBreakDuration(min){
   _breakMinutes=min;
   setSetting('breakMinutes',min); // fire-and-forget, same pattern used elsewhere for small preferences
+  ghAutoSyncConfig(); // previously reached GitHub only via tj_data.json's settings dump, which no longer exists
   _renderBreakDurationPicker();
 }
 function _renderBreakDurationPicker(){
@@ -16346,6 +16354,7 @@ function startBreak(){
   var msgInp=document.getElementById('break-message-inp');
   _breakMessage=msgInp?msgInp.value.trim():'';
   setSetting('breakMessage',_breakMessage);
+  ghAutoSyncConfig(); // see setBreakDuration — settings now sync via tj_config.json only
   var msgEl=document.getElementById('break-active-message');
   if(msgEl){
     if(_breakMessage){msgEl.textContent='🎁 '+_breakMessage;msgEl.style.display='';}
@@ -16551,12 +16560,14 @@ async function saveShortcutsConfig(){
   var unknown=parsed.filter(function(x){return!SHORTCUT_ACTIONS[x.action];}).map(function(x){return x.action;});
   _scConfig=parsed;
   await setSetting('keyboardShortcuts',_scConfig);
+  ghAutoSyncConfig(); // see setBreakDuration — settings now sync via tj_config.json only
   renderShortcutsList();
   toast(unknown.length?('Saved (unrecognized action'+(unknown.length>1?'s':'')+' ignored: '+unknown.join(', ')+')'):'Shortcuts saved ✓','ok');
 }
 async function resetShortcutsConfig(){
   _scConfig=DEFAULT_SHORTCUTS.slice();
   await setSetting('keyboardShortcuts',_scConfig);
+  ghAutoSyncConfig(); // see setBreakDuration — settings now sync via tj_config.json only
   renderShortcutsList();
   var ta=document.getElementById('sc-json-editor');
   if(ta)ta.value=JSON.stringify(_scConfig,null,2);
@@ -16637,12 +16648,11 @@ openDB().then(async function(){
   if(_clOptionalJustSeeded&&_cfg.user&&_cfg.repo&&_cfg.token){
     try{await ghPushConfigFile(_cfg);}catch(e){console.warn('Post-migration config push failed:',e.message);}
   }
-  // Same protection, for the Fear/Impatient emotion-tags migration — but emotionTags rides
-  // in tj_data.json's blanket settings dump (it isn't a named tj_config.json field), so this
-  // needs the full data push, not ghPushConfigFile. ghPush is awaitable here for the same
-  // reason: it must land before ghAutoPullOnSetup() below can overwrite it with stale cloud data.
-  if(_emoTagsJustMigrated&&_cfg.user&&_cfg.repo&&_cfg.token){
-    try{await ghPush(false);}catch(e){console.warn('Post-migration data push failed:',e.message);}
+  // Same protection for the Fear/Impatient emotion-tags migration. emotionTags is a settings
+  // key, so it's config — same push as the checklist above. Skipped when that push already
+  // ran this boot, since one tj_config.json push carries every settings key.
+  if(_emoTagsJustMigrated&&!_clOptionalJustSeeded&&_cfg.user&&_cfg.repo&&_cfg.token){
+    try{await ghPushConfigFile(_cfg);}catch(e){console.warn('Post-migration config push failed:',e.message);}
   }
   if(_cfg.user&&_cfg.repo&&_cfg.token)ghAutoPullOnSetup();
 });
@@ -17355,7 +17365,8 @@ async function updateAssetTypeName(idx,name){
     }
     await renderAssetTypeList();
     if(updated)toast('Asset type renamed — updated '+updated+' trade'+(updated>1?'s':''),'ok');
-    // Push full sync (trades + config) — see updateStrategy() for why config-only isn't enough.
+    // Both files — see updateStrategy() for why ghAutoSync() alone no longer carries config.
+    ghAutoSyncConfig();
     ghAutoSync();
   }
 }
@@ -17423,6 +17434,7 @@ async function saveAssets(){
   // Push full sync (trades + config): the asset modal is where renames actually get
   // committed (draft mode), so a config-only push here is what left renamed trades
   // stuck with the stale asset-type name on GitHub. See updateStrategy() for the same fix.
+  ghAutoSyncConfig();
   ghAutoSync();
 }
 // Rebuild the Log Trade form's pair <select> (grouped by asset type via <optgroup>), preserving the current selection if still valid
@@ -18612,9 +18624,27 @@ function calcCalc(){
 // ═══════════════════════════════════════════════════════════════════════════════════════
 var GH_FILE='tj_data.json';
 var GH_CONFIG_FILE='tj_config.json';       // live config (always overwritten)
-// Settings keys already stored (as named fields) in tj_config.json via ghBuildConfigPayload().
-// Kept out of tj_data.json's blanket settings dump below so they aren't duplicated across files.
-var GH_CONFIG_KEYS=['tj-theme','tj-theme-brightness','tj-theme-contrast','tj-cal-default-view','tj-mc-defaults','tj-calc-capital','tj-demo-defaults'];
+// ── Which file owns a settings-store key ───────────────────────────────────────────────
+// Rule: tj_data.json holds trade data ONLY (trades, images, sessions). Every user setting
+// and configurable field value lives in tj_config.json. This predicate is the single point
+// of truth for that split — ghBuildConfigPayload() includes a key iff this returns true, and
+// ghBuildPayload() no longer stores settings at all, so no key can land in both files.
+// Deliberately an exclusion list rather than an allow-list: a newly added setting is picked
+// up by config automatically instead of being silently left out until someone remembers to
+// register it (which is exactly how emotionTags went unsynced).
+// Excluded, and why:
+//   tracker*            device-local live tracker state (goal, deadline, pause timestamps,
+//                       on-screen position) — deliberately never leaves this browser.
+//   watchlists          own file, tj_watchlist.json (ghBuildWatchlistPayload).
+//   watchlistCategories own file, tj_watchlist.json (same payload, `categories`).
+//   notes-board         own file, tj_notes.json (ghBuildNotesPayload).
+function ghIsConfigSetting(id){
+  if(!id)return false;
+  if(id.indexOf('tracker')===0)return false;
+  if(id==='watchlists'||id==='watchlistCategories')return false;
+  if(id==='notes-board')return false;
+  return true;
+}
 var GH_BKP_CONFIG_FILE='bkp/config_backup.json'; // single config backup (always overwritten)
 var GH_ALERTS_FILE='tjalert.json';         // live alerts (always overwritten)
 var GH_BKP_ALERTS_FILE='bkp/alerts_backup.json'; // single alerts backup (manual backup only)
@@ -18628,21 +18658,15 @@ async function ghBuildWatchlistPayload(){
   return{version:1,exportedAt:new Date().toISOString(),watchlists:await getWatchlists(),categories:await getWlCategories()};
 }
 // ── Config file helpers (checklist, strategies, assets & pairs) ──
+// v3 payload: one generic `settings` dump (every key ghIsConfigSetting() allows) instead of
+// the v2 hand-listed named fields (checklist/strategies/assets/theme/...). The named-field
+// form meant each new setting had to be registered here by hand or it silently never synced,
+// and the six list-type fields were additionally duplicated inside tj_data.json's own settings
+// dump. One generic array fixes both: nothing to register, and exactly one home per key.
+// v2 files still restore correctly — see the legacy branch in ghApplyConfigData().
+// aiConfig/cloudinaryConfig stay named because they live in localStorage, not the settings store.
 async function ghBuildConfigPayload(){
-  var checklist=await getChecklist();
-  var setupRatings=await getSetupRatings();
-  var strategies=await getStrategies();
-  var errorTypes=await getErrorTypes();
-  var assets=await getAssets();
-  var histCols=await getHistColConfig();
-  // Other user preferences stored in IndexedDB settings
-  var theme=await getSetting('tj-theme',null);
-  var themeBrightness=await getSetting('tj-theme-brightness',null);
-  var themeContrast=await getSetting('tj-theme-contrast',null);
-  var calView=await getSetting('tj-cal-default-view',null);
-  var mcDefaults=await getSetting('tj-mc-defaults',null);
-  var calcCapital=await getSetting('tj-calc-capital',null);
-  var demoDefaults=await getSetting('tj-demo-defaults',null);
+  var settings=(await dbGetAll('settings')).filter(function(s){return ghIsConfigSetting(s.id);});
   // AI Analyzer config — model + provider selections only; API keys are never pushed to git
   var aiRaw=aiGetConfig();
   var aiConfig={
@@ -18656,11 +18680,10 @@ async function ghBuildConfigPayload(){
   // Cloudinary config — cloud name + upload preset are safe to store (non-secret)
   var cloudinaryConfig=cloudinaryGetConfig();
   return{
-    version:2,
+    version:3,
     exportedAt:new Date().toISOString(), // forces a new commit on every backup, same as FX/Watchlist below, so "Backed up <date>" always reflects the last backup run, not just the last actual settings change
-    checklist,setupRatings,strategies,errorTypes,assets,histCols,
-    theme,themeBrightness,themeContrast,calView,mcDefaults,calcCapital,demoDefaults,
-    aiConfig,cloudinaryConfig
+    settings:settings,
+    aiConfig:aiConfig,cloudinaryConfig:cloudinaryConfig
   };
 }
 async function ghGetFileSHAByPath(cfg,path){
@@ -18705,31 +18728,62 @@ async function ghPushConfigFile(cfg){
   }catch(e){console.warn('Config file push error:',e.message);}
 }
 async function ghApplyConfigData(data){
+  // Accepts both config shapes: v3+ (generic `settings` array — every key the app has) and
+  // legacy v2 (hand-listed named fields). Both funnel into the same `applied` map so the
+  // cache-invalidation / localStorage-mirror side effects below run identically either way.
+  var applied={};
+  if(Array.isArray(data.settings)){
+    // v3+: write each record straight through, minus anything that isn't config's to own
+    // (a tracker/watchlist/notes key in a config file would mean a malformed or hand-edited
+    // file — skip rather than let it clobber device-local or other-file state).
+    for(var i=0;i<data.settings.length;i++){
+      var rec=data.settings[i];
+      if(!rec||!rec.id||!ghIsConfigSetting(rec.id))continue;
+      await dbPut('settings',{id:rec.id,value:rec.value});
+      applied[rec.id]=rec.value;
+    }
+  }else{
+    // Legacy v2 named fields → same settings keys they were built from.
+    var legacy={
+      checklist:data.checklist,setupRatings:data.setupRatings,strategies:data.strategies,
+      errorTypes:data.errorTypes,assets:data.assets,'hist-cols':data.histCols,
+      'tj-theme':data.theme,'tj-theme-brightness':data.themeBrightness,
+      'tj-theme-contrast':data.themeContrast,'tj-cal-default-view':data.calView,
+      'tj-mc-defaults':data.mcDefaults,'tj-calc-capital':data.calcCapital,
+      'tj-demo-defaults':data.demoDefaults
+    };
+    for(var k in legacy){
+      if(legacy[k]==null)continue;
+      await setSetting(k,legacy[k]);
+      applied[k]=legacy[k];
+    }
+  }
   // Keep the in-memory setup-rating caches (_clAllItemsCache/_setupRatingsCache) in sync
-  // with whatever gets written here — every setup-rating badge/column/chart in the app
+  // with whatever got written above — every setup-rating badge/column/chart in the app
   // reads these caches directly rather than re-fetching from IndexedDB, so leaving
   // _clAllItemsCache stale after a config pull/restore silently mis-scores every trade
   // (wrong items/weights) until the next full page load or Checklist-editor save.
-  if(data.checklist){await setSetting('checklist',data.checklist);await loadClAllItemsCache();}
-  if(data.setupRatings){await setSetting('setupRatings',data.setupRatings);_setupRatingsCache=data.setupRatings;}
-  if(data.strategies)await setSetting('strategies',data.strategies);
-  if(data.errorTypes)await setSetting('errorTypes',data.errorTypes);
-  if(data.assets){await setSetting('assets',data.assets);_invalidateAssetFeesCache();}
-  if(data.histCols){await setSetting('hist-cols',data.histCols);_histColConfigCache=null;}
-  if(data.theme){await setSetting('tj-theme',data.theme);localStorage.setItem('tj-theme',data.theme);if(typeof applyThemeVars==='function'&&typeof THEMES!=='undefined'&&THEMES[data.theme])applyThemeVars(data.theme);}
-  if(data.themeBrightness!=null||data.themeContrast!=null){
-    if(data.themeBrightness!=null)await setSetting('tj-theme-brightness',data.themeBrightness);
-    if(data.themeContrast!=null)await setSetting('tj-theme-contrast',data.themeContrast);
+  if(applied['checklist'])await loadClAllItemsCache();
+  if(applied['setupRatings'])_setupRatingsCache=applied['setupRatings'];
+  if(applied['assets'])_invalidateAssetFeesCache();
+  if(applied['hist-cols'])_histColConfigCache=null;
+  // Theme/calendar/capital are additionally mirrored into localStorage, which is what the
+  // pre-IndexedDB boot path reads to paint the UI before the DB is open.
+  if(applied['tj-theme']){
+    localStorage.setItem('tj-theme',applied['tj-theme']);
+    if(typeof applyThemeVars==='function'&&typeof THEMES!=='undefined'&&THEMES[applied['tj-theme']])applyThemeVars(applied['tj-theme']);
+  }
+  if(applied['tj-theme-brightness']!=null||applied['tj-theme-contrast']!=null){
     if(typeof applyThemeFilters==='function'){
-      var _b=data.themeBrightness!=null?data.themeBrightness:(typeof getSavedBrightness==='function'?getSavedBrightness():100);
-      var _c=data.themeContrast!=null?data.themeContrast:(typeof getSavedContrast==='function'?getSavedContrast():100);
+      var _b=applied['tj-theme-brightness']!=null?applied['tj-theme-brightness']:(typeof getSavedBrightness==='function'?getSavedBrightness():100);
+      var _c=applied['tj-theme-contrast']!=null?applied['tj-theme-contrast']:(typeof getSavedContrast==='function'?getSavedContrast():100);
       applyThemeFilters(_b,_c);
     }
   }
-  if(data.calView){await setSetting('tj-cal-default-view',data.calView);localStorage.setItem('tj-cal-default-view',data.calView);}
-  if(data.mcDefaults){await setSetting('tj-mc-defaults',data.mcDefaults);}
-  if(data.calcCapital!=null){await setSetting('tj-calc-capital',data.calcCapital);localStorage.setItem('tj-calc-capital',data.calcCapital);}
-  if(data.demoDefaults){await setSetting('tj-demo-defaults',data.demoDefaults);}
+  if(applied['tj-cal-default-view'])localStorage.setItem('tj-cal-default-view',applied['tj-cal-default-view']);
+  if(applied['tj-calc-capital']!=null)localStorage.setItem('tj-calc-capital',applied['tj-calc-capital']);
+  // Emotion tags may have changed — repaint the Reflection pills so they don't show a stale list.
+  if(applied['emotionTags']&&typeof populateEmotionPills==='function'){try{await populateEmotionPills();}catch(e){}}
   // Restore AI Analyzer config
   // Restore AI config from git — merge with existing local config so API keys (never pushed) are preserved
   if(data.aiConfig&&typeof data.aiConfig==='object'){
@@ -19294,26 +19348,19 @@ async function ghTestConnection(){
 // backup file doesn't balloon with duplicate base64 blobs.
 async function ghBuildPayload(){
   var trades=await dbGetAll('trades'),images=await dbGetAll('images'),sessions=await dbGetAll('sessions');
-  // Watchlists are backed up separately (bkp/watchlist_backup.json / ghBuildWatchlistPayload()) —
-  // excluded here so they aren't duplicated inside tj_data.json's settings dump.
-  // Tracker* keys are the floating session-goal tracker's live state (goal, deadline, pause
-  // timestamps, on-screen position, whether a session is active) — purely local/device-specific
-  // and never meant to leave this browser, so they're excluded too. GH_CONFIG_KEYS (theme,
-  // brightness/contrast, calendar view, calc/demo defaults) already live in tj_config.json
-  // (ghBuildConfigPayload) — excluded here so they aren't stored twice.
-  var settings=(await dbGetAll('settings')).filter(function(s){
-    if(s.id==='watchlists')return false;
-    if(s.id.indexOf('tracker')===0)return false;
-    if(GH_CONFIG_KEYS.indexOf(s.id)!==-1)return false;
-    return true;
-  });
+  // v6: tj_data.json is trade data ONLY — trades, images, sessions. Every settings-store key
+  // now belongs to tj_config.json (see ghIsConfigSetting), so the old blanket `settings` dump
+  // is gone rather than filtered; it was the source of the cross-file duplication (checklist,
+  // strategies, errorTypes, assets, setupRatings and hist-cols were written to both files).
+  // `settings` is still READ on restore for v5-and-earlier files — see the restore loops,
+  // which is where those older backups legitimately carry config.
   var localData={};
   // Strip base64 data from images that have a Cloudinary URL — keeps the backup lean
   var imagesForGH=images.map(function(img){
     if(img.cloudUrl){return{id:img.id,cloudUrl:img.cloudUrl,name:img.name,zone:img.zone};}
     return img; // keep base64 for legacy images without cloudUrl
   });
-  return{version:5,exportedAt:new Date().toISOString(),trades:trades,images:imagesForGH,sessions:sessions,settings:settings,localData:localData};
+  return{version:6,exportedAt:new Date().toISOString(),trades:trades,images:imagesForGH,sessions:sessions,localData:localData};
 }
 // Get existing file SHA (needed for updates)
 async function ghGetFileSHA(cfg){return ghGetFileSHAByPath(cfg,GH_FILE);}
@@ -19446,8 +19493,8 @@ async function ghPull(){
         if(_currentPage==='fx-tracker'&&typeof fxRender==='function')fxRender();
       }
     }catch(fe){console.warn('FX pull error:',fe.message);}
-    // Pull Watchlists from the live tj_watchlist.json — also no longer stored in
-    // tj_data.json's settings dump (see ghBuildPayload()), so Pull needs this separate
+    // Pull Watchlists from the live tj_watchlist.json — they're excluded from tj_config.json
+    // too (see ghIsConfigSetting), so Pull needs this separate
     // step to restore them. Reads the live file, not bkp/watchlist_backup.json — Pull
     // always reflects current state, the same way it reads GH_CONFIG_FILE for config.
     try{
@@ -19459,8 +19506,8 @@ async function ghPull(){
         if(!Array.isArray(wlData)&&Array.isArray(wlData.categories))await saveWlCategories(wlData.categories);
       }
     }catch(we){console.warn('Watchlist pull error:',we.message);}
-    // Pull Notes board from the live tj_notes.json — also not stored in tj_data.json's
-    // settings dump, so Pull needs this separate step to restore it, mirroring Watchlist.
+    // Pull Notes board from the live tj_notes.json — likewise excluded from tj_config.json
+    // (see ghIsConfigSetting), so Pull needs this separate step to restore it, mirroring Watchlist.
     try{
       var notesStr=await ghFetchFileContent(cfg,GH_NOTES_FILE);
       if(notesStr){
@@ -20452,7 +20499,7 @@ async function ghMergeLatestBackup(){
     title:'Merge from backup?',
     message:'File: '+latest.path+'\n'+
       'Time: '+latest.tsDisplay+'\n\n'+
-      'This will merge trades, images, sessions and settings from this backup into your existing data. Duplicate trades (same trade #, pair & entry time) are skipped — nothing existing is deleted or overwritten.\n\n'+
+      'This will merge trades, images and sessions from this backup into your existing data. Duplicate trades (same trade #, pair & entry time) are skipped — nothing existing is deleted or overwritten.\n\n'+
       'If this backup file turns out to be invalid or corrupt, the merge is cancelled and nothing is touched.',
     expectedWord:'MERGE',
     confirmLabel:'Merge',
@@ -20501,13 +20548,16 @@ async function syncConfigFromTrades(importedTrades){
   if(addedTypes.length)parts.push(addedTypes.length+' asset type'+(addedTypes.length>1?'s':''));
   if(addedPairs.length)parts.push(addedPairs.length+' pair'+(addedPairs.length>1?'s':''));
   if(parts.length)toast('Config updated: added '+parts.join(', ')+' from restored trades','ok');
+  // Callers follow this with ghAutoSync() (trades). That used to push these additions too,
+  // back when settings lived in tj_data.json — now the config file needs its own push.
+  if(addedStrats.length||addedTypes.length||addedPairs.length)ghAutoSyncConfig();
 }
 // ── Restore a specific snapshot by path ──
 async function ghRestoreSnapshot(downloadUrl,filePath){
   var cfg=ghGetConfig();
   openTypeConfirmModal({
     title:'Restore this trade backup?',
-    message:'File: '+filePath+'\n\nThis will REPLACE your current trades, sessions, and settings.\n\nIf this backup file turns out to be invalid or corrupt, the restore is cancelled and nothing is touched.',
+    message:'File: '+filePath+'\n\nThis will REPLACE your current trades, images and sessions. Settings and config are not touched.\n\nIf this backup file turns out to be invalid or corrupt, the restore is cancelled and nothing is touched.',
     expectedWord:'RESTORE',
     confirmLabel:'Restore',
     onCancel:function(){toast('Restore cancelled','ok');},
@@ -20537,7 +20587,7 @@ async function ghMergeSnapshot(downloadUrl,filePath){
   var cfg=ghGetConfig();
   openTypeConfirmModal({
     title:'Merge this trade backup?',
-    message:'File: '+filePath+'\n\nThis will merge trades, images, sessions and settings from this backup into your existing data. Duplicate trades (same trade #, pair & entry time) are skipped — nothing existing is deleted or overwritten.\n\nIf this backup file turns out to be invalid or corrupt, the merge is cancelled and nothing is touched.',
+    message:'File: '+filePath+'\n\nThis will merge trades, images and sessions from this backup into your existing data. Duplicate trades (same trade #, pair & entry time) are skipped — nothing existing is deleted or overwritten.\n\nIf this backup file turns out to be invalid or corrupt, the merge is cancelled and nothing is touched.',
     expectedWord:'MERGE',
     confirmLabel:'Merge',
     onCancel:function(){toast('Merge cancelled','ok');},
