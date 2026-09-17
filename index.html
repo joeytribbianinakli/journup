@@ -18695,11 +18695,19 @@ async function ghGetFileSHAByPath(cfg,path){
     return null;
   }catch(e){return null;}
 }
+// Returns true on success (pushed, or correctly skipped because nothing changed), false on
+// failure — never throws, so every existing fire-and-forget caller keeps working unchanged.
+// Previously the final PUT's response was never checked and any failure (a stale SHA from a
+// racing auto-sync, an API error, anything) was silently swallowed with only a console.warn —
+// invisible to the user and never reflected in the "Synced to GitHub" toast. Now mirrors
+// _ghPushOnce's retry-once-on-409 pattern: a conflicting concurrent write gets one fresh-SHA
+// retry (rebuilding the payload fresh, in case settings changed in between) instead of
+// silently losing the push.
 async function ghPushConfigFile(cfg){
-  try{
+  var doAttempt=async function(){
     var payload=await ghBuildConfigPayload();
-    // Compare new payload vs existing file — skip push if only exportedAt differs
     var sha=null;
+    // Compare new payload vs existing file — skip push if only exportedAt differs
     try{
       var existingResp=await fetch('https://api.github.com/repos/'+cfg.user+'/'+cfg.repo+'/contents/'+GH_CONFIG_FILE,{
         headers:{'Authorization':'token '+cfg.token,'Accept':'application/vnd.github.v3+json'}
@@ -18712,7 +18720,7 @@ async function ghPushConfigFile(cfg){
         // Strip exportedAt from both before comparing
         var newCopy=Object.assign({},payload);delete newCopy.exportedAt;
         var oldCopy=Object.assign({},existingData);delete oldCopy.exportedAt;
-        if(JSON.stringify(newCopy)===JSON.stringify(oldCopy))return; // no real change — skip push
+        if(JSON.stringify(newCopy)===JSON.stringify(oldCopy))return'skip'; // no real change — skip push
       }
     }catch(e){ sha=await ghGetFileSHAByPath(cfg,GH_CONFIG_FILE); }
     // Stamp exportedAt at the moment we actually push (real change confirmed above)
@@ -18720,12 +18728,30 @@ async function ghPushConfigFile(cfg){
     var content=utf8ToBase64(JSON.stringify(payload,null,2));
     var body={message:'TJ config — '+new Date().toISOString().slice(0,16).replace('T',' '),content:content};
     if(sha)body.sha=sha;
-    await fetch('https://api.github.com/repos/'+cfg.user+'/'+cfg.repo+'/contents/'+GH_CONFIG_FILE,{
+    var resp=await fetch('https://api.github.com/repos/'+cfg.user+'/'+cfg.repo+'/contents/'+GH_CONFIG_FILE,{
       method:'PUT',
       headers:{'Authorization':'token '+cfg.token,'Accept':'application/vnd.github.v3+json','Content-Type':'application/json'},
       body:JSON.stringify(body)
     });
-  }catch(e){console.warn('Config file push error:',e.message);}
+    return resp;
+  };
+  try{
+    var result=await doAttempt();
+    if(result==='skip')return true;
+    // 409 = the file's SHA moved between our GET and our PUT (e.g. a debounced auto-sync
+    // landed first — very possible right after adding/renaming/removing a setting and then
+    // immediately triggering a manual push). Retry once with a freshly-rebuilt payload and SHA.
+    if(!result.ok&&result.status===409){
+      result=await doAttempt();
+      if(result==='skip')return true;
+    }
+    if(!result.ok){
+      var err=await result.json().catch(function(){return{};});
+      console.warn('Config file push failed: HTTP '+result.status+' '+(err.message||''));
+      return false;
+    }
+    return true;
+  }catch(e){console.warn('Config file push error:',e.message);return false;}
 }
 async function ghApplyConfigData(data){
   // Accepts both config shapes: v3+ (generic `settings` array — every key the app has) and
@@ -19426,9 +19452,13 @@ async function _ghPushOnce(showToast){
       var now=new Date().toISOString();
       localStorage.setItem('tj-gh-last-sync',now);
       ghRefreshStatus();
-      // Also push config (checklist, strategies, assets) on every sync
-      await ghPushConfigFile(cfg);
-      if(showToast)toast('Synced to GitHub ('+result.payload.trades.length+' trades, '+result.payload.images.length+' images)','ok');
+      // Also push config (settings) on every sync — checked now, since a silent failure here
+      // previously left the "Synced to GitHub" toast claiming full success when it wasn't.
+      var configOk=await ghPushConfigFile(cfg);
+      if(showToast){
+        if(configOk)toast('Synced to GitHub ('+result.payload.trades.length+' trades, '+result.payload.images.length+' images)','ok');
+        else toast('Trades synced ('+result.payload.trades.length+' trades, '+result.payload.images.length+' images), but config push failed — check console or retry','err');
+      }
     } else {
       var err=await result.resp.json().catch(function(){return{};});
       // Auto-sync stays silent on SUCCESS (to avoid a toast after every trade save), but a
