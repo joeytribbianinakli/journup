@@ -454,6 +454,26 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
 .dt-wrap input[type=date],.dt-wrap input[type=text]{flex:1}
 .dt-wrap input[type=date]{min-width:0}
 .frow{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
+/* "[balance to use] / total balance $X" split control — used on both the calculator's
+   Balance ($) Used field and Log Trade's Balance used ($) field, so the fixed session
+   total and the (possibly smaller) committed amount are always visible side by side. */
+.bal-split{display:flex;align-items:stretch;gap:6px}
+.bal-split-total{flex:1;min-width:0;display:flex;align-items:center;padding:0 9px;
+  border-radius:var(--radius);border:1px solid var(--border);background:var(--bg);
+  color:var(--text3);font-size:10.5px;font-family:'DM Mono',monospace;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+.bal-split-sep{display:flex;align-items:center;color:var(--text3);font-weight:700;flex-shrink:0}
+.bal-split input{flex:1;min-width:0}
+/* Wraps the (editable or carried-over) committed-balance input with a fixed "$" prefix,
+   so the currency is always legible without the user having to type it. */
+.bal-split-input-wrap{flex:1;min-width:0;display:flex;align-items:stretch;background:var(--bg3);
+  border:1px solid var(--border);border-radius:var(--radius);transition:border-color .12s,box-shadow .12s}
+.bal-split-input-wrap:focus-within{border-color:var(--accent);box-shadow:0 0 0 2px rgba(77,127,255,.1)}
+.bal-split-input-wrap:hover:not(:focus-within){border-color:var(--border2)}
+.bal-split-prefix{display:flex;align-items:center;padding-left:10px;color:var(--text3);
+  font-size:12px;font-family:'DM Sans',sans-serif;flex-shrink:0;user-select:none}
+.bal-split-input-wrap input{flex:1;min-width:0;background:transparent!important;
+  border:none!important;box-shadow:none!important;padding-left:3px}
 .frow:last-child{margin-bottom:0}
 .flabel{font-size:10px;font-weight:600;color:var(--text2);letter-spacing:.04em}
 .frow-inline{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px}
@@ -633,6 +653,15 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
 .form-tab:hover{color:var(--text)}
 .form-tab.active{background:var(--bg2);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.3)}
 .form-step{display:none}.form-step.active{display:block}
+/* Log Trade read-only lock — the page stays fully visible (so the UI can be checked) but
+   nothing inside the form panes can be focused, typed into, clicked or saved. Applied as a
+   wrapper class rather than by toggling `disabled` on each control, because several fields
+   (#f-acct, #f-riskpct, #f-num, #f-exit) are already readonly/conditionally disabled and a
+   blanket toggle would destroy those states on unlock. The tab bar sits outside .form-step
+   so switching between Trade info / Checklist / Analysis / Reflection still works. */
+.log-readonly .form-step{pointer-events:none;opacity:.5;user-select:none}
+.log-readonly .form-step *{cursor:default!important}
+#log-locked-banner{display:none;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px;padding:12px 14px;border:1px solid var(--amber);border-left-width:3px;border-radius:var(--radius);background:rgba(245,158,11,.08)}
 /* ── Filter bar: generic filter row shared by dashboard/history/trade-analytics pages ── */
 .filter-bar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
 .filter-bar select,.filter-bar input{font-size:11px;padding:5px 8px;min-width:0}
@@ -2603,6 +2632,19 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
         <span id="edit-banner-text">Editing trade</span>
         <button class="btn btn-ghost btn-sm" onclick="cancelEdit(true)">Cancel edit</button>
       </div>
+      <!-- Shown when the form was opened directly from the sidebar: the page is viewable but
+           not fillable, so every logged trade has been through position sizing first. -->
+      <div id="log-locked-banner">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+        <div style="flex:1;min-width:200px">
+          <div style="font-size:12px;font-weight:700;color:var(--amber)">View only — this form is locked</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:3px;line-height:1.5">Trades have to be sized before they're logged. Start the full trade flow, or size the trade in the position calculator and use its &ldquo;Log this trade&rdquo; button. You can still browse the tabs here.</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-shrink:0">
+          <button type="button" class="btn btn-ghost btn-sm" onclick="logGoToCalculator()">Calculator</button>
+          <button type="button" class="btn btn-primary btn-sm" onclick="logStartFullFlow()">Start full trade flow</button>
+        </div>
+      </div>
       <div class="form-tab-bar">
         <button class="form-tab active" onclick="switchTab(0,this)">Trade info</button>
         <button class="form-tab" onclick="switchTab(1,this)">Checklist</button>
@@ -2761,11 +2803,11 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
         </div>
         <div class="form-section">
           <div class="fsec-title">Pricing &amp; sizing</div>
-          <!-- Row 1: Account size | Risk % | Target RR -->
+          <!-- Row 1: Balance used | Risk % | Target RR -->
           <div class="frow-inline">
-            <div class="frow"><label class="flabel">Account size ($)</label><input type="number" id="f-acct" value="5000" readonly style="color:var(--text3);cursor:default;background:var(--bg);border-color:var(--border)" title="Auto-filled from selected session"></div>
-            <div class="frow"><label class="flabel">Risk (%) <span style="color:var(--red);margin-left:2px">*</span></label><input type="number" id="f-riskpct" value="1" step="0.1" oninput="recalc()"></div>
-            <div class="frow"><label class="flabel">Target RR <span style="color:var(--red);margin-left:2px">*</span></label><input type="number" id="f-trr" step="0.1" placeholder="e.g. 3" oninput="recalc()"></div>
+            <div class="frow"><label class="flabel" style="display:inline-flex;align-items:center">Balance used ($)<span class="th-info" tabindex="0">i<span class="th-info-tip">The number before "/" is the portion actually committed to this trade — carried over from the position size calculator, and locked here since it was already set when you sized this trade there. The number after "/" is your session's full capital and can't be changed here.</span></span></label><div class="bal-split"><div class="bal-split-input-wrap"><span class="bal-split-prefix">$</span><input type="number" id="f-acct" value="5000" readonly style="color:var(--text3);cursor:default" title="Balance committed to this trade — auto-filled from selected session"></div><span class="bal-split-sep">/</span><span id="f-acct-total" class="bal-split-total" title="Session's total capital (fixed)">$5,000</span></div></div>
+            <div class="frow"><label class="flabel">Risk (%) <span style="color:var(--red);margin-left:2px">*</span></label><input type="number" id="f-riskpct" value="1" step="0.1" readonly style="color:var(--text3);cursor:default;background:var(--bg);border-color:var(--border)" title="Carried over from the position size calculator"></div>
+            <div class="frow"><label class="flabel">Target RR <span style="color:var(--red);margin-left:2px">*</span></label><input type="number" id="f-trr" step="0.1" placeholder="e.g. 3" readonly style="color:var(--text3);cursor:default;background:var(--bg);border-color:var(--border)" title="Carried over from the position size calculator"></div>
           </div>
           <!-- Row 2: Entry price | Stop Loss | Exit price | Quantity -->
           <div class="frow-inline">
@@ -3953,11 +3995,19 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
           </div>
           <div class="calc-row2">
             <div class="calc-field">
-              <label style="display:flex;align-items:center;justify-content:space-between">
-                Account Balance ($)
-                <button id="calc-set-default-btn" onclick="calcSetDefaultCapital()" title="Save as default capital" style="display:none;font-size:9px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:4px;border:1px solid var(--border2);background:var(--bg3);color:var(--text3);cursor:pointer;font-family:inherit;transition:all .12s" onmouseover="this.style.color='var(--accent)';this.style.borderColor='var(--accent)'" onmouseout="this.style.color='var(--text3)';this.style.borderColor='var(--border2)'">Set default</button>
+              <label for="calc-balance" style="display:flex;align-items:center;justify-content:space-between">
+                <span style="display:inline-flex;align-items:center">Balance ($) Used<span class="th-info" tabindex="0">i<span class="th-info-tip">Defaults to your session's total capital, but you don't have to risk all of it on one trade. If you're only committing part of your capital to this trade (e.g. $200 out of a $1,000 account, keeping the rest free for other trades), edit this field to that amount — position sizing below will be based on whatever balance you enter here.</span></span></span>
+                <button type="button" id="calc-set-default-btn" onclick="calcSetDefaultCapital(event)" title="Save as default capital" style="display:none;font-size:9px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:4px;border:1px solid var(--border2);background:var(--bg3);color:var(--text3);cursor:pointer;font-family:inherit;transition:all .12s" onmouseover="this.style.color='var(--accent)';this.style.borderColor='var(--accent)'" onmouseout="this.style.color='var(--text3)';this.style.borderColor='var(--border2)'">Set default</button>
               </label>
-              <input type="number" id="calc-balance" min="1" oninput="calcCalc()">
+              <div class="bal-split">
+                <div class="bal-split-input-wrap">
+                  <span class="bal-split-prefix">$</span>
+                  <input type="number" id="calc-balance" min="1" oninput="calcValidateBalance();calcCalc()">
+                </div>
+                <span class="bal-split-sep">/</span>
+                <span id="calc-balance-total" class="bal-split-total" title="Session's total capital (fixed)">$5,000</span>
+              </div>
+              <div id="calc-balance-err" style="display:none;font-size:10px;font-weight:600;color:var(--red);margin-top:4px;line-height:1.4"></div>
             </div>
             <div class="calc-field">
               <label>Risk Per Trade (%)</label>
@@ -9197,6 +9247,49 @@ async function saveSession(){
   }
   editingSessionId=null;
 }
+// ── Balance-used carry-over from the calculator ───────────────────────────
+// The calculator's "Balance ($) Used" is the slice of capital the user committed to this
+// trade, which can be *less* than the session's running equity. calcLogTrade() writes it
+// into #f-acct, but onSessionChange()/onSkippedChange() both re-derive that field from the
+// session's equity on their async completion and silently stomped it back to full capital.
+// While this is set (calculator → log handoff, new trades only) it wins over session equity.
+var _logAcctOverride=null;
+// ── Log Trade form lock ───────────────────────────────────────────────────
+// A trade may only be entered through a sized, deliberate route: the full trade flow
+// (calendar → checklist → calculator → log) or the calculator's own "Log this trade"
+// button. Clicking "Log trade" in the sidebar still opens the page so the UI can be
+// inspected, but every field is inert until one of those routes sets this flag.
+// Editing an existing trade (editingId) is always allowed.
+var _logFormUnlocked=false;
+function applyLogLock(){
+  var page=document.getElementById('page-log');
+  if(!page)return;
+  var locked=!_logFormUnlocked&&!editingId;
+  page.classList.toggle('log-readonly',locked);
+  var banner=document.getElementById('log-locked-banner');
+  if(banner)banner.style.display=locked?'flex':'none';
+}
+// Escape hatches offered by the locked-form banner: both are plain navigations, the same
+// ones the sidebar performs, so they inherit the normal nav()/flow bookkeeping.
+function logGoToCalculator(){
+  nav('calculator',document.querySelector('.nav-item[onclick*="nav(\'calculator\'"]'));
+}
+function logStartFullFlow(){
+  _flowActive=false;
+  nav('fxstreet',document.getElementById('nav-fxstreet'));
+}
+// Updates the (fixed) "$X" badge next to Log Trade's Balance used field. Kept separate
+// from #f-acct itself since #f-acct may hold a smaller committed amount (via the calculator
+// hand-off) while the badge always shows the session's actual full capital.
+function _setAcctTotalDisplay(total){
+  var el=document.getElementById('f-acct-total');
+  if(el)el.textContent='$'+(parseFloat(total)||0).toLocaleString(undefined,{maximumFractionDigits:2});
+}
+function _applyAcctValue(acctEl,equity){
+  if(!acctEl)return;
+  _setAcctTotalDisplay(equity);
+  acctEl.value=(_logAcctOverride!=null?_logAcctOverride:equity);
+}
 // Auto-populate account size from selected session
 async function onSessionChange(){
   var sesId=document.getElementById('f-session').value;
@@ -9211,7 +9304,7 @@ async function onSessionChange(){
     if(!editingId){
       var isSkipped=document.getElementById('f-skipped')&&document.getElementById('f-skipped').checked;
       var equity=isSkipped?(sess.skippedCurrentEquity||sess.startingEquity||5000):(sess.currentEquity||sess.startingEquity||5000);
-      document.getElementById('f-acct').value=equity;
+      _applyAcctValue(document.getElementById('f-acct'),equity);
     }
     var riskEl=document.getElementById('f-riskpct');
     if(!editingId&&riskEl&&sess.defaultRisk!=null){riskEl.value=sess.defaultRisk;}
@@ -9363,7 +9456,12 @@ async function populateSessionSelects(restoreSessionId){
       }
     }
     document.getElementById('f-session').value=restoreSessionId;
-    onSessionChange();
+    // Awaited (not fire-and-forget) so callers that await populateSessionSelects() — e.g.
+    // calcLogTrade(), which fills f-acct with the calculator's entered balance right after —
+    // can rely on this having fully finished first. onSessionChange() does an async IDB read;
+    // leaving it unawaited let its completion land *after* populateSessionSelects() returned,
+    // so it silently overwrote f-acct/f-riskpct back to the session's full equity a tick later.
+    await onSessionChange();
   } else if(!editingId){
     // New trade: auto-select the active non-demo session created first (only active sessions are in the list)
     var activeNonDemo=tradeFormSessions.length
@@ -9371,7 +9469,8 @@ async function populateSessionSelects(restoreSessionId){
       :null;
     var targetId=activeNonDemo?activeNonDemo.id:'';
     document.getElementById('f-session').value=targetId;
-    onSessionChange();
+    // See the await note above — same reasoning applies to the new-trade default-session path.
+    await onSessionChange();
   }
   // Non-demo sessions for all filters (demos only show if user explicitly picks them)
   var filterSessions=activeSessions.filter(function(s){return !s.isDemo;});
@@ -9495,6 +9594,10 @@ var _currentPage='dashboard';
 function nav(id,btn){
   // Reset log form when navigating away — but preserve it if going back to calc within the flow
   if(_currentPage==='log'&&id!=='log'){
+    // Leaving the log form re-locks it and drops the calculator's balance hand-off, so a
+    // later direct visit can't inherit either. flowBackToCalc()/flowGoToLog() re-grant both.
+    _logFormUnlocked=false;
+    _logAcctOverride=null;
     if(_flowActive&&id==='calculator'){
       // Save log form snapshot so values survive the round-trip back through calc
       _flowLogSnapshot=captureLogFormSnapshot();
@@ -9533,6 +9636,7 @@ function nav(id,btn){
   document.getElementById('topbar-sub').textContent=p.sub;
   if(id==='dashboard')renderDashboard();
   if(id==='log'){
+    applyLogLock();
     // Hide flow banner only on direct navigation — calcLogTrade will re-show it when in flow
     if(!_flowActive){
       var fb = document.getElementById('log-flow-banner');
@@ -9697,8 +9801,9 @@ function onSkippedChange(){
     if(!acctEl) return;
     if(isSkipped){
       if(!editingId){
-        // New skipped trade: use running skipped equity
-        acctEl.value=sess.skippedCurrentEquity||sess.startingEquity||5000;
+        // New skipped trade: use running skipped equity (unless the calculator handed us
+        // a smaller committed balance for this trade — see _logAcctOverride)
+        _applyAcctValue(acctEl,sess.skippedCurrentEquity||sess.startingEquity||5000);
         recalc();
       } else {
         // Editing a trade and marking it skipped: compute prior skipped equity up to this trade
@@ -9721,8 +9826,9 @@ function onSkippedChange(){
       }
     } else {
       if(!editingId){
-        // New taken trade: use running taken equity
-        acctEl.value=sess.currentEquity||sess.startingEquity||5000;
+        // New taken trade: use running taken equity (unless the calculator handed us
+        // a smaller committed balance for this trade — see _logAcctOverride)
+        _applyAcctValue(acctEl,sess.currentEquity||sess.startingEquity||5000);
         recalc();
       } else {
         // Editing a trade and un-skipping: restore prior taken equity
@@ -10563,6 +10669,12 @@ async function generateTradeNum(){
 // creating a new trade and saving edits (editingId is set by editTrade()).
 async function saveTrade(){
   try {
+  // The CSS lock only blocks pointer input; the Ctrl+S-style shortcut would otherwise still
+  // reach this. Same condition applyLogLock() uses, so the two can't disagree.
+  if(!_logFormUnlocked&&!editingId){
+    toast('Size this trade in the calculator or start the full trade flow first','err');
+    return;
+  }
   var pair=document.getElementById('f-pair').value;
   if(!pair){toast('Please select a pair','err');switchTab(0,null);return;}
   var sessionId=document.getElementById('f-session').value;
@@ -10823,8 +10935,14 @@ async function saveTrade(){
   } catch(err) { toast('Error saving: '+err.message,'err'); console.error(err); }
 }
 function cancelEdit(goBack){
+  var wasEditing=!!editingId;
   editingId=null;
   document.getElementById('edit-banner').classList.remove('visible');
+  // Only re-lock when edit mode was the thing authorising the form. clearForm() also calls
+  // through here, and a calculator-sized entry must survive a "Clear form" without the page
+  // locking itself mid-session.
+  if(wasEditing&&!_flowActive)_logFormUnlocked=false;
+  applyLogLock();
   // Only navigate to history when the user explicitly clicks Cancel edit
   if(goBack&&_currentPage==='log'){
     var histBtn=document.querySelector('.nav-item[onclick*="nav(\'history\'"]');
@@ -10842,6 +10960,9 @@ function cancelEdit(goBack){
 // freshly generated one); otherwise a new trade # is generated.
 async function clearForm(skipCancelEdit){
   if(!skipCancelEdit)cancelEdit();
+  // The calculator's committed-balance hand-off belongs to one specific trade — once the
+  // form is blanked it no longer applies, so #f-acct goes back to tracking session equity.
+  _logAcctOverride=null;
   var textIds=['f-entry','f-sl-price','f-sl','f-exit','f-qty','trail-notes','trail-count','trail-final-sl','tpchg-notes','tpchg-orig','tpchg-new',
     'plan-if-then','plan-elseif-then','tp-rr-a'];
   textIds.forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
@@ -10851,6 +10972,7 @@ async function clearForm(skipCancelEdit){
     'plan-if':'<price provides a confirmation>','plan-elseif':'<the price breaks the zone>'};
   Object.keys(prefilledDefaults).forEach(function(id){var el=document.getElementById(id);if(el)el.value=prefilledDefaults[id];});
   document.getElementById('f-acct').value='5000'; // will be overwritten by onSessionChange after populateSessionSelects
+  _setAcctTotalDisplay(5000); // ditto
   document.getElementById('f-riskpct').value='1';
   document.getElementById('f-trr').value='';
   document.getElementById('f-etime-date').value='';document.getElementById('f-etime-time').value='';document.getElementById('f-etime-time-24').value='';
@@ -10910,7 +11032,10 @@ async function clearForm(skipCancelEdit){
 // ══ Edit trade ════════════════════════════════════
 async function editTrade(id){
   var trade=await dbGet('trades',id);if(!trade)return;
-  editingId=id;await clearForm(true,trade.num||'');
+  editingId=id;
+  // Editing an existing trade is always a permitted way into this form.
+  _logFormUnlocked=true;
+  await clearForm(true,trade.num||'');
   var s=function(elId,val){var el=document.getElementById(elId);if(el&&val!=null)el.value=val;};
   document.getElementById('f-num').value=trade.num||'';
   // Pair
@@ -10952,7 +11077,7 @@ async function editTrade(id){
       _preTradeEquity=parseFloat(_tradeClosure.acct)||5000;
     }
     var _acctEl=document.getElementById('f-acct');
-    if(_acctEl&&editingId===_idClosure){_acctEl.value=_preTradeEquity;recalc();}
+    if(_acctEl&&editingId===_idClosure){_setAcctTotalDisplay(_preTradeEquity);_acctEl.value=_preTradeEquity;recalc();}
   })(trade,id);
   s('f-riskpct',trade.riskpct);s('f-entry',trade.entryPrice);s('f-sl-price',trade.stopLoss||'');s('f-exit',trade.exitPrice||'');s('f-qty',trade.qty);s('f-trr',trade.targetRR);
   if(trade.entryTime){setDT('f-etime-date','f-etime-time',trade.entryTime);}
@@ -17801,13 +17926,70 @@ async function calcSyncAssets(){
 function calcGetDefaultCapital(){
   return parseFloat(localStorage.getItem('tj-calc-capital'))||5000;
 }
+// Upper bound for the "Balance ($) Used" field — the selected session's available capital.
+// null = no cap (quick mode / no session picked yet). You can commit *part* of your capital
+// to a trade, but never more than you actually have, so anything above this is rejected.
+var _calcMaxBalance=null;
+// Updates the (fixed) "$X" badge next to the calculator's Balance ($) Used field.
+// Backtest mode: the selected session's capital (_calcMaxBalance). Quick mode: the saved
+// default capital, since there's no session to size against.
+function calcUpdateBalanceTotalDisplay(){
+  var el=document.getElementById('calc-balance-total');
+  if(!el)return;
+  var total=(_calcMaxBalance!=null?_calcMaxBalance:calcGetDefaultCapital());
+  el.textContent='$'+total.toLocaleString(undefined,{maximumFractionDigits:2});
+}
+// Recompute the session capital cap *without* touching the balance field. Used when the
+// guided flow restores a previously-entered balance (calcOnBacktestSessionChange would
+// overwrite it with the session's full equity, which is exactly what we're avoiding).
+async function calcRefreshMaxBalance(){
+  try{
+    var sel=document.getElementById('calc-backtest-session');
+    if(!sel||!sel.value||_calcMode!=='backtest'){_calcMaxBalance=null;calcUpdateBalanceTotalDisplay();calcValidateBalance();return;}
+    var sessions=await dbGetAll('sessions');
+    var sess=sessions.find(function(s){return s.id===sel.value;});
+    if(!sess){_calcMaxBalance=null;calcUpdateBalanceTotalDisplay();calcValidateBalance();return;}
+    var isSkipped=document.getElementById('calc-skipped')&&document.getElementById('calc-skipped').checked;
+    var allT=await dbGetAll('trades');
+    _calcMaxBalance=isSkipped?(sess.skippedCurrentEquity||sess.startingEquity||5000)
+                             :(await computeSessionNetEquityAsync(sess,allT));
+    var el=document.getElementById('calc-balance');
+    if(el)el.max=_calcMaxBalance;
+    calcUpdateBalanceTotalDisplay();
+    calcValidateBalance();
+  }catch(e){}
+}
+function calcValidateBalance(){
+  var el=document.getElementById('calc-balance');
+  var err=document.getElementById('calc-balance-err');
+  if(!el)return true;
+  var v=parseFloat(el.value);
+  var over=(_calcMaxBalance!=null&&!isNaN(v)&&v>_calcMaxBalance+0.005);
+  if(err){
+    if(over){
+      err.textContent='Balance used can\u2019t exceed the session\u2019s available capital of $'+_calcMaxBalance.toLocaleString(undefined,{maximumFractionDigits:2})+'.';
+      err.style.display='block';
+    } else {err.style.display='none';}
+  }
+  el.style.borderColor=over?'var(--red)':'';
+  return !over;
+}
 // Persist the current balance field as the new default capital for quick mode (localStorage + settings store, then cloud sync)
-function calcSetDefaultCapital(){
+function calcSetDefaultCapital(ev){
+  // Only ever run from a real click on the "Set default" button itself, and only in quick
+  // mode (where the button is actually visible). The button used to sit inside the
+  // <label> for this field with no `for` attribute, which made it the label's *labeled
+  // control* — so clicking anywhere on the "Balance ($) Used" label forwarded a synthetic
+  // click here and fired the "Default capital set to $X" toast even though the user was
+  // just editing the balance. The label now points at #calc-balance; this is belt-and-braces.
+  if(_calcMode!=='quick')return;
+  if(ev&&ev.target&&ev.target.id!=='calc-set-default-btn'&&!(ev.target.closest&&ev.target.closest('#calc-set-default-btn')))return;
   var bal=document.getElementById('calc-balance');
   var v=parseFloat(bal&&bal.value);
   if(!v||v<=0){toast('Enter a valid balance first','err');return;}
   localStorage.setItem('tj-calc-capital',v);
   setSetting('tj-calc-capital',v).then(function(){ghAutoSyncConfig();});
+  calcUpdateBalanceTotalDisplay();
   toast('Default capital set to $'+v.toLocaleString(),'ok');
 }
 // ── Calculator mode: quick / backtest ─────────────────────────────
@@ -17837,9 +18019,12 @@ function calcSetMode(mode){
     if(sessionRow)sessionRow.style.display='none';
     if(logBox)logBox.style.display='none';
     if(setDefaultBtn)setDefaultBtn.style.display='';
-    // Restore balance to default capital
+    // Restore balance to default capital — quick mode isn't tied to a session, so no cap
+    _calcMaxBalance=null;
     var bal=document.getElementById('calc-balance');
-    if(bal)bal.value=calcGetDefaultCapital();
+    if(bal){bal.value=calcGetDefaultCapital();bal.removeAttribute('max');}
+    calcUpdateBalanceTotalDisplay();
+    calcValidateBalance();
     var riskEl=document.getElementById('calc-risk-pct');
     if(riskEl)riskEl.value=1;
     calcCalc();
@@ -17883,7 +18068,7 @@ async function calcPopulateBacktestSessions(){
 async function calcOnBacktestSessionChange(){
   var sel=document.getElementById('calc-backtest-session');
   var hint=document.getElementById('calc-backtest-hint');
-  if(!sel||!sel.value){if(hint)hint.style.display='none';return;}
+  if(!sel||!sel.value){if(hint)hint.style.display='none';_calcMaxBalance=null;var _bE=document.getElementById('calc-balance');if(_bE)_bE.removeAttribute('max');calcUpdateBalanceTotalDisplay();calcValidateBalance();return;}
   var sessions=await dbGetAll('sessions');
   var sess=sessions.find(function(s){return s.id===sel.value;});
   if(!sess){return;}
@@ -17893,8 +18078,11 @@ async function calcOnBacktestSessionChange(){
   var riskPct=sess.defaultRisk||1;
   var balEl=document.getElementById('calc-balance');
   var riskEl=document.getElementById('calc-risk-pct');
-  if(balEl){balEl.value=equity;}
+  _calcMaxBalance=equity;
+  if(balEl){balEl.value=equity;balEl.max=equity;}
   if(riskEl){riskEl.value=riskPct;}
+  calcUpdateBalanceTotalDisplay();
+  calcValidateBalance();
   if(hint){hint.textContent='Balance $'+equity.toLocaleString()+' · Risk '+riskPct+'%'+(isSkipped?' (base equity — skipped)':' (running equity, after fees)')+' auto-filled';hint.style.display='block';}
   calcCalc();
 }
@@ -18028,6 +18216,8 @@ function flowGoToLog(){
   // Navigate from pre-trade back to log trade — restore log form snapshot and show banner.
   // Assert flow state before nav() so there's no gap where it could be considered broken.
   _flowActive = true;
+  // Arriving via the flow is a permitted route, so the form stays editable.
+  _logFormUnlocked = true;
   flowUpdateStepIndicators();
   var logBtn = document.querySelector('.nav-item[onclick*="nav(\'log\'"]');
   nav('log', logBtn);
@@ -18067,6 +18257,8 @@ function flowBackToCalc(){
       // recalculation function is calcCalc() (see the oninput="calcCalc()"
       // handlers on the calc fields).
       calcCalc();
+      // Re-arm the capital cap for the restored session without clobbering the balance above.
+      calcRefreshMaxBalance();
     }
   }, 80);
 }
@@ -18218,6 +18410,7 @@ async function calcLogTrade(){
   var sessId=sessSel?sessSel.value:'';
   if(!sessId){toast('Select a session first','err');return;}
   var balance=parseFloat((document.getElementById('calc-balance')||{}).value)||5000;
+  if(!calcValidateBalance()){toast('Balance used can\u2019t exceed the session\u2019s available capital','err');return;}
   var riskPct=parseFloat((document.getElementById('calc-risk-pct')||{}).value)||1;
   // Capture everything before nav() resets the calculator
   var inst=calcGetInst();
@@ -18236,6 +18429,11 @@ async function calcLogTrade(){
     sessId: sessId
   };
   flowUpdateStepIndicators();
+  // Carry the committed balance across so onSessionChange()/onSkippedChange() can't
+  // re-derive #f-acct from the session's full running equity behind our back.
+  _logAcctOverride = balance;
+  // Legitimate entry point into the Log Trade form (calculator → log), so unlock it.
+  _logFormUnlocked = true;
   // Hide calc banners (now on log page)
   var calcBanner = document.getElementById('calc-flow-banner');
   if(calcBanner) calcBanner.style.display = 'none';
@@ -18439,6 +18637,7 @@ function calcReset(){
   var calcHint=document.getElementById('calc-backtest-hint');
   if(calcHint)calcHint.style.display='none';
   calcLastRR=0;
+  calcUpdateBalanceTotalDisplay();
   // Default to backtest mode
   calcSetMode('backtest');
 }
