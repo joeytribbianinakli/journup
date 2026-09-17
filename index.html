@@ -3174,12 +3174,7 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
         <div class="form-section">
           <div class="fsec-title" style="display:flex;align-items:center;justify-content:space-between">
             <span>Emotions</span>
-            <button type="button" class="add-tf-btn" onclick="showAddEmotionTag(event)">+ Add emotion</button>
-          </div>
-          <div id="add-emotion-row" class="tf-input-row" style="display:none;margin-bottom:10px">
-            <input type="text" id="emotion-tag-inp" placeholder="e.g. Confident" maxlength="24">
-            <button class="btn btn-sm btn-primary" onclick="addEmotionTag()">Add</button>
-            <button class="btn btn-sm btn-ghost" onclick="hideAddEmotionTag()">Cancel</button>
+            <button type="button" class="btn btn-ghost btn-sm" style="padding:0 4px;font-size:10px;height:auto;font-weight:600;color:var(--text3);letter-spacing:.04em" onclick="openEmotionManager()">manage</button>
           </div>
           <div class="frow-inline">
             <div class="frow">
@@ -6078,6 +6073,35 @@ document.addEventListener('DOMContentLoaded',function(){
     </div>
   </div>
 </div>
+<!-- Emotion manager — structurally identical to the Error Type modal above (same add-row +
+     draggable/renameable/deletable row list pattern). Reached via the "manage" button next to
+     the Emotions section title in Reflection, replacing the old inline "+ Add emotion" row and
+     the pencil/× icons that used to sit directly on each pill: those icons made the pill itself
+     a fiddly, easy-to-mis-tap target when all you wanted to do was select an emotion. Moving
+     add/rename/delete here means the pills go back to being a single plain click target. -->
+<div class="modal-overlay" id="emotion-modal" onclick="document.getElementById('emotion-modal').classList.remove('open')">
+  <div class="modal-box" style="max-width:480px" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <div>
+        <h3 style="margin-bottom:2px">Emotions</h3>
+        <div style="font-size:11px;color:var(--text3);font-weight:400">Click a name to rename inline · drag ⠿ to reorder</div>
+      </div>
+      <button class="btn btn-ghost btn-icon btn-sm" onclick="document.getElementById('emotion-modal').classList.remove('open')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <!-- Add new emotion -->
+      <div style="display:flex;gap:7px;margin-bottom:16px">
+        <input type="text" id="new-emotion-inp" placeholder="e.g. Confident" maxlength="24" onkeydown="if(event.key==='Enter')addEmotionTag()">
+        <button class="btn btn-primary" onclick="addEmotionTag()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add
+        </button>
+      </div>
+      <!-- Emotion list -->
+      <div id="emotion-list"></div>
+    </div>
+  </div>
+</div>
 <!-- Keyboard shortcuts reference — opened via the ⌨ button on the Log Trade tab bar, or
      the '?' key anywhere outside a text field. Purely a reference list; nothing here writes
      data, so it's as low-risk as a modal gets. -->
@@ -6942,10 +6966,7 @@ async function populateEmotionPills(){
     grp.innerHTML=tags.map(function(t,i){
       var cls=EMO_PILL_COLORS[i%EMO_PILL_COLORS.length];
       var sel=parsed.tags.indexOf(t)!==-1?' selected':'';
-      return'<span class="opt-pill '+cls+sel+'" data-val="'+escHtml(t)+'" onclick="toggleEmotionPill(this,\''+field+'\')">'+escHtml(t)
-        +'<button type="button" class="opt-pill-remove" title="Rename emotion" onclick="event.stopPropagation();renameEmotionTag(\''+escHtml(t).replace(/'/g,"\\'")+'\')"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>'
-        +'<button type="button" class="opt-pill-remove" title="Remove emotion" onclick="event.stopPropagation();removeEmotionTag(\''+escHtml(t).replace(/'/g,"\\'")+'\')">\u00d7</button>'
-        +'</span>';
+      return'<span class="opt-pill '+cls+sel+'" data-val="'+escHtml(t)+'" onclick="toggleEmotionPill(this,\''+field+'\')">'+escHtml(t)+'</span>';
     }).join('');
     var noteEl=document.getElementById('emo-note-'+field);
     if(noteEl)noteEl.value=parsed.note;
@@ -6985,17 +7006,16 @@ function onEmotionNoteInput(field){
   var parsed=_emoParse(hidden.value,knownTags);
   hidden.value=_emoBuild(parsed.tags,noteEl.value.trim());
 }
-function showAddEmotionTag(e){if(e)e.stopPropagation();document.getElementById('add-emotion-row').style.display='flex';document.getElementById('emotion-tag-inp').focus();}
-function hideAddEmotionTag(){document.getElementById('add-emotion-row').style.display='none';document.getElementById('emotion-tag-inp').value='';}
 async function addEmotionTag(){
-  var inp=document.getElementById('emotion-tag-inp');
+  var inp=document.getElementById('new-emotion-inp');
   var name=(inp.value||'').trim();
-  if(!name)return;
+  if(!name){toast('Enter a name','err');return;}
   var tags=await getEmotionTags();
   if(tags.some(function(t){return t.toLowerCase()===name.toLowerCase();})){toast('Already exists','err');return;}
   tags.push(name);
   await setSetting('emotionTags',tags);
-  hideAddEmotionTag();
+  inp.value='';
+  renderEmotionList();
   await populateEmotionPills();
   toast('Emotion added ✓','ok');
   ghAutoSyncConfig(); // emotionTags is a settings key → tj_config.json
@@ -7018,6 +7038,7 @@ async function removeEmotionTag(name){
   if(!confirm('Remove "'+name+'" from the emotion list?'))return;
   tags.splice(idx,1);
   await setSetting('emotionTags',tags);
+  renderEmotionList();
   await populateEmotionPills();
   toast('Emotion removed ✓','ok');
   ghAutoSyncConfig(); // emotionTags is a settings key → tj_config.json
@@ -7028,15 +7049,13 @@ async function removeEmotionTag(name){
 // tag inside the parsed tags array, then rebuilds the string — the free-text detail note is
 // carried over untouched either way, and legacy free-text entries (not parsed as tags at all)
 // are left alone since they were never tag references to begin with.
-async function renameEmotionTag(oldName){
+async function renameEmotionTag(oldName,newName){
+  if(!newName)return;
   var tags=await getEmotionTags();
   var idx=tags.indexOf(oldName);
   if(idx===-1)return;
-  var newName=prompt('Rename emotion:',oldName);
-  if(newName===null)return; // cancelled
-  newName=newName.trim();
-  if(!newName||newName===oldName)return;
-  if(tags.some(function(t,i){return i!==idx&&t.toLowerCase()===newName.toLowerCase();})){toast('Already exists','err');return;}
+  if(newName===oldName)return;
+  if(tags.some(function(t,i){return i!==idx&&t.toLowerCase()===newName.toLowerCase();})){toast('Already exists','err');renderEmotionList();return;}
   var oldTagsForParse=tags.slice();
   tags[idx]=newName;
   await setSetting('emotionTags',tags);
@@ -7055,11 +7074,74 @@ async function renameEmotionTag(oldName){
     });
     if(changed){await dbPut('trades',t);updated++;}
   }
+  renderEmotionList();
   await populateEmotionPills();
   toast('Emotion renamed'+(updated?' — updated '+updated+' trade'+(updated>1?'s':''):'')+' ✓','ok');
   // Rename straddles both files: the tag list is config, but the cascade rewrote trades too.
   ghAutoSyncConfig();
   if(updated)ghAutoSync();
+}
+function openEmotionManager(){renderEmotionList();document.getElementById('emotion-modal').classList.add('open');}
+async function renderEmotionList(){
+  var tags=await getEmotionTags();
+  var el=document.getElementById('emotion-list');
+  if(!el)return;
+  if(!tags.length){
+    el.innerHTML='<div style="text-align:center;padding:28px 0 20px;color:var(--text3)">'
+      +'<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="opacity:.35;margin-bottom:8px;display:block;margin-left:auto;margin-right:auto"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>'
+      +'<div style="font-size:13px;font-weight:600;margin-bottom:4px">No emotions yet</div>'
+      +'<div style="font-size:11px">Add your first emotion above</div>'
+      +'</div>';
+    return;
+  }
+  // Same pattern as renderErrorTypeList(): real DOM nodes (not one innerHTML string) so each
+  // row can carry its own drag-and-drop listeners. Order in the 'emotionTags' setting array
+  // IS the display order everywhere else (Reflection pills), so reordering here just splices
+  // that array and re-saves it. Row ids use an 'eme-' prefix (not 'ee-', which the Error Type
+  // Manager's rows already use) since both modals' markup lives in the DOM at once — a shared
+  // id prefix would make getElementById resolve to whichever modal's row happened to render
+  // first, regardless of which one the user actually clicked in.
+  el.innerHTML='';
+  var wrap=document.createElement('div');
+  wrap.style.cssText='display:flex;flex-direction:column;gap:6px';
+  tags.forEach(function(s,i){
+    var color=STRAT_COLORS[i%STRAT_COLORS.length];
+    var row=document.createElement('div');
+    row.className='strat-card';
+    row.style.setProperty('--sc','#'+color.replace('#',''));
+    row.draggable=true;
+    var escName=escHtml(s).replace(/'/g,"\\'");
+    row.innerHTML=
+      '<span class="cl-item-drag-handle" title="Drag to reorder"><svg viewBox="0 0 24 24"><circle cx="9" cy="6" r="1.4" fill="currentColor"/><circle cx="15" cy="6" r="1.4" fill="currentColor"/><circle cx="9" cy="12" r="1.4" fill="currentColor"/><circle cx="15" cy="12" r="1.4" fill="currentColor"/><circle cx="9" cy="18" r="1.4" fill="currentColor"/><circle cx="15" cy="18" r="1.4" fill="currentColor"/></svg></span>'
+      +'<div class="strat-card-bar" style="background:'+color+'"></div>'
+      +'<span contenteditable="true" id="eme-'+i+'" class="strat-card-name" onblur="renameEmotionTag(\''+escName+'\',this.textContent.trim())" onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur()}">'+escHtml(s)+'</span>'
+      +'<div class="strat-card-actions">'
+      +'<button class="btn btn-ghost btn-sm btn-icon" title="Rename" onclick="document.getElementById(\'eme-'+i+'\').focus();var r=window.getSelection();var rng=document.createRange();rng.selectNodeContents(document.getElementById(\'eme-'+i+'\'));r.removeAllRanges();r.addRange(rng)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></button>'
+      +'<button class="btn btn-danger btn-sm btn-icon" title="Delete" onclick="removeEmotionTag(\''+escName+'\')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg></button>'
+      +'</div>';
+    row.addEventListener('dragstart',function(e){e.dataTransfer.setData('text/plain',String(i));row.style.opacity='.4';});
+    row.addEventListener('dragend',function(){row.style.opacity='';});
+    row.addEventListener('dragover',function(e){e.preventDefault();row.style.background='var(--bg4)';});
+    row.addEventListener('dragleave',function(){row.style.background='';});
+    row.addEventListener('drop',function(e){
+      e.preventDefault();row.style.background='';
+      var srcIdx=parseInt(e.dataTransfer.getData('text/plain'),10);
+      if(isNaN(srcIdx)||srcIdx===i)return;
+      reorderEmotionTags(srcIdx,i);
+    });
+    wrap.appendChild(row);
+  });
+  el.appendChild(wrap);
+}
+async function reorderEmotionTags(srcIdx,dstIdx){
+  var tags=await getEmotionTags();
+  if(srcIdx<0||srcIdx>=tags.length||dstIdx<0||dstIdx>=tags.length)return;
+  var item=tags.splice(srcIdx,1)[0];
+  tags.splice(dstIdx,0,item);
+  await setSetting('emotionTags',tags);
+  renderEmotionList();
+  await populateEmotionPills();
+  ghAutoSyncConfig();
 }
 // ══ Checklist editor ══════════════════════════════
 // The checklist (array of {section, items[]}) is edited via an in-memory draft
