@@ -12911,7 +12911,7 @@ async function openDetail(id,opts){
     +'<div class="detail-item"><div class="di-label">Risk</div><div class="di-val mono">$'+trade.riskDollar+' / '+trade.riskpct+'%</div></div>'
     +'<div class="detail-item"><div class="di-label">Qty (units)</div><div class="di-val mono">'+(trade.qty||'—')+'</div></div>'
     +'<div class="detail-item"><div class="di-label">Position size</div><div class="di-val mono">'+(function(){var q=parseFloat(trade.qty),e=parseFloat(trade.entryPrice);return(q&&e)?'$'+calcFmt(q*e,2):'—';})()+'</div></div>'
-    +'<div class="detail-item"><div class="di-label">Acct balance</div><div class="di-val mono">'+(trade.acct?'$'+parseFloat(trade.acct).toLocaleString():'—')+'</div></div>'
+    +'<div class="detail-item"><div class="di-label">Balance ($) used</div><div class="di-val mono">'+(trade.acct?'$'+parseFloat(trade.acct).toLocaleString():'—')+'</div></div>'
     +'</div>'
     +'<div class="detail-section-title">Timing</div>'
     +'<div class="detail-grid">'
