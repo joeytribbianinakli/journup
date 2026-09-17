@@ -528,6 +528,9 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
 .bias-chip{display:flex;align-items:center;gap:4px;padding:3px 9px;border-radius:5px;border:1px solid var(--border);font-size:11px;font-weight:500;cursor:pointer;transition:all .12s;color:var(--text2);background:var(--bg3)}
 .bias-chip.bull{background:rgba(52,201,122,.08);border-color:rgba(52,201,122,.2);color:#34c97a}
 .bias-chip.bear{background:rgba(232,85,85,.08);border-color:rgba(232,85,85,.2);color:#e85555}
+.bias-chip{cursor:grab}
+.bias-chip.dragging{opacity:.35}
+.bias-chip.drag-over{outline:2px solid var(--accent);outline-offset:1px}
 .bc-tf{font-size:9px;font-weight:700;opacity:.65;text-transform:uppercase}
 .add-tf-btn{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:5px;border:1px dashed var(--border2);font-size:10px;color:var(--text3);background:transparent;cursor:pointer;font-family:inherit;transition:all .12s}
 .add-tf-btn:hover{border-color:var(--accent);color:var(--accent)}
@@ -546,7 +549,10 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
 /* Screenshots */
 .screenshots-group{margin-bottom:12px;padding:11px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-lg)}
 .tf-sub-section{margin-top:10px;padding:8px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius)}
-.tf-sub-label{font-size:10px;font-weight:700;color:var(--accent);letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;display:flex;align-items:center;gap:6px}
+.tf-sub-section.dragging{opacity:.4}
+.tf-sub-section.drag-over{outline:2px solid var(--accent);outline-offset:2px}
+.tf-sub-label{font-size:10px;font-weight:700;color:var(--accent);letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;display:flex;align-items:center;gap:6px;cursor:grab}
+.tf-sub-label button{cursor:pointer}
 .tf-add-row{margin-top:8px;display:flex;align-items:center;gap:8px}
 .tf-add-btn{font-size:10px;font-weight:600;color:var(--text3);background:transparent;border:1px dashed var(--border);border-radius:var(--radius);padding:3px 10px;cursor:pointer;transition:color .15s,border-color .15s}
 .tf-add-btn:hover{color:var(--accent);border-color:var(--accent)}
@@ -1258,6 +1264,13 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
   #flt-search{width:100%!important;min-width:0!important;flex:1 1 100%!important;box-sizing:border-box}
   #hist-demo-toggle{flex-shrink:0}
 }
+/* Inline trade-reference (@/#) autocomplete dropdown — Log Trade notes fields */
+.tref-dropdown{position:fixed;z-index:2000;display:none;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 8px 24px rgba(0,0,0,.35);max-height:220px;overflow-y:auto;padding:4px}
+.tref-item{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;cursor:pointer;font-size:11px}
+.tref-item.hi,.tref-item:hover{background:var(--bg4)}
+.tref-item .tref-num{font-family:'DM Mono',monospace;font-weight:700;color:var(--accent)}
+.tref-item .tref-pair{color:var(--text2);font-weight:600}
+.tref-item .tref-date{margin-left:auto;color:var(--text3);font-size:10px}
 </style>
 <script>
 // ── Theme-preload (FOUC guard) ──────────────────────────────────────────
@@ -3072,6 +3085,7 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
             <div class="screenshots-group" style="margin-top:14px">
               <div class="screenshots-group-hdr">
                 <span class="screenshots-group-title">HTF Screenshots</span>
+                <button class="tf-add-btn" onclick="addCustomTfZone('htf')">+ Add TF</button>
               </div>
               <div id="tf-zones-htf">
                 <div class="tf-sub-section">
@@ -3099,12 +3113,12 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
                   </div>
                 </div>
               </div>
-              <div class="tf-add-row"><button class="tf-add-btn" onclick="addCustomTfZone('htf')">+ Add TF</button></div>
             </div>
             <!-- MTF screenshots: 1h / 30m + custom -->
             <div class="screenshots-group">
               <div class="screenshots-group-hdr">
                 <span class="screenshots-group-title">MTF Screenshots</span>
+                <button class="tf-add-btn" onclick="addCustomTfZone('mtf')">+ Add TF</button>
               </div>
               <div id="tf-zones-mtf">
                 <div class="tf-sub-section">
@@ -3116,12 +3130,12 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
                   </div>
                 </div>
               </div>
-              <div class="tf-add-row"><button class="tf-add-btn" onclick="addCustomTfZone('mtf')">+ Add TF</button></div>
             </div>
             <!-- LTF screenshots: 15m / 5m + custom -->
             <div class="screenshots-group">
               <div class="screenshots-group-hdr">
                 <span class="screenshots-group-title">LTF Screenshots</span>
+                <button class="tf-add-btn" onclick="addCustomTfZone('ltf')">+ Add TF</button>
               </div>
               <div id="tf-zones-ltf">
                 <div class="tf-sub-section">
@@ -3149,7 +3163,6 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
                   </div>
                 </div>
               </div>
-              <div class="tf-add-row"><button class="tf-add-btn" onclick="addCustomTfZone('ltf')">+ Add TF</button></div>
             </div>
           </div>
         </div>
@@ -9275,8 +9288,8 @@ function logGoToCalculator(){
   nav('calculator',document.querySelector('.nav-item[onclick*="nav(\'calculator\'"]'));
 }
 function logStartFullFlow(){
-  _flowActive=false;
-  nav('fxstreet',document.getElementById('nav-fxstreet'));
+  _flowActive=true;
+  nav('fxstreet',document.getElementById('nav-pre-checklist'));
 }
 // Updates the (fixed) "$X" badge next to Log Trade's Balance used field. Kept separate
 // from #f-acct itself since #f-acct may hold a smaller committed amount (via the calculator
@@ -9747,6 +9760,100 @@ function resetTfPills(){
   ['htf','mtf','ltf'].forEach(function(r){clearTfPill(r);});
   tfState={htf:null,mtf:null,ltf:null};
 }
+// ── Inline trade-reference (@/#) autocomplete for notes textareas ──────────
+// Typing @ or # in any Log Trade notes box opens a small trade picker; choosing one
+// inserts a plain "#<num> " token. linkifyTradeRefs() (used by openDetail() below)
+// turns any #<num> that matches a real trade into a clickable link, same idea as the
+// existing "Resume at #N" session shortcut.
+var TREF_FIELDS=['setup-notes','led-to-trade','why-skipped-notes','issues-notes','post-analysis','l-mistakes','l-lessons','l-good','f-news','trail-notes','tpchg-notes','partial-tp-desc','plan-if','plan-if-then','plan-elseif','plan-elseif-then'];
+var _trefState=null; // {el, triggerPos}
+var _trefMatches=[];
+var _trefHi=0;
+function _trefEl(){
+  var d=document.getElementById('tref-dropdown');
+  if(!d){d=document.createElement('div');d.id='tref-dropdown';d.className='tref-dropdown';document.body.appendChild(d);}
+  return d;
+}
+function _trefHide(){
+  _trefState=null;_trefMatches=[];
+  var d=document.getElementById('tref-dropdown');
+  if(d)d.style.display='none';
+}
+async function _trefOnInput(e){
+  var el=e.target;
+  var head=el.value.slice(0,el.selectionStart);
+  var m=head.match(/(?:^|\s)([@#])(\w{0,20})$/);
+  if(!m){_trefHide();return;}
+  var query=m[2].toLowerCase();
+  var all=await dbGetAll('trades');
+  // Bail if the field/caret moved on while dbGetAll() was pending.
+  if(document.activeElement!==el)return;
+  var head2=el.value.slice(0,el.selectionStart);
+  var m2=head2.match(/(?:^|\s)([@#])(\w{0,20})$/);
+  if(!m2)return;
+  var matches=all.filter(function(t){
+    if(!t.num)return false;
+    if(!query)return true;
+    return t.num.toLowerCase().indexOf(query)===0||(t.pair||'').toLowerCase().indexOf(query)!==-1;
+  });
+  matches.sort(function(a,b){return(b.savedAt||'').localeCompare(a.savedAt||'');});
+  _trefState={el:el,triggerPos:head2.length-m2[2].length-1};
+  _trefMatches=matches.slice(0,8);_trefHi=0;
+  _trefRender();
+}
+function _trefRender(){
+  var d=_trefEl();
+  if(!_trefState||!_trefMatches.length){d.style.display='none';return;}
+  var rect=_trefState.el.getBoundingClientRect();
+  d.style.left=rect.left+'px';d.style.top=(rect.bottom+4)+'px';d.style.width=Math.min(rect.width,280)+'px';
+  d.innerHTML=_trefMatches.map(function(t,i){
+    return '<div class="tref-item'+(i===_trefHi?' hi':'')+'" onmousedown="event.preventDefault();_trefPick('+i+')">'
+      +'<span class="tref-num">#'+escHtml(t.num)+'</span>'
+      +'<span class="tref-pair">'+escHtml(t.pair||'')+'</span>'
+      +(t.entryTime?'<span class="tref-date">'+escHtml(t.entryTime.slice(0,10))+'</span>':'')
+      +'</div>';
+  }).join('');
+  d.style.display='block';
+}
+function _trefPick(i){
+  var t=_trefMatches[i],st=_trefState;
+  if(!t||!st)return;
+  var el=st.el;
+  var before=el.value.slice(0,st.triggerPos);
+  var after=el.value.slice(el.selectionStart);
+  var insert='#'+t.num+' ';
+  el.value=before+insert+after;
+  var newPos=(before+insert).length;
+  _trefHide();
+  el.focus();el.setSelectionRange(newPos,newPos);
+}
+function _trefKeydown(e){
+  if(!_trefState||!_trefMatches.length)return;
+  if(e.key==='ArrowDown'){e.preventDefault();_trefHi=(_trefHi+1)%_trefMatches.length;_trefRender();}
+  else if(e.key==='ArrowUp'){e.preventDefault();_trefHi=(_trefHi-1+_trefMatches.length)%_trefMatches.length;_trefRender();}
+  else if(e.key==='Enter'){e.preventDefault();_trefPick(_trefHi);}
+  else if(e.key==='Escape'){_trefHide();}
+}
+function wireTradeRefAutocomplete(){
+  TREF_FIELDS.forEach(function(id){
+    var el=document.getElementById(id);
+    if(!el||el._trefWired)return;
+    el._trefWired=true;
+    el.addEventListener('input',_trefOnInput);
+    el.addEventListener('keydown',_trefKeydown);
+    el.addEventListener('blur',function(){setTimeout(_trefHide,150);});
+  });
+}
+document.addEventListener('DOMContentLoaded',wireTradeRefAutocomplete);
+// Runs on already-escHtml'd note text; only turns #<num> into a link when that num
+// matches a real trade (numToId), so incidental "#" text elsewhere is left untouched.
+function linkifyTradeRefs(escapedText,numToId){
+  if(!escapedText||!numToId)return escapedText;
+  return escapedText.replace(/#(\d+)\b/g,function(m,n){
+    var id=numToId[n];
+    return id?'<a href="#" style="color:var(--accent)" onclick="event.stopPropagation();openDetail(\''+id+'\')">#'+n+'</a>':m;
+  });
+}
 // ── Custom TF zone adder ────────────────────────────────────────
 function addCustomTfZone(group){
   var name=prompt('Enter timeframe label (e.g. 2h, 3m, 45m):');
@@ -9777,14 +9884,137 @@ function addCustomTfZone(group){
     +'<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>'
     +'<p>Click then <kbd>Ctrl+V</kbd> / drop</p>'
     +'</div>';
-  container.appendChild(sec);
+  _wireTfZoneDrag(sec,group);
+  container.prepend(sec);
+  _syncScreenshotZoneOrder(group);
 }
 function removeCustomTfZone(zone,btn){
   var sec=btn.closest('[data-custom-zone]');
-  if(sec)sec.remove();
+  var storedCount=sec?sec.querySelectorAll('.stored-thumb').length:0;
+  var pendingCount=(pendingImages[zone]||[]).length;
+  var imgCount=storedCount+pendingCount;
+  if(imgCount>0&&!confirm('Remove this section? This will also delete '+imgCount+' screenshot'+(imgCount>1?'s':'')+' in it.\n\nThis can\'t be undone once you save the trade.'))return;
+  if(sec){
+    // Any already-saved screenshots shown in this zone (stored-thumb elements, restored
+    // from a previous save) must be queued for real deletion the same way a single
+    // image's own "Remove" button does (see deleteStoredImg). Without this, their ids
+    // just sit untouched in the trade's imageIds and saveTrade() carries that zone's old
+    // image list forward from the existing record — so the "removed" section reappears
+    // in the trade detail view even after saving.
+    sec.querySelectorAll('.stored-thumb').forEach(function(t){
+      var imgId=t.dataset.imgid;
+      if(imgId){
+        if(!pendingImages._deleted)pendingImages._deleted=[];
+        pendingImages._deleted.push(imgId);
+      }
+    });
+    sec.remove();
+  }
+  // Any newly-pasted, not-yet-saved images in this zone that were already uploaded to
+  // Cloudinary (paste uploads instantly) would otherwise be orphaned in the cloud once
+  // pendingImages[zone] is discarded below — clean those up too, same as removePendingImg.
+  (pendingImages[zone]||[]).forEach(function(img){
+    if(img.cloudUrl&&(img.deleteToken||img.publicId))cloudinaryDeleteImage(img);
+  });
   SS_ZONES=SS_ZONES.filter(function(z){return z!==zone;});
   delete pendingImages[zone];
 }
+// ── Screenshot TF-zone drag-to-reorder ── grab a zone's header (e.g. "W", or a
+// custom "M") to drag it anywhere within its own group (HTF/MTF/LTF), same pattern
+// as the bias chips above. Reordering rewrites SS_ZONES so the new order is what
+// gets iterated on save and what the detail modal reads for display order.
+function _tfZoneKey(sec){var g=sec.querySelector('.img-grid');return g?g.id.replace('imgs-',''):'';}
+function _wireTfZoneDrag(sec,group){
+  var label=sec.querySelector('.tf-sub-label');
+  if(label)label.addEventListener('mousedown',function(e){if(!e.target.closest('button'))sec.draggable=true;});
+  sec.addEventListener('dragstart',function(e){
+    e.dataTransfer.setData('text/plain',_tfZoneKey(sec));
+    e.dataTransfer.effectAllowed='move';
+    sec.classList.add('dragging');
+  });
+  sec.addEventListener('dragend',function(){sec.classList.remove('dragging');sec.draggable=false;});
+  sec.addEventListener('dragover',function(e){e.preventDefault();e.stopPropagation();sec.classList.add('drag-over');});
+  sec.addEventListener('dragleave',function(){sec.classList.remove('drag-over');});
+  sec.addEventListener('drop',function(e){
+    e.preventDefault();e.stopPropagation();
+    sec.classList.remove('drag-over');
+    var srcZone=e.dataTransfer.getData('text/plain');
+    if(!srcZone||srcZone===_tfZoneKey(sec))return;
+    var container=document.getElementById('tf-zones-'+group);
+    if(!container)return;
+    var srcSec=[].find.call(container.querySelectorAll('.tf-sub-section'),function(s){return _tfZoneKey(s)===srcZone;});
+    if(!srcSec)return;
+    var rect=sec.getBoundingClientRect();
+    var after=(e.clientY-rect.top)>rect.height/2;
+    if(after)sec.after(srcSec);else sec.before(srcSec);
+    _syncScreenshotZoneOrder(group);
+  });
+}
+// Dropping past the last zone (empty space above "+ Add TF") moves the dragged
+// zone to the end instead of doing nothing.
+function _wireTfZoneContainerDrag(group){
+  var container=document.getElementById('tf-zones-'+group);
+  if(!container)return;
+  container.addEventListener('dragover',function(e){e.preventDefault();});
+  container.addEventListener('drop',function(e){
+    e.preventDefault();
+    var srcZone=e.dataTransfer.getData('text/plain');
+    if(!srcZone)return;
+    var srcSec=[].find.call(container.querySelectorAll('.tf-sub-section'),function(s){return _tfZoneKey(s)===srcZone;});
+    if(srcSec)container.appendChild(srcSec);
+    _syncScreenshotZoneOrder(group);
+  });
+}
+// Rewrites SS_ZONES so this group's zones follow the new DOM order, leaving every
+// other zone (other groups, setup, postanalysis) exactly where it was.
+function _syncScreenshotZoneOrder(group){
+  var container=document.getElementById('tf-zones-'+group);
+  if(!container)return;
+  var domOrder=[].map.call(container.querySelectorAll('.tf-sub-section'),_tfZoneKey).filter(Boolean);
+  var inGroup={};domOrder.forEach(function(z){inGroup[z]=true;});
+  var rest=[],insertAt=-1;
+  SS_ZONES.forEach(function(z){
+    if(inGroup[z]){if(insertAt===-1)insertAt=rest.length;}
+    else rest.push(z);
+  });
+  if(insertAt===-1)insertAt=rest.length;
+  SS_ZONES=rest.slice(0,insertAt).concat(domOrder,rest.slice(insertAt));
+}
+// Canonical fallback order — used to reset a blank form, and to display older trades
+// saved before per-trade zone order existed.
+var _DEFAULT_TF_ZONE_ORDER={htf:['htf-W','htf-D','htf-4h'],mtf:['mtf-1h','mtf-30m'],ltf:['ltf-15m','ltf-5m','ltf-1m']};
+// Snapshots the current on-screen order of every zone (default + custom) per group,
+// for saving with the trade so it can be restored exactly later.
+function _getTfZoneOrder(){
+  var out={};
+  ['htf','mtf','ltf'].forEach(function(group){
+    var container=document.getElementById('tf-zones-'+group);
+    out[group]=container?[].map.call(container.querySelectorAll('.tf-sub-section'),_tfZoneKey).filter(Boolean):[];
+  });
+  return out;
+}
+// Reorders the on-screen zones (defaults + already-rebuilt customs) to match a saved
+// order object ({htf:[...],mtf:[...],ltf:[...]}). Falls back to the canonical default
+// order per group when the trade has none (older trades) or a group's list is empty.
+function _applyTfZoneOrder(order){
+  ['htf','mtf','ltf'].forEach(function(group){
+    var wanted=(order&&order[group]&&order[group].length)?order[group]:_DEFAULT_TF_ZONE_ORDER[group];
+    var container=document.getElementById('tf-zones-'+group);
+    if(!container||!wanted)return;
+    wanted.forEach(function(z){
+      var sec=[].find.call(container.querySelectorAll('.tf-sub-section'),function(s){return _tfZoneKey(s)===z;});
+      if(sec)container.appendChild(sec);
+    });
+  });
+}
+document.addEventListener('DOMContentLoaded',function(){
+  ['htf','mtf','ltf'].forEach(function(group){
+    var container=document.getElementById('tf-zones-'+group);
+    if(!container)return;
+    container.querySelectorAll('.tf-sub-section').forEach(function(sec){_wireTfZoneDrag(sec,group);});
+    _wireTfZoneContainerDrag(group);
+  });
+});
 function onSkippedChange(){
   var isSkipped=document.getElementById('f-skipped').checked;
   var whySection=document.getElementById('why-skipped-section');
@@ -9922,6 +10152,7 @@ function _makeBiasChip(tf,group,state,isCustom){
   var dirLabel=state==='bull'?'Bullish':state==='bear'?'Bearish':'Neutral';
   chip.innerHTML='<span class="bc-tf">'+escHtml(tf)+'</span>\u00a0<span class="bc-dir">'+dirLabel+'</span>'
     +(isCustom?'<button class="bias-chip-remove" onclick="event.stopPropagation();removeTfChip(\''+tf+'\',\''+group+'\',this)" title="Remove TF">\u00d7</button>':'');
+  _wireBiasDrag(chip,group);
   return chip;
 }
 var _DEFAULT_BIAS_TFS=['W','D','4h','1h','15m','5m','1m'];
@@ -9937,6 +10168,72 @@ function setBiasFromData(narrative){
     row.insertBefore(chip,addBtn);
   });
 }
+// ── Bias chip drag-to-reorder ── lets any TF chip (default or custom, e.g. a
+// custom "M" chip) be dragged to any position in the row, including before "W".
+// Reordering rewrites biasState[group] key order to match the new DOM order, so
+// the new order is what gets saved on the trade and shown later in the detail modal.
+function _wireBiasDrag(chip,group){
+  chip.draggable=true;
+  chip.addEventListener('dragstart',function(e){
+    e.dataTransfer.setData('text/plain',chip.dataset.tf);
+    e.dataTransfer.effectAllowed='move';
+    chip.classList.add('dragging');
+  });
+  chip.addEventListener('dragend',function(){chip.classList.remove('dragging');});
+  chip.addEventListener('dragover',function(e){
+    e.preventDefault();e.stopPropagation();
+    chip.classList.add('drag-over');
+  });
+  chip.addEventListener('dragleave',function(){chip.classList.remove('drag-over');});
+  chip.addEventListener('drop',function(e){
+    e.preventDefault();e.stopPropagation();
+    chip.classList.remove('drag-over');
+    var srcTf=e.dataTransfer.getData('text/plain');
+    if(!srcTf||srcTf===chip.dataset.tf)return;
+    var row=document.getElementById('bias-'+group);
+    var srcChip=[].find.call(row.querySelectorAll('.bias-chip'),function(c){return c.dataset.tf===srcTf;});
+    if(!srcChip)return;
+    var rect=chip.getBoundingClientRect();
+    var after=(e.clientX-rect.left)>rect.width/2;
+    if(after)chip.after(srcChip);else chip.before(srcChip);
+    _syncBiasOrder(group);
+  });
+}
+// Dropping past the last chip (on empty row space or the "+ Add TF" button) moves
+// the dragged chip to the end instead of doing nothing.
+function _wireBiasRowDrag(group){
+  var row=document.getElementById('bias-'+group);
+  if(!row)return;
+  row.addEventListener('dragover',function(e){e.preventDefault();});
+  row.addEventListener('drop',function(e){
+    e.preventDefault();
+    var srcTf=e.dataTransfer.getData('text/plain');
+    if(!srcTf)return;
+    var srcChip=[].find.call(row.querySelectorAll('.bias-chip'),function(c){return c.dataset.tf===srcTf;});
+    var addBtn=row.querySelector('.add-tf-btn');
+    if(srcChip&&addBtn)row.insertBefore(srcChip,addBtn);
+    _syncBiasOrder(group);
+  });
+}
+// Rebuilds biasState[group] so its key order matches the chips' current DOM order
+// (JS preserves string-key insertion order, so this order is what JSON.stringify
+// later saves and what the detail modal later reads back).
+function _syncBiasOrder(group){
+  var row=document.getElementById('bias-'+group);
+  if(!row||!biasState[group])return;
+  var newState={};
+  [].forEach.call(row.querySelectorAll('.bias-chip'),function(c){
+    newState[c.dataset.tf]=biasState[group][c.dataset.tf]||'neutral';
+  });
+  biasState[group]=newState;
+}
+// Wire the default (statically-rendered) chips + row drop target once on load.
+document.addEventListener('DOMContentLoaded',function(){
+  var row=document.getElementById('bias-narrative');
+  if(!row)return;
+  row.querySelectorAll('.bias-chip').forEach(function(c){_wireBiasDrag(c,'narrative');});
+  _wireBiasRowDrag('narrative');
+});
 // ══ Trail/TP toggle ═══════════════════════════════
 function toggleTrailDetail(){var v=document.getElementById('f-trail-val').value;document.getElementById('trail-box').classList.toggle('visible',v==='Yes');}
 function toggleTpDetail(){var v=document.getElementById('f-tpchg-val').value;document.getElementById('tp-change-box').classList.toggle('visible',v==='Yes');}
@@ -10751,6 +11048,12 @@ async function saveTrade(){
     switchTab(0,null);
     return;
   }
+  // Exit date/time, once both provided, must be strictly after entry date/time.
+  if(_exitFieldsCount===4){
+    var _edtCheck=getDT('f-etime-date','f-etime-time');
+    var _xdtCheck=getDT('f-xtime-date','f-xtime-time');
+    if(_edtCheck&&_xdtCheck&&_xdtCheck<=_edtCheck){toast('Exit time must be after entry time','err');switchTab(0,null);return;}
+  }
   // Tab 2 (Analysis) — mandatory: setup notes, led-to-trade, plan if/then
   var setupNotes=document.getElementById('setup-notes').value.trim();
   if(!setupNotes){toast('Setup description is required (Analysis tab)','err');switchTab(2,null);return;}
@@ -10902,7 +11205,7 @@ async function saveTrade(){
     planElseIf:document.getElementById('plan-elseif').value,planElseIfThen:document.getElementById('plan-elseif-then').value,
     emoBefore:document.getElementById('emo-before').value,emoAfter:document.getElementById('emo-after').value,emoComplete:document.getElementById('emo-complete').value,
     mistakes:document.getElementById('l-mistakes').value,lessons:document.getElementById('l-lessons').value,good:document.getElementById('l-good').value,
-    imageIds,savedAt:new Date().toISOString(),
+    imageIds,tfZoneOrder:_getTfZoneOrder(),savedAt:new Date().toISOString(),
     skipped:document.getElementById('f-skipped')?document.getElementById('f-skipped').checked:false,
     whySkipped:document.getElementById('why-skipped-notes')?document.getElementById('why-skipped-notes').value:'',
     partialTPs:partialTPsSaved,
@@ -11003,6 +11306,8 @@ async function clearForm(skipCancelEdit){
   setChecklist_state(null);setBiasFromData(null);
   // Remove custom TF zones added this session
   document.querySelectorAll('[data-custom-zone]').forEach(function(el){el.remove();});
+  // Also put default zones back in their canonical order in case a previous edit reordered them
+  _applyTfZoneOrder(_DEFAULT_TF_ZONE_ORDER);
   SS_ZONES=['htf-W','htf-D','htf-4h','mtf-1h','mtf-30m','ltf-15m','ltf-5m','ltf-1m','setup','postanalysis'];
   pendingImages={'htf-W':[],'htf-D':[],'htf-4h':[],'mtf-1h':[],'mtf-30m':[],'ltf-15m':[],'ltf-5m':[],'ltf-1m':[],'setup':[],'postanalysis':[]};
   clearPartialTPs();
@@ -11139,15 +11444,16 @@ async function editTrade(id){
             +'<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>'
             +'<p>Click then <kbd>Ctrl+V</kbd> / drop</p>'
             +'</div>';
-          // Insert before the "+ Add TF" row so it appears with other zones
-          var _addRow=_container.querySelector('.tf-add-row');
-          if(_addRow)_container.insertBefore(_sec,_addRow);
-          else _container.appendChild(_sec);
+          // Position is corrected afterward by _applyTfZoneOrder() below, once all zones exist.
+          _wireTfZoneDrag(_sec,_group);
+          _container.appendChild(_sec);
         }
       }
     });
     SS_ZONES.forEach(function(z){renderStoredImages(trade.imageIds[z]||[],z);});
   }
+  // Lay out the zones exactly as they were arranged when this trade was saved.
+  _applyTfZoneOrder(trade.tfZoneOrder);
   // Restore partial TPs
   clearPartialTPs();
   if(trade.partialTPs&&trade.partialTPs.length){
@@ -12744,6 +13050,9 @@ async function openDetail(id,opts){
   opts=opts||{};
   var trade=await dbGet('trades',id);if(!trade)return;
   var _clTemplateForDetail=await getChecklist();
+  // Map trade-num -> id so any "#<num>" typed in a notes field (see linkifyTradeRefs)
+  // that matches a real trade renders as a clickable link below.
+  var _numToId={};(await dbGetAll('trades')).forEach(function(t){if(t.num)_numToId[t.num]=t.id;});
   document.getElementById('dm-title').textContent='#'+trade.num+' — '+trade.pair;
   var win=trade.winLoss===1;
   var pendingTrade=!trade.exitPrice;
@@ -12841,7 +13150,12 @@ async function openDetail(id,opts){
         +'<div class="img-grid">'+gridHtml+'</div>'
         +'</div>';
     };
-    var _allDetailZones=['setup'].concat(SS_ZONES.filter(function(z){return z!=='setup'&&z!=='postanalysis';}));
+    // Zone display order: use the order saved with this trade (so it matches how the
+    // trader arranged it), falling back to the live SS_ZONES for older trades saved
+    // before per-trade zone order existed.
+    var _tzo=trade.tfZoneOrder;
+    var _groupOrder=_tzo?['htf','mtf','ltf'].reduce(function(acc,g){return acc.concat((_tzo[g]&&_tzo[g].length)?_tzo[g]:_DEFAULT_TF_ZONE_ORDER[g]);},[]):SS_ZONES.filter(function(z){return z!=='setup'&&z!=='postanalysis';});
+    var _allDetailZones=['setup'].concat(_groupOrder);
     Object.keys(trade.imageIds).forEach(function(z){if(z!=='postanalysis'&&!_allDetailZones.includes(z))_allDetailZones.push(z);});
     for(var zone of _allDetailZones){
       var zImgs=[];
@@ -12859,8 +13173,8 @@ async function openDetail(id,opts){
   var biasHtml='';
   if(trade.biasNarrative){var bArr=[];for(var tf in trade.biasNarrative){var v=trade.biasNarrative[tf];if(v&&v!=='neutral')bArr.push('<span class="badge '+(v==='bull'?'badge-green':'badge-red')+'">'+tf+': '+(v==='bull'?'Bullish':'Bearish')+'</span>');}if(bArr.length)biasHtml='<div class="detail-section-title">Narrative bias</div><div class="pill-row">'+bArr.join('')+'</div>';}
   var planHtml='';
-  if(trade.planIf||trade.planElseIf){planHtml='<div class="detail-section-title">Trade plan</div><div class="plan-block" style="pointer-events:none">'+(trade.planIf?'<div class="plan-line"><span class="plan-kw">→ if</span><span style="color:var(--text2);font-size:12px;padding-left:6px;white-space:pre-wrap">'+escHtml(trade.planIf)+'</span></div>':'')+(trade.planIfThen?'<div class="plan-line" style="margin-left:18px"><span class="plan-kw then">then</span><span style="color:var(--text2);font-size:12px;padding-left:6px;white-space:pre-wrap">'+escHtml(trade.planIfThen)+'</span></div>':'')+(trade.planElseIf?'<div class="plan-line" style="margin-top:6px"><span class="plan-kw">→ else if</span><span style="color:var(--text2);font-size:12px;padding-left:6px;white-space:pre-wrap">'+escHtml(trade.planElseIf)+'</span></div>':'')+(trade.planElseIfThen?'<div class="plan-line" style="margin-left:18px"><span class="plan-kw then">then</span><span style="color:var(--text2);font-size:12px;padding-left:6px;white-space:pre-wrap">'+escHtml(trade.planElseIfThen)+'</span></div>':'')+'</div>';}
-  var noteRow=function(lbl,val){return val?'<div class="detail-item"><div class="di-label">'+lbl+'</div><div class="di-val js-pre">'+escHtml(val)+'</div></div>':'';};
+  if(trade.planIf||trade.planElseIf){planHtml='<div class="detail-section-title">Trade plan</div><div class="plan-block" style="pointer-events:none">'+(trade.planIf?'<div class="plan-line"><span class="plan-kw">→ if</span><span style="color:var(--text2);font-size:12px;padding-left:6px;white-space:pre-wrap">'+linkifyTradeRefs(escHtml(trade.planIf),_numToId)+'</span></div>':'')+(trade.planIfThen?'<div class="plan-line" style="margin-left:18px"><span class="plan-kw then">then</span><span style="color:var(--text2);font-size:12px;padding-left:6px;white-space:pre-wrap">'+linkifyTradeRefs(escHtml(trade.planIfThen),_numToId)+'</span></div>':'')+(trade.planElseIf?'<div class="plan-line" style="margin-top:6px"><span class="plan-kw">→ else if</span><span style="color:var(--text2);font-size:12px;padding-left:6px;white-space:pre-wrap">'+linkifyTradeRefs(escHtml(trade.planElseIf),_numToId)+'</span></div>':'')+(trade.planElseIfThen?'<div class="plan-line" style="margin-left:18px"><span class="plan-kw then">then</span><span style="color:var(--text2);font-size:12px;padding-left:6px;white-space:pre-wrap">'+linkifyTradeRefs(escHtml(trade.planElseIfThen),_numToId)+'</span></div>':'')+'</div>';}
+  var noteRow=function(lbl,val){return val?'<div class="detail-item"><div class="di-label">'+lbl+'</div><div class="di-val js-pre">'+linkifyTradeRefs(escHtml(val),_numToId)+'</div></div>':'';};
   // Build unmet checklist HTML (only items marked 'no', grouped by section)
   var checklistUnmetHtml=(function(){
     var cl=trade.checklist||{};
@@ -12931,7 +13245,7 @@ async function openDetail(id,opts){
     +'<div class="detail-item"><div class="di-label">Exit criteria</div><div class="di-val">'+(trade.tpExitA||'—')+'</div></div>'
     +'<div class="detail-item"><div class="di-label">TP criteria</div><div class="di-val">'+(trade.tpCriteria||'—')+'</div></div>'
     +'<div class="detail-item"><div class="di-label">SL trailing</div><div class="di-val">'+(trade.tpTrail||'No')+(trade.trailDetail?' ('+trade.trailDetail.trigger+')':'')+'</div></div>'
-    +(trade.trailDetail&&trade.trailDetail.notes?'<div class="detail-item" style="grid-column:1/-1"><div class="di-label">SL trail description</div><div class="di-val js-pre">'+escHtml(trade.trailDetail.notes)+'</div></div>':'')
+    +(trade.trailDetail&&trade.trailDetail.notes?'<div class="detail-item" style="grid-column:1/-1"><div class="di-label">SL trail description</div><div class="di-val js-pre">'+linkifyTradeRefs(escHtml(trade.trailDetail.notes),_numToId)+'</div></div>':'')
     +'<div class="detail-item"><div class="di-label">TP changed</div><div class="di-val">'+(trade.tpTpChg||'No')+(trade.tpChangeDetail?' → '+trade.tpChangeDetail.dir:'')+'</div></div>'
     +(trade.partialTPs&&trade.partialTPs.length?
       '<div class="detail-item" style="grid-column:1/-1"><div class="di-label">Partial TPs ('+trade.partialTPs.length+')</div>'
@@ -12943,7 +13257,7 @@ async function openDetail(id,opts){
       +'</div></div>'
     :'')
     +(trade.partialTPs&&trade.partialTPs.length&&trade.partialDesc?
-      '<div class="detail-item" style="grid-column:1/-1"><div class="di-label">Partial TPs — how taken</div><div class="di-val js-pre">'+escHtml(trade.partialDesc)+'</div></div>'
+      '<div class="detail-item" style="grid-column:1/-1"><div class="di-label">Partial TPs — how taken</div><div class="di-val js-pre">'+linkifyTradeRefs(escHtml(trade.partialDesc),_numToId)+'</div></div>'
     :'')
     +'</div>'
     +'<div class="detail-section-title">Review</div>'
@@ -12954,12 +13268,12 @@ async function openDetail(id,opts){
     +biasHtml
     +checklistUnmetHtml
     +(trade.narrativeNotes?'<div class="detail-section-title">Narrative</div><div style="font-size:12px;color:var(--text2);white-space:pre-wrap;line-height:1.6">'+escHtml(trade.narrativeNotes)+'</div>':'')
-    +(trade.setupNotes?'<div class="detail-section-title">Setup</div><div style="font-size:12px;color:var(--text2);white-space:pre-wrap;line-height:1.6">'+escHtml(trade.setupNotes)+'</div>':'')
+    +(trade.setupNotes?'<div class="detail-section-title">Setup</div><div style="font-size:12px;color:var(--text2);white-space:pre-wrap;line-height:1.6">'+linkifyTradeRefs(escHtml(trade.setupNotes),_numToId)+'</div>':'')
     +planHtml
-    +(trade.ledToTrade?'<div class="detail-section-title">What led to the trade</div><div style="font-size:12px;color:var(--text2);white-space:pre-wrap;line-height:1.6">'+escHtml(trade.ledToTrade)+'</div>':'')
-    +(trade.skipped&&trade.whySkipped?'<div class="detail-section-title" style="color:var(--amber)">Why skipped</div><div style="font-size:12px;color:var(--text2);white-space:pre-wrap;line-height:1.6">'+escHtml(trade.whySkipped)+'</div>':'')
-    +(trade.issuesNotes&&trade.issuesNotes!='1. '?'<div class="detail-section-title">Issues</div><div style="font-size:12px;color:var(--text2);white-space:pre-wrap;line-height:1.6">'+escHtml(trade.issuesNotes)+'</div>':'')
-    +((trade.postAnalysis&&trade.postAnalysis!='1. ')?'<div class="detail-section-title">Post-journal</div><div class="js-pre">'+escHtml(trade.postAnalysis)+'</div>':'')
+    +(trade.ledToTrade?'<div class="detail-section-title">What led to the trade</div><div style="font-size:12px;color:var(--text2);white-space:pre-wrap;line-height:1.6">'+linkifyTradeRefs(escHtml(trade.ledToTrade),_numToId)+'</div>':'')
+    +(trade.skipped&&trade.whySkipped?'<div class="detail-section-title" style="color:var(--amber)">Why skipped</div><div style="font-size:12px;color:var(--text2);white-space:pre-wrap;line-height:1.6">'+linkifyTradeRefs(escHtml(trade.whySkipped),_numToId)+'</div>':'')
+    +(trade.issuesNotes&&trade.issuesNotes!='1. '?'<div class="detail-section-title">Issues</div><div style="font-size:12px;color:var(--text2);white-space:pre-wrap;line-height:1.6">'+linkifyTradeRefs(escHtml(trade.issuesNotes),_numToId)+'</div>':'')
+    +((trade.postAnalysis&&trade.postAnalysis!='1. ')?'<div class="detail-section-title">Post-journal</div><div class="js-pre">'+linkifyTradeRefs(escHtml(trade.postAnalysis),_numToId)+'</div>':'')
     +(trade.emoBefore||trade.emoAfter||trade.emoComplete?
       '<div class="detail-section-title">Emotions</div><div class="detail-grid">'
       +(trade.emoBefore?'<div class="detail-item"><div class="di-label">Before trade</div><div class="di-val js-pre">'+escHtml(trade.emoBefore)+'</div></div>':'')
@@ -12967,7 +13281,7 @@ async function openDetail(id,opts){
       +(trade.emoComplete?'<div class="detail-item"><div class="di-label">Session complete</div><div class="di-val js-pre">'+escHtml(trade.emoComplete)+'</div></div>':'')
       +'</div>':'')
     +(trade.mistakes||trade.lessons||trade.good?'<div class="detail-section-title">Lessons</div><div class="detail-grid">'+noteRow('Mistakes',trade.mistakes)+noteRow('Lessons learned',trade.lessons)+noteRow('What went well',trade.good)+'</div>':'')
-    +(trade.news&&trade.news!='1. '?'<div class="detail-section-title">News</div><div class="js-pre">'+escHtml(trade.news)+'</div>':'')
+    +(trade.news&&trade.news!='1. '?'<div class="detail-section-title">News</div><div class="js-pre">'+linkifyTradeRefs(escHtml(trade.news),_numToId)+'</div>':'')
     +'<div style="height:16px"></div>';
   var dmModalEl=document.getElementById('detail-modal');
   if(screenshotsPanelHtml){
@@ -28274,6 +28588,17 @@ nav = function(id, btn){
   window.addEventListener('scroll', update, {passive:true});
   window.addEventListener('resize', function(){ refreshMode(); update(); });
 })();
+// ── Stop mouse-wheel from changing a focused number input ────────────
+// Browsers increment/decrement a focused <input type=number> on wheel
+// scroll. That's almost never intentional (usually the user is just
+// scrolling the page/list past the field) so we blur it the moment a
+// wheel event fires while it's focused. Passive + no preventDefault,
+// so normal page/section scrolling is completely unaffected everywhere
+// (calculator, log trade, and any other page).
+document.addEventListener('wheel', function(){
+  var ae = document.activeElement;
+  if(ae && ae.tagName === 'INPUT' && ae.type === 'number') ae.blur();
+}, {passive:true});
 </script>
 </body>
 </html>
