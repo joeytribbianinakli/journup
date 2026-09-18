@@ -9782,30 +9782,49 @@ function _trefHide(){
 async function _trefOnInput(e){
   var el=e.target;
   var head=el.value.slice(0,el.selectionStart);
-  var m=head.match(/(?:^|\s)([@#])(\w{0,20})$/);
+  var m=head.match(/([@#])(\w{0,20})$/);
   if(!m){_trefHide();return;}
   var query=m[2].toLowerCase();
   var all=await dbGetAll('trades');
   // Bail if the field/caret moved on while dbGetAll() was pending.
   if(document.activeElement!==el)return;
   var head2=el.value.slice(0,el.selectionStart);
-  var m2=head2.match(/(?:^|\s)([@#])(\w{0,20})$/);
+  var m2=head2.match(/([@#])(\w{0,20})$/);
   if(!m2)return;
   var matches=all.filter(function(t){
     if(!t.num)return false;
     if(!query)return true;
     return t.num.toLowerCase().indexOf(query)===0||(t.pair||'').toLowerCase().indexOf(query)!==-1;
   });
-  matches.sort(function(a,b){return(b.savedAt||'').localeCompare(a.savedAt||'');});
+  matches.sort(function(a,b){return(b.loggedAt||b.savedAt||'').localeCompare(a.loggedAt||a.savedAt||'');});
   _trefState={el:el,triggerPos:head2.length-m2[2].length-1};
   _trefMatches=matches.slice(0,8);_trefHi=0;
   _trefRender();
 }
+// Mirrors the textarea's text up to `pos` in an offscreen div with identical
+// styling so we can read the caret's pixel position (textareas have no native API for this).
+function _trefCaretCoords(el,pos){
+  var cs=getComputedStyle(el);
+  var div=document.createElement('div');
+  var props=['boxSizing','width','fontFamily','fontSize','fontWeight','fontStyle','lineHeight','letterSpacing','textTransform','textIndent','textAlign','paddingTop','paddingRight','paddingBottom','paddingLeft','borderTopWidth','borderRightWidth','borderBottomWidth','borderLeftWidth','borderStyle'];
+  props.forEach(function(p){div.style[p]=cs[p];});
+  div.style.position='absolute';div.style.visibility='hidden';div.style.whiteSpace='pre-wrap';div.style.wordWrap='break-word';div.style.height='auto';
+  document.body.appendChild(div);
+  div.textContent=el.value.slice(0,pos);
+  var span=document.createElement('span');
+  span.textContent=el.value.slice(pos)||'.';
+  div.appendChild(span);
+  var rect=el.getBoundingClientRect();
+  var coords={left:rect.left+span.offsetLeft-el.scrollLeft,top:rect.top+span.offsetTop-el.scrollTop,height:span.offsetHeight||parseInt(cs.lineHeight)||16};
+  document.body.removeChild(div);
+  return coords;
+}
 function _trefRender(){
   var d=_trefEl();
   if(!_trefState||!_trefMatches.length){d.style.display='none';return;}
-  var rect=_trefState.el.getBoundingClientRect();
-  d.style.left=rect.left+'px';d.style.top=(rect.bottom+4)+'px';d.style.width=Math.min(rect.width,280)+'px';
+  var el=_trefState.el,c=_trefCaretCoords(el,el.selectionStart),w=280;
+  var left=Math.min(Math.max(c.left,4),window.innerWidth-w-4);
+  d.style.left=left+'px';d.style.top=(c.top+c.height+4)+'px';d.style.width=w+'px';
   d.innerHTML=_trefMatches.map(function(t,i){
     return '<div class="tref-item'+(i===_trefHi?' hi':'')+'" onmousedown="event.preventDefault();_trefPick('+i+')">'
       +'<span class="tref-num">#'+escHtml(t.num)+'</span>'
