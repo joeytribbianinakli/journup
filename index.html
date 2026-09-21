@@ -5276,8 +5276,14 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
       .note-card-imgs{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px;padding-top:7px;border-top:1px solid rgba(0,0,0,.12);}
       .note-img-sq{width:26px;height:26px;object-fit:cover;border-radius:4px;border:1px solid rgba(0,0,0,.18);cursor:zoom-in;display:block;transition:transform .12s;}
       .note-img-sq:hover{transform:scale(1.14);}
-      .note-img-zone{border:1px dashed var(--border2);border-radius:var(--radius);padding:10px;text-align:center;font-size:11px;color:var(--text3);cursor:pointer;transition:all .12s;}
-      .note-img-zone:hover,.note-img-zone.drag{border-color:var(--accent);color:var(--text2);background:rgba(77,127,255,.06);}
+      .note-img-zone{border:1px dashed var(--border2);border-radius:var(--radius);padding:10px;text-align:center;font-size:11px;color:var(--text3);cursor:pointer;transition:all .12s;display:flex;align-items:center;justify-content:center;gap:6px;flex-direction:column;}
+      .note-img-zone:hover,.note-img-zone.drag,.note-img-zone.focused{border-color:var(--accent);color:var(--text2);background:rgba(77,127,255,.06);}
+      .note-img-zone:focus{outline:none;border-color:var(--accent);color:var(--text2);background:rgba(77,127,255,.06);}
+      .note-img-zone{touch-action:manipulation;-webkit-user-select:none;user-select:none;}
+      .note-img-zone.paste-active{border-color:var(--green);background:rgba(52,201,122,.06);animation:pG .4s ease;}
+      .note-img-zone svg{width:15px;height:15px;stroke:var(--text3);fill:none;stroke-width:1.5;flex-shrink:0;}
+      .note-img-zone p{margin:0;font-size:10px;color:var(--text3);line-height:1.5;}
+      .note-img-zone kbd{background:var(--bg4);border:1px solid var(--border2);border-radius:3px;padding:1px 4px;font-size:9px;font-family:DM Mono,monospace;color:var(--text2);}
       .note-img-strip{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px;}
       .note-img-item{position:relative;width:52px;height:52px;}
       .note-img-item img{width:100%;height:100%;object-fit:cover;border-radius:5px;border:1px solid var(--border2);cursor:zoom-in;display:block;}
@@ -6087,8 +6093,11 @@ document.addEventListener('DOMContentLoaded',function(){
       </div>
       <div class="frow">
         <label class="flabel">Images <span style="color:var(--text3);font-weight:400">(optional)</span></label>
-        <div class="note-img-zone" id="note-img-zone" onclick="document.getElementById('note-img-file').click()"
-             ondragover="notesImgDragOver(event)" ondragleave="notesImgDragLeave(event)" ondrop="notesImgDrop(event)">Paste, drop or click to add images</div>
+        <div class="note-img-zone" id="note-img-zone" tabindex="0" onclick="notesImgZoneClick(event)"
+             ondragover="notesImgDragOver(event)" ondragleave="notesImgDragLeave(event)" ondrop="notesImgDrop(event)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          <p>Click here then <kbd>Ctrl+V</kbd> to paste · or drag &amp; drop · or double-click to browse</p>
+        </div>
         <input type="file" id="note-img-file" accept="image/*" multiple style="display:none" onchange="notesImgPick(event)">
         <div class="note-img-strip" id="note-img-strip"></div>
       </div>
@@ -16762,7 +16771,7 @@ async function loadSavedThemeFilters(){
   if(savedC==null){var lsC=localStorage.getItem(THEME_CONTRAST_KEY);if(lsC!=null)savedC=lsC;}
   applyThemeFilters(savedB==null?100:savedB,savedC==null?100:savedC);
 }
-function applyThemeVars(name){
+function applyThemeVars(name,noPush){
   var t=THEMES[name];if(!t)return;
   var r=document.documentElement.style;
   r.setProperty('--bg',t.bg);r.setProperty('--bg2',t.bg2);r.setProperty('--bg3',t.bg3);r.setProperty('--bg4',t.bg4);
@@ -16775,7 +16784,11 @@ function applyThemeVars(name){
   document.documentElement.style.setProperty('color-scheme',lightThemes.indexOf(name)>=0?'light':'dark');
   localStorage.setItem('tj-theme',name);
   // Persist to IndexedDB (canonical) and push to config JSON/GitHub
-  if(typeof setSetting==='function'){setSetting('tj-theme',name).then(function(){ghAutoSyncConfig();});}
+  // noPush=true is the boot-time restore (loadSavedTheme): re-applying the saved theme is not a
+  // user change, and pushing here uploaded this device's whole (possibly stale) config 1.5s after
+  // every page load — before ghAutoPullOnSetup() had pulled — overwriting other devices' newer
+  // config (e.g. a newly added asset/pair) on GitHub.
+  if(typeof setSetting==='function'){setSetting('tj-theme',name).then(function(){if(!noPush)ghAutoSyncConfig();});}
 }
 function applyTheme(name){
   applyThemeVars(name);
@@ -16788,7 +16801,7 @@ async function loadSavedTheme(){
   try{var s=await dbGet('settings','tj-theme');if(s&&s.value)saved=s.value;}catch(e){}
   if(!saved)saved=localStorage.getItem('tj-theme');
   if(saved&&LEGACY_THEME_MAP[saved])saved=LEGACY_THEME_MAP[saved];// migrate removed theme names
-  if(saved&&THEMES[saved])applyThemeVars(saved);
+  if(saved&&THEMES[saved])applyThemeVars(saved,true); // true = don't push config on boot restore
 }
 // ══ Global Esc key handler ════════════════════════
 if(!window._tjKeydownListenerRegistered){
@@ -19830,6 +19843,13 @@ async function ghFetchFileContent(cfg,filePath){
 // Runs once right after a successful "Test connection" on a fresh browser/device
 // (i.e. no tj-gh-last-sync yet) — pulls the full remote dataset down so the user
 // doesn't have to remember to hit Pull manually on first setup.
+// ⚠ ALSO RUNS ON EVERY PAGE LOAD (see the boot code) — this is the multi-device refresh-sync.
+// MAINTENANCE NOTE: it duplicates ghPull()'s fetch logic instead of calling it. It currently
+// pulls: tj_data.json (trades/images/sessions), tj_config.json, alerts, FX, Watchlist, Notes.
+// If a new data file/store is added (see the "ADDING A NEW BACKED-UP DATA TYPE" checklist above
+// GH_FILE), add a matching try/catch pull block here AND in ghPull(), or the new data will never
+// refresh on other devices on load. Also never trigger a config/data PUSH from boot-time code
+// paths — a device that hasn't pulled yet would overwrite newer remote data with its stale copy.
 async function ghAutoPullOnSetup(){
   var cfg=ghGetConfig();
   try{
@@ -25060,7 +25080,10 @@ function paFetchPrices(){
       if(price !== null){
         _paPrices[sym] = price;
         _paPriceUpdatedAt[sym] = Date.now();
-        paCheckAlerts(sym, price);
+        // No paCheckAlerts() here on purpose: this local-polling branch only runs when NO worker URL is
+        // saved on this device, i.e. it holds a synced copy of alerts the CloudMonitor worker already
+        // owns (alerts can only be created while connected). Firing here sent a duplicate message —
+        // via this device's own provider (Yahoo) — after the worker had fired the same alert.
         needRender = true;
       } else {
         // Mark as explicitly failed (null sentinel) so UI shows "unavailable"
@@ -26179,8 +26202,10 @@ function cmFetchPrices(){
       }
       _paPrices[upper] = parseFloat(info.price);
       if(info.time) _paPriceUpdatedAt[upper] = info.time;
-      // Fire alerts locally using the fresh price — was missing in cloud path
-      paCheckAlerts(upper, parseFloat(info.price), info.provider);
+      // Deliberately NO paCheckAlerts() here: the CloudMonitor worker's cron is the only thing that
+      // fires alerts (Telegram/Discord). The page used to fire too, which sent duplicate messages
+      // whenever a device opened with a stale not-yet-fired copy of an alert. The page just displays
+      // the price; fired alerts show up when it next syncs (cmLoadAlerts on the Price Alerts page).
       _paAlerts.forEach(function(a){
         if(a.fired || a.symbol.toUpperCase() !== upper) return;
         var chipEl = document.querySelector('[data-pa-prov="' + a.id + '"]');
@@ -28212,6 +28237,22 @@ function notesModalImgZoom(idx){
   var list=_noteImgs.map(function(e){return _noteImgSrc[e.id]||'';}).filter(Boolean);
   openLightboxList(list,idx);
 }
+// Single click = just focus the zone (ready for Ctrl+V, same feel as the trade Analysis
+// paste zones). Double click / double tap = open the file browser. Timing is tracked by hand
+// instead of relying on the 'dblclick' event because mobile browsers don't fire it reliably.
+var _noteImgLastClick=0;
+function notesImgZoneClick(e){
+  var z=document.getElementById('note-img-zone');
+  if(z)z.focus();
+  var now=Date.now();
+  if(now-_noteImgLastClick<400){
+    _noteImgLastClick=0;
+    var f=document.getElementById('note-img-file');
+    if(f)f.click();
+  } else {
+    _noteImgLastClick=now;
+  }
+}
 function notesImgDragOver(e){e.preventDefault();e.currentTarget.classList.add('drag');}
 function notesImgDragLeave(e){e.currentTarget.classList.remove('drag');}
 function notesImgDrop(e){
@@ -28226,6 +28267,12 @@ function notesImgPick(e){
 // New local blobs are only written to the DB on save — see notesSaveModal().
 // INTENTIONAL — same reasoning as addImageToZone() for trades: upload immediately, never
 // defer to Save, so a note can't end up saved with an image that silently failed to attach.
+function _noteImgZoneFlash(){
+  var z=document.getElementById('note-img-zone');
+  if(!z)return;
+  z.classList.add('paste-active');
+  setTimeout(function(){z.classList.remove('paste-active')},500);
+}
 async function notesAddImageFile(file){
   var cld=(typeof cloudinaryGetConfig==='function')?cloudinaryGetConfig():{};
   var uid=_noteUid();
@@ -28240,6 +28287,7 @@ async function notesAddImageFile(file){
       if(d.error)throw new Error(d.error.message);
       var ent={id:uid,cloudUrl:d.secure_url,publicId:d.public_id||publicId,deleteToken:d.delete_token||null,_new:true};
       _noteImgs.push(ent);_noteImgSrc[uid]=ent.cloudUrl;notesRenderModalImgs();
+      _noteImgZoneFlash();
       return;
     }catch(err){ toast('Cloudinary upload failed: '+err.message+' — saved locally','err'); }
   }
@@ -28247,6 +28295,7 @@ async function notesAddImageFile(file){
   reader.onload=function(ev){
     var ent={id:uid,imgId:'note_'+uid,_dataUrl:ev.target.result,_new:true};
     _noteImgs.push(ent);_noteImgSrc[uid]=ent._dataUrl;notesRenderModalImgs();
+    _noteImgZoneFlash();
   };
   reader.readAsDataURL(file);
 }
