@@ -5067,6 +5067,7 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
       #page-watchlist .wl-item-name{font-size:12px;font-weight:600;color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
       #page-watchlist .wl-item-count{font-size:9px;font-weight:700;font-family:DM Mono,monospace;background:var(--bg4);border:1px solid var(--border2);color:var(--text3);border-radius:10px;padding:1px 6px;line-height:1.5;flex-shrink:0;}
       #page-watchlist .wl-detail-title{font-size:16px;font-weight:700;color:var(--text);}
+      #page-watchlist .wl-name-note{font-size:13px;font-weight:400;font-style:normal;color:var(--text2);margin-left:7px;vertical-align:middle;}
       #page-watchlist .wl-add-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
       #page-watchlist .wl-dir-row{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px;}
       #page-watchlist .wl-dir-btn{padding:6px;border-radius:var(--radius);border:1px solid var(--border2);background:var(--bg3);color:var(--text2);font-size:11px;font-weight:600;cursor:pointer;transition:all .15s;font-family:'DM Sans',sans-serif;display:flex;align-items:center;justify-content:center;gap:5px;}
@@ -5144,6 +5145,10 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
               <div class="wl-field">
                 <label>Category <span style="color:var(--text3);font-size:10px">(optional)</span></label>
                 <select id="wl-new-category"><option value="">— Uncategorized —</option></select>
+              </div>
+              <div class="wl-field">
+                <label>Note <span style="color:var(--text3);font-size:10px">(optional)</span></label>
+                <input type="text" id="wl-new-note" placeholder="e.g. Approaching 4H demand">
               </div>
               <button class="btn btn-primary" id="wl-create-btn" style="width:100%" onclick="wlCreate()">Create Watchlist</button>
               <button class="btn btn-ghost" id="wl-cancel-edit-list-btn" style="width:100%;margin-top:6px;display:none;justify-content:center" onclick="wlCancelEditList()">Cancel edit</button>
@@ -27670,6 +27675,7 @@ async function wlEditWatchlist(id){
   document.getElementById('wl-new-name').value = w.name || '';
   await wlPopulateCategorySelect();
   document.getElementById('wl-new-category').value = w.categoryId || '';
+  document.getElementById('wl-new-note').value = w.note || '';
   var f = document.getElementById('wl-new-form');
   if(f) f.style.display = '';
   var createBtn = document.getElementById('wl-create-btn');
@@ -27685,6 +27691,7 @@ function wlCancelEditList(){
   _wlEditingListId = null;
   document.getElementById('wl-new-name').value = '';
   document.getElementById('wl-new-category').value = '';
+  document.getElementById('wl-new-note').value = '';
   document.getElementById('wl-new-form').style.display = 'none';
   var createBtn = document.getElementById('wl-create-btn');
   var cancelBtn = document.getElementById('wl-cancel-edit-list-btn');
@@ -27701,6 +27708,7 @@ async function wlUpdateWatchlist(){
   if(!w){ wlCancelEditList(); return; }
   w.name = name;
   w.categoryId = document.getElementById('wl-new-category').value || '';
+  w.note = (document.getElementById('wl-new-note').value||'').trim();
   await saveWatchlistsData(lists);
   var editedId = _wlEditingListId;
   wlCancelEditList();
@@ -27727,11 +27735,13 @@ async function wlCreate(){
   var name = (nameEl.value||'').trim();
   if(!name){ toast('Enter a name for the watchlist','err'); return; }
   var catEl = document.getElementById('wl-new-category');
+  var noteVal = (document.getElementById('wl-new-note').value||'').trim();
   var lists = await getWatchlists();
-  var w = { id: Date.now().toString(36)+Math.random().toString(36).slice(2), name:name, categoryId:catEl.value||'', items:[], createdAt: Date.now() };
+  var w = { id: Date.now().toString(36)+Math.random().toString(36).slice(2), name:name, categoryId:catEl.value||'', note:noteVal, items:[], createdAt: Date.now() };
   lists.push(w);
   await saveWatchlistsData(lists);
   nameEl.value='';
+  document.getElementById('wl-new-note').value='';
   document.getElementById('wl-new-form').style.display='none';
   _wlActiveId = w.id;
   await wlRenderCatTabs();
@@ -27800,7 +27810,7 @@ async function wlRenderDetail(){
   }
   if(empty)empty.style.display='none';
   if(body)body.style.display='';
-  if(nameEl)nameEl.textContent = w.name;
+  if(nameEl)nameEl.innerHTML = escHtml(w.name) + (w.note ? ' <span class="wl-name-note">- '+escHtml(w.note)+'</span>' : '');
   if(catEl){
     var cats = await getWlCategories();
     var cat = cats.find(function(c){return c.id===w.categoryId;});
@@ -27923,7 +27933,7 @@ function wlRenderAllView(lists){
     return '<div class="wl-watch-group'+(isExpanded?' wl-group-expanded':'')+'" id="wl-group-'+w.id+'">'
       +'<div class="wl-group-header" onclick="wlToggleGroup(\''+w.id+'\')">'
         +'<svg class="wl-group-chev" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>'
-        +'<span class="wl-group-name">'+escHtml(w.name)+'</span>'
+        +'<span class="wl-group-name">'+escHtml(w.name)+(w.note?' <span class="wl-name-note">- '+escHtml(w.note)+'</span>':'')+'</span>'
         +'<span class="wl-item-count">'+w.items.length+'</span>'
       +'</div>'
       +'<div class="wl-group-body">'+itemsHtml+'</div>'
