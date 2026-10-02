@@ -2706,7 +2706,7 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
           <!-- Row 2: User rating, Session, Strategy (same line; rating width matches Trade #) -->
           <div class="frow-inline" style="margin-top:10px">
             <div class="frow" style="max-width:80px">
-              <label class="flabel">User rating <span style="color:var(--red);margin-left:2px">*</span></label>
+              <label class="flabel">User rating <span style="color:var(--text3);font-weight:400;text-transform:none;letter-spacing:0;font-size:9.5px" title="Optional while the trade is pending — required to close it">(req. to close)</span></label>
               <select id="f-rating"><option value="">— select —</option><option>⭐</option><option>⭐⭐</option><option>⭐⭐⭐</option><option>⭐⭐⭐⭐</option><option>⭐⭐⭐⭐⭐</option></select>
             </div>
             <div class="frow" style="flex:1">
@@ -2851,7 +2851,7 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
           <!-- Row 3: Entry time | Exit time | Win/Loss (auto) -->
           <div class="frow-inline">
             <div class="frow">
-              <label class="flabel">Entry time <span style="color:var(--red);margin-left:2px">*</span></label>
+              <label class="flabel">Entry time <span style="color:var(--text3);font-weight:400;text-transform:none;letter-spacing:0;font-size:9.5px">(required to close the trade)</span></label>
               <div class="dt-wrap">
                 <input type="date" id="f-etime-date" min="1000-01-01" max="9999-12-31" oninput="clampDateYear(this);recalc()">
                 <input type="text" id="f-etime-time" placeholder="e.g. 1430" maxlength="4" style="max-width:90px" oninput="onTimeInput(this)" onblur="onTimeBlur(this)" onfocus="onTimeFocus(this)" autocomplete="off">
@@ -11046,7 +11046,7 @@ async function saveTrade(){
     if(!lastPartial){toast('Enter at least one partial TP with a price and quantity','err');switchTab(0,null);return;}
   }
   var etimeDate=document.getElementById('f-etime-date').value;
-  if(!etimeDate){toast('Entry date is required','err');switchTab(0,null);return;}
+  // Entry date/time are optional while the trade is pending — enforced in the completion check below
   var xtimeDate=document.getElementById('f-xtime-date').value;
   // Exit date is conditionally required — see combined exit-details check below
   var stratVal=document.getElementById('f-strategy').value;
@@ -11058,12 +11058,13 @@ async function saveTrade(){
   var methodVal=document.getElementById('f-method-val').value;
   if(!methodVal){toast('Entry method is required','err');switchTab(0,null);return;}
   var ratingVal=document.getElementById('f-rating').value;
-  if(!ratingVal){toast('User rating is required','err');switchTab(0,null);return;}
+  // User rating is optional while the trade is pending — enforced in the completion check below
   var errorVal=document.getElementById('f-error-val').value;
   var trrVal=document.getElementById('f-trr').value;
   if(!trrVal){toast('Target RR is required','err');switchTab(0,null);return;}
   var etimeTime=(document.getElementById('f-etime-time-24').value||'').trim()||(parseTimeInput(document.getElementById('f-etime-time').value||'')||{h24:''}).h24;
-  if(!etimeTime){toast('Entry time is required (e.g. 1430)','err');switchTab(0,null);return;}
+  // Entry time is optional while the trade is pending — enforced in the completion check below
+  if(etimeTime&&!etimeDate){toast('Enter an entry date along with the entry time','err');switchTab(0,null);return;}
   var xtimeTime=(document.getElementById('f-xtime-time-24').value||'').trim()||(parseTimeInput(document.getElementById('f-xtime-time').value||'')||{h24:''}).h24;
   // Exit time is conditionally required — see combined exit-details check below
   var slplaceVal=document.getElementById('tp-slplace-val').value;
@@ -11091,6 +11092,20 @@ async function saveTrade(){
     toast('Trade has partial exit details — also fill in: '+_missingExit.join(', '),'err');
     switchTab(0,null);
     return;
+  }
+  // Completing the trade (all four exit details filled) makes entry date, entry time and
+  // user rating mandatory. While the trade is still pending (no exit details) they stay
+  // optional, so a planned trade can be logged before it has actually been entered.
+  if(_exitFieldsCount===4){
+    var _missingClose=[];
+    if(!etimeDate)_missingClose.push('Entry date');
+    if(!etimeTime)_missingClose.push('Entry time');
+    if(!ratingVal)_missingClose.push('User rating');
+    if(_missingClose.length){
+      toast('To complete this trade, also fill in: '+_missingClose.join(', '),'err');
+      switchTab(0,null);
+      return;
+    }
   }
   // Exit date/time, once both provided, must be strictly after entry date/time.
   if(_exitFieldsCount===4){
@@ -11149,6 +11164,8 @@ async function saveTrade(){
   // type already declared above during validation
   var trr=parseFloat(document.getElementById('f-trr').value)||0;
   var edt=getDT('f-etime-date','f-etime-time');
+  // Pending trade with an entry date but no time: store the date only (don't invent a 00:00 time)
+  if(edt&&!etimeTime)edt=etimeDate;
   var xdt=getDT('f-xtime-date','f-xtime-time');
   var riskDollar=acct*(riskpct/100);
   var calcQty=qty;
