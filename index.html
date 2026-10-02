@@ -598,7 +598,7 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
    it. Inspired by the visual "paperclip strategy" / habit-tracker idea from Atomic Habits
    ch.16 — dots fill in one at a time as trades complete today, which is the point: watching
    the row fill up is the reward, separate from anything about win/loss. ── */
-.trade-tracker{position:fixed;bottom:20px;left:20px;z-index:200;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:0 6px 20px rgba(0,0,0,.22);min-width:168px;user-select:none}
+.trade-tracker{position:fixed;bottom:20px;left:20px;z-index:200;background:var(--bg2);border:1px solid #4a5370;border-radius:var(--radius-lg);box-shadow:0 6px 20px rgba(0,0,0,.22);min-width:168px;user-select:none}
 .trade-tracker.tt-hit{border-color:rgba(60,180,110,.5)}
 .tt-header{display:flex;align-items:center;gap:4px;padding:7px 9px;cursor:grab;border-bottom:1px solid var(--border)}
 .tt-header:active{cursor:grabbing}
@@ -621,7 +621,7 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
 .tt-mini svg{stroke:currentColor;flex-shrink:0}
 .trade-tracker.tt-collapsed .tt-mini{display:flex}
 .trade-tracker.tt-collapsed.tt-hit .tt-mini{color:var(--green)}
-.tt-mini.tt-mini-idle{color:var(--text3)}
+.tt-mini.tt-mini-idle{color:var(--text)}
 .tt-dots{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:7px;max-width:220px}
 .tt-dot{width:13px;height:13px;border-radius:50%;background:var(--bg4);border:1.5px solid var(--border2);transition:all .2s;flex-shrink:0}
 .tt-dot.filled{background:var(--green);border-color:var(--green)}
