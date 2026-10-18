@@ -2881,6 +2881,17 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
           <input type="hidden" id="tp-rr-a" value="">
           <input type="hidden" id="tp-arr-display" value="">
           <div class="opt-group" id="opt-criteria" style="display:none"></div>
+          <!-- Fees & margin (optional) -->
+          <div class="partial-tp-section" id="fees-margin-section">
+            <div style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">Fees &amp; margin <span style="font-size:9px;font-weight:500;color:var(--text3);text-transform:none;letter-spacing:0">(optional)</span></div>
+            <div class="frow-inline">
+              <div class="frow"><label class="flabel">Margin amount ($)</label><input type="number" id="f-margin-amt" min="0" step="any" placeholder="from calculator" oninput="recalc()"></div>
+              <div class="frow"><label class="flabel">Interest rate (% / year)</label><input type="number" id="f-margin-rate" min="0" step="any" placeholder="broker rate" oninput="recalc()"></div>
+            </div>
+            <div id="f-margin-calc-note" style="display:none;font-size:10px;color:var(--text3);line-height:1.5;margin:-4px 0 10px"></div>
+            <div style="font-size:10px;color:var(--text3);margin-bottom:6px">Manual fees ($): leave a field blank to keep the automatic estimate for that category.</div>
+            <div class="frow-inline" id="f-manual-fees-rows"></div>
+          </div>
           <div class="computed-strip" id="computed-strip">
             <div>
               <!-- Risk section -->
@@ -10930,21 +10941,101 @@ function recalc(){
   recalcFeesAsync(entry, qty, durMin, type);
 }
 // Debounced async fee updater — reads asset fees from IDB then updates fee strip
+// ── Manual fees + trade-level margin interest (Log Trade form) ──────────────
+// Manual fee inputs are built per asset type from the same fee rows the Assets & Pairs fee
+// editor shows (FEE_ROWS_BY_CLASS). A filled input REPLACES the automatic estimate for that
+// category; blank = keep the automatic estimate. Margin amount / rate are saved on the trade.
+var MANUAL_FEE_DEFS = [
+  {key:'spread',label:'Spread'},{key:'commission',label:'Commission'},{key:'overnight',label:'Overnight/Swap'},
+  {key:'exchange',label:'Exchange fee'},{key:'financing',label:'Margin interest'},
+  {key:'borrowFee',label:'Short borrow fee'},{key:'regulatory',label:'Regulatory (SEC/FINRA)'}
+];
+var _manualFeeRowsType = null;  // asset type the manual-fee inputs were last built for
+var _pendingManualFees = null;  // values to apply the next time the rows are (re)built
+function _collectManualFees(){
+  var out = {}, any = false;
+  MANUAL_FEE_DEFS.forEach(function(d){
+    var el = document.getElementById('f-mfee-'+d.key);
+    if(!el || el.value === '') return;
+    var v = parseFloat(el.value);
+    if(isNaN(v) || v < 0) return;
+    out[d.key] = v; any = true;
+  });
+  return any ? out : null;
+}
+function _renderManualFeeRows(assetTypeName){
+  var wrap = document.getElementById('f-manual-fees-rows');
+  if(!wrap) return;
+  var vals = (assetTypeName && _pendingManualFees) ? _pendingManualFees : (_collectManualFees() || {});
+  if(assetTypeName) _pendingManualFees = null;
+  if(!assetTypeName){
+    wrap.innerHTML = '<div style="font-size:10px;color:var(--text3)">Select a pair to see its fee categories.</div>';
+    _manualFeeRowsType = '';
+    return;
+  }
+  var keys = FEE_ROWS_BY_CLASS[_getAssetClass(assetTypeName)] || BASE_FEE_ROWS;
+  wrap.innerHTML = MANUAL_FEE_DEFS.filter(function(d){ return keys.indexOf(d.key) !== -1; }).map(function(d){
+    var v = vals[d.key];
+    return '<div class="frow"><label class="flabel">'+d.label+'</label><input type="number" id="f-mfee-'+d.key+'" min="0" step="any" placeholder="auto" value="'+(v==null?'':v)+'" oninput="recalc()"></div>';
+  }).join('');
+  _manualFeeRowsType = assetTypeName;
+}
+function _syncManualFeeRows(){
+  var t = (document.getElementById('f-asset-type')||{}).value || '';
+  if(t !== _manualFeeRowsType || (t && _pendingManualFees)) _renderManualFeeRows(t);
+}
+function _resetFeesMarginInputs(){
+  var a = document.getElementById('f-margin-amt'); if(a) a.value = '';
+  var r = document.getElementById('f-margin-rate'); if(r) r.value = '';
+  _pendingManualFees = null;
+  var w = document.getElementById('f-manual-fees-rows'); if(w) w.innerHTML = '';
+  _manualFeeRowsType = null;
+  _updateMarginNote(null, 0);
+}
+// Everything the fee engine + saveTrade need from the form. Borrowed = position value (converted
+// to account currency like fees/P&L) minus balance used, floored at 0.
+function _collectFeeOpts(entry, qty, pair){
+  var rate = parseFloat((document.getElementById('f-margin-rate')||{}).value);
+  var amt = parseFloat((document.getElementById('f-margin-amt')||{}).value);
+  var acct = parseFloat((document.getElementById('f-acct')||{}).value) || 5000;
+  var o = { manualFees:_collectManualFees(), marginAmount:isNaN(amt)?null:amt, marginRate:isNaN(rate)?null:rate, marginBorrowed:0 };
+  if(o.marginRate > 0 && entry > 0 && qty > 0){
+    o.marginBorrowed = Math.max(0, (entry*qty)/quoteConvFactor(pair, entry) - acct);
+  }
+  return o;
+}
+function _updateMarginNote(o, durMin){
+  var el = document.getElementById('f-margin-calc-note');
+  if(!el) return;
+  if(!o || !(o.marginRate > 0)){ el.style.display = 'none'; el.textContent = ''; return; }
+  var days = durMin > 0 ? Math.ceil(durMin/1440) : 0;
+  var txt = 'Borrowed: $' + o.marginBorrowed.toFixed(2) + ' (position value \u2212 balance used)';
+  if(o.marginBorrowed <= 0) txt += ' \u00b7 nothing borrowed, so no margin interest';
+  else if(days > 0) txt += ' \u00b7 Interest: $' + (o.marginBorrowed*(o.marginRate/100)*(days/365)).toFixed(2) + ' over ' + days + ' day' + (days===1?'':'s');
+  else txt += ' \u00b7 interest is calculated once entry and exit times are set';
+  if(o.manualFees && o.manualFees.financing != null) txt += ' \u00b7 overridden by your manual Margin interest';
+  el.textContent = txt;
+  el.style.display = '';
+}
 var _recalcFeesTimer = null;
 function recalcFeesAsync(entry, qty, durMin, direction){
   clearTimeout(_recalcFeesTimer);
   _recalcFeesTimer = setTimeout(function(){
+    _syncManualFeeRows();
     var assetTypeName = (document.getElementById('f-asset-type')||{}).value || '';
     if(!assetTypeName || !entry || !qty){
       var sec = document.getElementById('c-fees-section');
       if(sec) sec.style.display = 'none';
       _lastCalcFees = null;
+      _updateMarginNote(null, 0);
       return;
     }
     _getAssetFeesForType(assetTypeName).then(function(fees){
       if(!fees){ var sec=document.getElementById('c-fees-section'); if(sec)sec.style.display='none'; _lastCalcFees=null; return; }
       var pairVal = (document.getElementById('f-pair')||{}).value || '';
-      var feeResult = calcTradeFees(fees, qty, entry, durMin, pairVal, direction);
+      var feeOpts = _collectFeeOpts(entry, qty, pairVal);
+      var feeResult = calcTradeFees(fees, qty, entry, durMin, pairVal, direction, feeOpts);
+      _updateMarginNote(feeOpts, durMin);
       _lastCalcFees = feeResult;
       _renderFeeStrip(feeResult, qty > 0 ? entry : 0);
     });
@@ -11357,6 +11448,8 @@ async function saveTrade(){
     }
   }
   // Fees are NOT stored — they are computed live from current asset settings when displayed.
+  // Only the user's own per-trade inputs are saved: manual fee overrides + margin amount/rate/borrowed.
+  var _fo=_collectFeeOpts(entry,actualQty,pair);
   var trade={
     id:editingId||(Date.now().toString(36)+Math.random().toString(36).slice(2)),
     num,pair,assetType:document.getElementById('f-asset-type').value,
@@ -11398,6 +11491,7 @@ async function saveTrade(){
     whySkipped:document.getElementById('why-skipped-notes')?document.getElementById('why-skipped-notes').value:'',
     partialTPs:partialTPsSaved,
     partialDesc:partialDesc,
+    manualFees:_fo.manualFees,marginAmount:_fo.marginAmount,marginRate:_fo.marginRate,marginBorrowed:_fo.marginBorrowed,
     htfTf:tfState.htf,mtfTf:tfState.mtf,ltfTf:tfState.ltf,
     starred:_oldStarred,
     reviewed:_oldReviewed,
@@ -11506,6 +11600,7 @@ async function clearForm(skipCancelEdit){
   var whyEl=document.getElementById('why-skipped-notes');if(whyEl)whyEl.value='1. ';
   // Reset TF pills
   resetTfPills();
+  _resetFeesMarginInputs();
   recalc();switchTab(0,null);
   // Only generate a new trade number when creating a new trade (not when editing an existing one)
   // The second argument `existingNum` is passed by editTrade() to prevent the async generateTradeNum()
@@ -11649,6 +11744,8 @@ async function editTrade(id){
     var pdesc=document.getElementById('partial-tp-desc');
     if(pdesc)pdesc.value=trade.partialDesc||'';
   }
+  s('f-margin-amt',trade.marginAmount);s('f-margin-rate',trade.marginRate);
+  _pendingManualFees=trade.manualFees||null;
   recalc();
   var eb=document.getElementById('edit-banner');eb.classList.add('visible');
   document.getElementById('edit-banner-text').textContent='Editing: #'+trade.num+' — '+trade.pair;
@@ -11764,7 +11861,7 @@ var ALL_HISTORY_COLS=[
   {key:'ltf',       label:'LTF',       sortVal:function(t){return t.ltf||'';},                    render:function(t){return'<td style="font-size:11px;color:var(--text2)">'+escHtml(t.ltf||'—')+'</td>';}},
   {key:'targetRR',  label:'Target RR', sortVal:function(t){return parseFloat(t.targetRR)||0;},    render:function(t){return'<td class="mono">'+(t.targetRR?t.targetRR+'R':'—')+'</td>';}},
   {key:'loggedAt',  label:'Logged at', sortVal:function(t){return t.loggedAt||t.savedAt||'';},    render:function(t){var d=t.loggedAt||t.savedAt;if(!d)return'<td>—</td>';var dt=new Date(d);return'<td style="color:var(--text3);font-size:11px;white-space:nowrap" title="'+escHtml(d)+'">'+dt.toLocaleDateString()+' '+dt.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'})+'</td>';}},
-  {key:'fees',      label:'Fees (est.)',sortVal:function(t){return 0;}, render:function(t){return'<td class="mono hist-fee-cell" data-trade-id="'+escHtml(t.id||'')+'" data-asset="'+escHtml(t.assetType||'')+'" data-entry="'+escHtml(String(t.entryPrice||''))+'" data-qty="'+escHtml(String(t.qty||''))+'" data-dur="'+escHtml(String(t.durationMin||0))+'" data-pair="'+escHtml(t.pair||'')+'" data-dir="'+escHtml(t.type||'')+'"><span style="color:var(--text3);font-size:10px">…</span></td>';}},
+  {key:'fees',      label:'Fees (est.)',sortVal:function(t){return 0;}, render:function(t){return'<td class="mono hist-fee-cell" data-trade-id="'+escHtml(t.id||'')+'" data-asset="'+escHtml(t.assetType||'')+'" data-entry="'+escHtml(String(t.entryPrice||''))+'" data-qty="'+escHtml(String(t.qty||''))+'" data-dur="'+escHtml(String(t.durationMin||0))+'" data-pair="'+escHtml(t.pair||'')+'" data-dir="'+escHtml(t.type||'')+'"'+((t.manualFees||t.marginRate)?' data-fopts="'+escHtml(JSON.stringify({m:t.manualFees||null,r:t.marginRate==null?null:t.marginRate,b:t.marginBorrowed==null?null:t.marginBorrowed}))+'"':'')+'><span style="color:var(--text3);font-size:10px">…</span></td>';}},
   {key:'netPL',     label:'Net P/L',sortVal:function(t){return parseFloat(t.plDollar)||0;}, render:function(t){var isPartial=(t.partialTPs&&t.partialTPs.length)?'1':'0';return'<td class="mono hist-netpl-cell" data-trade-id="'+escHtml(t.id||'')+'" data-pl="'+escHtml(String(t.plDollar||0))+'" data-acct="'+escHtml(String(t.acct||0))+'" data-partial="'+isPartial+'"><span style="color:var(--text3);font-size:10px">…</span></td>';}},
 ];
 // ── Sort state ──────────────────────────────────────
@@ -13054,7 +13151,9 @@ async function _renderHistoryImpl(){
       if(!feeMap[asset]) feeMap[asset] = _getAssetFeesForType(asset);
       var assetFees = await feeMap[asset];
       if(window._histRenderGen !== myGen) return; // abort after await
-      var feeResult = assetFees ? calcTradeFees(assetFees, qty, entry, dur, pair, dir) : null;
+      var _fopts = null;
+      if(cell.dataset.fopts){ try{ var _fo = JSON.parse(cell.dataset.fopts); _fopts = { manualFees:_fo.m, marginRate:_fo.r, marginBorrowed:_fo.b }; }catch(e){ _fopts = null; } }
+      var feeResult = assetFees ? calcTradeFees(assetFees, qty, entry, dur, pair, dir, _fopts) : null;
       var feeTotal  = (feeResult && feeResult.total > 0) ? feeResult.total : 0;
       cell.innerHTML = feeTotal > 0
         ? '<span style="color:var(--amber)">-$'+feeTotal.toFixed(4)+'</span>'
@@ -17715,7 +17814,7 @@ async function saveAssetsData(data){ _invalidateAssetFeesCache(); await setSetti
 // direction = 'Long' | 'Short' (gates financing vs. borrowFee — pass trade.type). If omitted,
 // financing is assumed (Long default, matching the rest of the app's Long-default behavior) and
 // borrowFee is skipped, so older callers that don't pass a direction keep working unchanged.
-function calcTradeFees(assetFees, qty, entry, durationMin, pair, direction){
+function calcTradeFees(assetFees, qty, entry, durationMin, pair, direction, opts){
   var result = { total:0, spread:0, commission:0, overnight:0, exchange:0, financing:0, borrowFee:0, regulatory:0, breakdown:[] };
   if(!assetFees || !qty || !entry) return result;
   var fees = assetFees;
@@ -17787,6 +17886,42 @@ function calcTradeFees(assetFees, qty, entry, durationMin, pair, direction){
     result.regulatory = parseFloat(regulatoryVal.toFixed(4));
     if(result.regulatory > 0) result.breakdown.push({ label:'Regulatory (SEC+TAF)', value:result.regulatory });
   }
+  // 8. Optional per-trade overrides (opts omitted -> behaviour identical to before):
+  //   a) Trade-level margin interest = borrowed x annual rate x whole calendar days (rounded up) / 365.
+  //      It REPLACES the asset-level Margin financing fee for that trade.
+  //   b) Manual per-category fees ($) REPLACE the automatic estimate for that category.
+  if(opts){
+    var _bkDrop = function(prefixes){
+      result.breakdown = result.breakdown.filter(function(b){
+        return !prefixes.some(function(pf){ return b.label.indexOf(pf) === 0; });
+      });
+    };
+    var mRate = parseFloat(opts.marginRate);
+    if(mRate > 0){
+      _bkDrop(['Margin financing','Margin interest']);
+      var mDays = durationMin > 0 ? Math.ceil(durationMin / (60*24)) : 0;
+      var mBorrowed = parseFloat(opts.marginBorrowed) || 0;
+      var mInterest = (mDays > 0 && mBorrowed > 0) ? mBorrowed * (mRate/100) * (mDays/365) : 0;
+      result.financing = parseFloat(mInterest.toFixed(4));
+      if(result.financing > 0) result.breakdown.push({ label:'Margin interest ('+mDays+'d)', value:result.financing });
+    }
+    var mf = opts.manualFees;
+    if(mf){
+      var MF = {
+        spread:['Spread',['Spread']], commission:['Commission',['Commission']],
+        overnight:['Overnight',['Overnight']], exchange:['Exchange',['Exchange']],
+        financing:['Margin interest',['Margin financing','Margin interest']],
+        borrowFee:['Short borrow',['Short borrow']], regulatory:['Regulatory',['Regulatory']]
+      };
+      Object.keys(MF).forEach(function(k){
+        var v = parseFloat(mf[k]);
+        if(mf[k] == null || isNaN(v) || v < 0) return;
+        _bkDrop(MF[k][1]);
+        result[k] = parseFloat(v.toFixed(4));
+        if(result[k] > 0) result.breakdown.push({ label:MF[k][0]+' (manual)', value:result[k] });
+      });
+    }
+  }
   result.total = parseFloat((result.spread+result.commission+result.overnight+result.exchange+result.financing+result.borrowFee+result.regulatory).toFixed(4));
   return result;
 }
@@ -17807,7 +17942,7 @@ async function computeTradeFeesAsync(trade){
   if(!trade || !trade.assetType || !trade.entryPrice || !trade.qty) return null;
   var fees = await _getAssetFeesForType(trade.assetType);
   if(!fees) return null;
-  return calcTradeFees(fees, parseFloat(trade.qty), parseFloat(trade.entryPrice), trade.durationMin || 0, trade.pair, trade.type);
+  return calcTradeFees(fees, parseFloat(trade.qty), parseFloat(trade.entryPrice), trade.durationMin || 0, trade.pair, trade.type, { manualFees:trade.manualFees||null, marginRate:trade.marginRate, marginBorrowed:trade.marginBorrowed });
 }
 // Compute net equity for a session by summing (grossPL - fees) across its trades.
 // Falls back to sess.currentEquity if no fees are configured for any trade.
@@ -18953,6 +19088,12 @@ async function calcLogTrade(){
   var pairSym=inst?inst.sym:'';
   var tradeType=calcDirection==='short'?'Short':'Long';
   var capturedRR=calcLastRR;
+  // Margin settings (only when "Use margin" is ON) — read now, before nav() resets the calculator
+  var _cMarginAmt='',_cMarginRate='',_cMarginOn=!!calcUseMargin;
+  if(_cMarginOn){
+    _cMarginAmt=(document.getElementById('calc-margin-amt')||{}).value||'';
+    _cMarginRate=(document.getElementById('calc-margin-rate')||{}).value||'';
+  }
   var calcIsSkipped=!!(document.getElementById('calc-skipped')&&document.getElementById('calc-skipped').checked);
   // Capture pending checklist state (set when coming via pre-checklist flow)
   var capturedChecklistState = _pendingChecklistState ? JSON.parse(JSON.stringify(_pendingChecklistState)) : null;
@@ -19023,6 +19164,10 @@ async function calcLogTrade(){
     setChecklist_state(capturedChecklistState);
     _pendingChecklistState = null;
   }
+  if(_cMarginOn){
+    var _fmaEl=document.getElementById('f-margin-amt');if(_fmaEl)_fmaEl.value=_cMarginAmt;
+    var _fmrEl=document.getElementById('f-margin-rate');if(_fmrEl)_fmrEl.value=_cMarginRate;
+  }
   recalc();
   toast('Trade pre-filled from calculator','ok');
 }
@@ -19038,7 +19183,7 @@ function captureLogFormSnapshot(){
     'f-entry','f-sl-price','f-exit','f-qty','f-acct','f-riskpct','f-trr','f-winloss',
     'f-etime-date','f-etime-time','f-etime-time-24',
     'f-xtime-date','f-xtime-time','f-xtime-time-24',
-    'partial-tp-desc',
+    'partial-tp-desc','f-margin-amt','f-margin-rate',
     // Hidden opt-pill value fields — tab 0
     'f-type-val','f-model-val','f-ltf-val','f-method-val',
     'tp-exit-a-val','tp-slplace-val','tp-tpplace-val','tp-criteria-val',
@@ -19065,6 +19210,7 @@ function captureLogFormSnapshot(){
   snap._biasState  = JSON.parse(JSON.stringify(biasState));
   snap._tfState    = JSON.parse(JSON.stringify(tfState));
   snap._partialTPs = JSON.parse(JSON.stringify(_partialTPs));
+  snap._manualFees = _collectManualFees();
   return snap;
 }
 // Write a captureLogFormSnapshot() object back onto the Log Trade form's fields, opt-pills, and in-memory state
@@ -19078,7 +19224,7 @@ function restoreLogFormSnapshot(snap){
     'f-entry','f-sl-price','f-exit','f-qty','f-acct','f-riskpct','f-trr','f-winloss',
     'f-etime-date','f-etime-time','f-etime-time-24',
     'f-xtime-date','f-xtime-time','f-xtime-time-24',
-    'partial-tp-desc',
+    'partial-tp-desc','f-margin-amt','f-margin-rate',
     'f-type-val','f-model-val','f-ltf-val','f-method-val',
     'tp-exit-a-val','tp-slplace-val','tp-tpplace-val','tp-criteria-val',
     'f-trail-val','f-tpchg-val',
@@ -19093,6 +19239,8 @@ function restoreLogFormSnapshot(snap){
     var el=document.getElementById(id);
     if(el && snap[id] !== undefined) el.value=snap[id];
   });
+  _pendingManualFees = snap._manualFees || null;
+  _syncManualFeeRows();
   // Checkboxes
   if(snap['f-skipped_checked']!==undefined){
     var scb=document.getElementById('f-skipped');
