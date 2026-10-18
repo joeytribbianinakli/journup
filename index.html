@@ -9868,7 +9868,7 @@ function _trefCaretCoords(el,pos){
 function _trefRender(){
   var d=_trefEl();
   if(!_trefState||!_trefMatches.length){d.style.display='none';return;}
-  var el=_trefState.el,c=_trefCaretCoords(el,el.selectionStart),w=280;
+  var el=_trefState.el,c=_trefState.ce?_trefCaretCoordsCE(el):_trefCaretCoords(el,el.selectionStart),w=280;
   var left=Math.min(Math.max(c.left,4),window.innerWidth-w-4);
   d.style.left=left+'px';d.style.top=(c.top+c.height+4)+'px';d.style.width=w+'px';
   d.innerHTML=_trefMatches.map(function(t,i){
@@ -9883,6 +9883,7 @@ function _trefRender(){
 function _trefPick(i){
   var t=_trefMatches[i],st=_trefState;
   if(!t||!st)return;
+  if(st.ce){_trefPickCE(t,st);return;}
   var el=st.el;
   var before=el.value.slice(0,st.triggerPos);
   var after=el.value.slice(el.selectionStart);
@@ -9910,6 +9911,111 @@ function wireTradeRefAutocomplete(){
   });
 }
 document.addEventListener('DOMContentLoaded',wireTradeRefAutocomplete);
+// ── Same @/# trade picker for the Retrospective editor ────────────────────
+// The retro editor is a contenteditable div (no .value / .selectionStart), so it needs its own
+// trigger detection + insert. It reuses the dropdown, matching, highlight and keyboard code above.
+function _trefCETrigger(ed){
+  var sel=window.getSelection();
+  if(!sel||!sel.rangeCount||!sel.isCollapsed)return null;
+  var n=sel.anchorNode;
+  if(!n||n.nodeType!==3||!ed.contains(n))return null;
+  var m=n.nodeValue.slice(0,sel.anchorOffset).match(/([@#])(\w{0,20})$/);
+  if(!m)return null;
+  return{node:n,caret:sel.anchorOffset,query:m[2].toLowerCase(),triggerPos:sel.anchorOffset-m[2].length-1};
+}
+function _trefCaretCoordsCE(ed){
+  var fb=ed.getBoundingClientRect(),out={left:fb.left+8,top:fb.top+8,height:16},st=_trefState;
+  try{
+    if(st&&st.node&&ed.contains(st.node)){
+      var r=document.createRange();
+      r.setStart(st.node,st.triggerPos);r.setEnd(st.node,Math.min(st.triggerPos+1,st.node.length));
+      var rect=r.getClientRects()[0]||r.getBoundingClientRect();
+      if(rect&&(rect.height||rect.width)){out.left=rect.left;out.top=rect.top;out.height=rect.height||16;}
+    }
+  }catch(e){}
+  return out;
+}
+async function _trefOnInputCE(e){
+  var ed=e.currentTarget;
+  var tr=_trefCETrigger(ed);
+  if(!tr){_trefHide();return;}
+  var all=await dbGetAll('trades');
+  if(document.activeElement!==ed)return;
+  var tr2=_trefCETrigger(ed);
+  if(!tr2)return;
+  var query=tr2.query;
+  var matches=all.filter(function(t){
+    if(!t.num)return false;
+    if(!query)return true;
+    return t.num.toLowerCase().indexOf(query)===0||(t.pair||'').toLowerCase().indexOf(query)!==-1;
+  });
+  matches.sort(function(a,b){return(b.loggedAt||b.savedAt||'').localeCompare(a.loggedAt||a.savedAt||'');});
+  _trefState={el:ed,ce:true,node:tr2.node,caret:tr2.caret,triggerPos:tr2.triggerPos};
+  _trefMatches=matches.slice(0,8);_trefHi=0;
+  _trefRender();
+}
+function _trefPickCE(t,st){
+  var ed=st.el,tr=_trefCETrigger(ed);
+  if(!tr){_trefHide();return;}
+  var insert='#'+t.num+' ';
+  _trefHide();
+  ed.focus();
+  var r=document.createRange();
+  r.setStart(tr.node,tr.triggerPos);r.setEnd(tr.node,tr.caret);
+  var sel=window.getSelection();sel.removeAllRanges();sel.addRange(r);
+  // insertText keeps undo working and fires 'input', which syncs the hidden sm-retrospective field.
+  if(!_execCmd('insertText',insert)){
+    var v=tr.node.nodeValue;
+    tr.node.nodeValue=v.slice(0,tr.triggerPos)+insert+v.slice(tr.caret);
+    var r2=document.createRange();r2.setStart(tr.node,tr.triggerPos+insert.length);r2.collapse(true);
+    sel.removeAllRanges();sel.addRange(r2);
+    retroOnInput();
+  }
+}
+function wireRetroTradeRefAutocomplete(){
+  var ed=document.getElementById('retro-editor');
+  if(!ed||ed._trefWired)return;
+  ed._trefWired=true;
+  ed.addEventListener('input',_trefOnInputCE);
+  ed.addEventListener('keydown',_trefKeydown);
+  ed.addEventListener('blur',function(){setTimeout(_trefHide,150);});
+}
+document.addEventListener('DOMContentLoaded',wireRetroTradeRefAutocomplete);
+// Like linkifyTradeRefs(), but for the saved retrospective's HTML: only plain text (never tags,
+// attributes or existing links) has "#<num>" turned into a link, and only if it matches a real trade.
+// Returns the original string untouched when nothing was linked.
+function linkifyRetroHtml(html,numToId){
+  if(!html||!numToId)return html;
+  var doc=new DOMParser().parseFromString(html,'text/html');
+  var walker=doc.createTreeWalker(doc.body,NodeFilter.SHOW_TEXT,null);
+  var nodes=[],n;
+  while((n=walker.nextNode())){
+    if(n.parentNode&&n.parentNode.closest&&n.parentNode.closest('a'))continue;
+    if(/#\d+\b/.test(n.nodeValue))nodes.push(n);
+  }
+  var changed=false;
+  nodes.forEach(function(node){
+    var text=node.nodeValue,re=/#(\d+)\b/g,last=0,m,frag=doc.createDocumentFragment(),hit=false;
+    while((m=re.exec(text))){
+      var id=numToId[m[1]];
+      if(!id)continue;
+      hit=true;
+      if(m.index>last)frag.appendChild(doc.createTextNode(text.slice(last,m.index)));
+      var a=doc.createElement('a');
+      a.setAttribute('href','#');
+      a.setAttribute('style','color:var(--accent)');
+      a.setAttribute('onclick',"event.preventDefault();event.stopPropagation();closeRetroView();openDetail('"+String(id).replace(/\\/g,'\\\\').replace(/'/g,"\\'")+"')");
+      a.textContent='#'+m[1];
+      frag.appendChild(a);
+      last=m.index+m[0].length;
+    }
+    if(!hit)return;
+    if(last<text.length)frag.appendChild(doc.createTextNode(text.slice(last)));
+    node.parentNode.replaceChild(frag,node);
+    changed=true;
+  });
+  return changed?doc.body.innerHTML:html;
+}
 // Runs on already-escHtml'd note text; only turns #<num> into a link when that num
 // matches a real trade (numToId), so incidental "#" text elsewhere is left untouched.
 function linkifyTradeRefs(escapedText,numToId){
@@ -21832,6 +21938,11 @@ function openRetroView(sessId){
     dbGetAll('trades').then(function(trades){
       var cnt=trades.filter(function(t){return t.sessionId===sessId;}).length;
       document.getElementById('retro-view-meta').textContent=s.startDate+(s.endDate?' → '+s.endDate:'')+(cnt?' · '+cnt+' trades':'');
+      if(s.retrospective&&_retroViewSessionId===sessId){
+        var _r2i={};trades.forEach(function(t){if(t.num)_r2i[t.num]=t.id;});
+        var _lk=linkifyRetroHtml(s.retrospective,_r2i);
+        if(_lk!==s.retrospective)document.getElementById('retro-view-body').innerHTML=_lk;
+      }
     });
     var body=document.getElementById('retro-view-body');
     if(s.retrospective){
