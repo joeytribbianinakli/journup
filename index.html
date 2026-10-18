@@ -4067,6 +4067,20 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
             </label>
             <div style="font-size:10px;color:var(--text3);margin-top:3px" id="calc-margin-mode-hint">OFF — position capped to your balance (1:1 max)</div>
           </div>
+          <!-- Margin-mode extras (shown only while "Use margin" is ON) -->
+          <div id="calc-margin-extra" style="display:none;margin-bottom:10px">
+            <div class="calc-row2">
+              <div class="calc-field">
+                <label for="calc-margin-amt">Margin amount ($) <span style="color:var(--text3);font-size:10px">(optional)</span></label>
+                <input type="number" id="calc-margin-amt" min="0" step="any" placeholder="max your broker lends" oninput="calcMarginInputsChanged()">
+              </div>
+              <div class="calc-field">
+                <label for="calc-margin-rate">Interest rate (% / year) <span style="color:var(--text3);font-size:10px">(optional)</span></label>
+                <input type="number" id="calc-margin-rate" min="0" step="any" placeholder="broker's rate" oninput="calcMarginInputsChanged()">
+              </div>
+            </div>
+            <div style="font-size:10px;color:var(--text3);line-height:1.4">Max position = balance + margin amount (leave blank for no cap). Interest applies only to the part of the position above your balance.</div>
+          </div>
           <div class="calc-info-toggle open" id="calc-info-toggle" onclick="calcToggleInfo()">
             <span id="calc-info-toggle-label">Instrument details</span>
             <span class="arrow">▼</span>
@@ -4153,6 +4167,13 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
             <div class="calc-section-title a">Margin</div>
             <div class="calc-srow"><span class="calc-sl2">Required ($)</span><span class="calc-sv a" id="calc-out-margin">—</span></div>
             <div class="calc-srow"><span class="calc-sl2">Used (%)</span><span class="calc-sv a" id="calc-out-margin-pct">—</span></div>
+          </div>
+          <!-- Margin loan (borrowed amount + interest cost) — only shown when margin is ON and the position exceeds the balance -->
+          <div class="calc-section-box margin-section-box" id="calc-borrow-section" style="display:none">
+            <div class="calc-section-title a">Margin loan</div>
+            <div class="calc-srow"><span class="calc-sl2">Borrowed ($)</span><span class="calc-sv a" id="calc-out-borrowed">—</span></div>
+            <div class="calc-srow" id="calc-int-row-day" style="display:none"><span class="calc-sl2">Interest / day</span><span class="calc-sv r" id="calc-out-int-day">—</span></div>
+            <div class="calc-srow" id="calc-int-row-yr" style="display:none"><span class="calc-sl2">Interest / year</span><span class="calc-sv r" id="calc-out-int-yr">—</span></div>
           </div>
         </div>
       </div>
@@ -18186,6 +18207,16 @@ function calcToggleMarginMode(){
   var hint=document.getElementById('calc-margin-mode-hint');
   if(track)track.classList.toggle('on',calcUseMargin);
   if(hint)hint.textContent=calcUseMargin?'ON — position sized using leverage (margin required)':'OFF — position capped to your balance (1:1 max)';
+  var mExtra=document.getElementById('calc-margin-extra');
+  if(mExtra)mExtra.style.display=calcUseMargin?'block':'none';
+  calcCalc();
+}
+// Margin amount / interest-rate inputs changed: remember the (broker-fixed) rate for next time, then recalc
+function calcMarginInputsChanged(){
+  try{
+    var r=document.getElementById('calc-margin-rate');
+    if(r){if(r.value==='')localStorage.removeItem('tj_calcMarginRate');else localStorage.setItem('tj_calcMarginRate',r.value);}
+  }catch(e){}
   calcCalc();
 }
 // Look up the currently selected instrument's spec within the active asset-class tab (falls back to the first in the list)
@@ -19020,6 +19051,8 @@ function calcReset(){
   calcSetDir('long');
   // Reset margin mode to off
   if(calcUseMargin){calcToggleMarginMode();}
+  // Clear the per-trade margin amount (the broker's interest rate is kept — it doesn't change trade to trade)
+  var _maReset=document.getElementById('calc-margin-amt');if(_maReset)_maReset.value='';
   // Clear outputs
   var outSize=document.getElementById('calc-out-size');
   var outSub=document.getElementById('calc-out-sub');
@@ -19047,7 +19080,8 @@ function calcReset(){
 //   'crypto'                    → size = riskDollar / SL price distance (coins)
 //   'shares'    (stocks/ETFs)   → size = riskDollar / SL price distance, floored to whole shares
 //   'contracts'/'oz' (indices/metals/futures) → size = riskDollar / (tick value × SL distance in ticks)
-// When margin mode is off, lots/crypto sizing is additionally capped to a 1:1 (balance-only) position.
+// When margin mode is off, sizing for EVERY instrument type is additionally capped to a 1:1
+// (balance-only) position — posValue is recomputed after the cap so notional/margin stay correct.
 // Also derives R:R, margin usage, and risk-level tag, then writes all of it straight to the DOM.
 function calcCalc(){
   var inst=calcGetInst();
@@ -19068,6 +19102,7 @@ function calcCalc(){
   if(!balance||!riskPct||!entry||!slVal){
     document.getElementById('calc-out-size').textContent='—';
     document.getElementById('calc-out-sub').textContent='Enter trade details to calculate';
+    var _bsEarly=document.getElementById('calc-borrow-section');if(_bsEarly)_bsEarly.style.display='none';
     return;
   }
   var riskDollar=balance*(riskPct/100);
@@ -19080,12 +19115,23 @@ function calcCalc(){
   var slTicks=slDist/pip;
   if(slDist===0)return;
   var bType=inst.breakdownType||'lots';
-  var size,posValue,actualRiskUsd,actualRiskPct,marginReq,marginUsedPct,cappedBy1to1=false;
+  // Position-value ceiling:
+  //   margin OFF                         → your balance (1:1)
+  //   margin ON + margin amount entered  → balance + margin amount (what the broker will lend)
+  //   margin ON, no margin amount        → no ceiling (original leverage-based behaviour)
+  var marginAmt=null;
+  if(calcUseMargin){
+    var _maEl=document.getElementById('calc-margin-amt');
+    var _ma=_maEl?parseFloat(_maEl.value):NaN;
+    if(!isNaN(_ma))marginAmt=Math.max(0,_ma);
+  }
+  var posLimit=!calcUseMargin?balance:(marginAmt!==null?balance+marginAmt:Infinity);
+  var size,posValue,actualRiskUsd,actualRiskPct,marginReq,marginUsedPct,cappedBy1to1=false; // cappedBy1to1 = "a ceiling above reduced the size" (1:1 or margin limit)
   if(bType==='lots'||!bType){
     size=riskDollar/(slTicks*pvp);
     posValue=size*inst.contract*entry;
-    // Only cap if margin mode is OFF
-    if(!calcUseMargin&&posValue>balance){size=balance/(inst.contract*entry);cappedBy1to1=true;}
+    // Cap to the position-value ceiling (own balance, or balance + margin amount)
+    if(posValue>posLimit){size=posLimit/(inst.contract*entry);posValue=size*inst.contract*entry;cappedBy1to1=true;}
     actualRiskUsd=size*slTicks*pvp;
     actualRiskPct=(actualRiskUsd/balance)*100;
     marginReq=(size*inst.contract*entry)/leverage;
@@ -19093,7 +19139,8 @@ function calcCalc(){
   } else if(bType==='crypto'){
     size=riskDollar/slDist;
     posValue=size*entry;
-    if(!calcUseMargin&&posValue>balance*leverage){size=(balance*leverage)/entry;cappedBy1to1=true;}
+    // Cap to the position-value ceiling (own balance, or balance + margin amount)
+    if(posValue>posLimit){size=posLimit/entry;posValue=size*entry;cappedBy1to1=true;}
     actualRiskUsd=size*slDist;
     actualRiskPct=(actualRiskUsd/balance)*100;
     marginReq=posValue/leverage;
@@ -19101,6 +19148,8 @@ function calcCalc(){
   } else if(bType==='shares'){
     size=riskDollar/slDist;
     var shares=Math.floor(size);
+    // Whole shares must fit inside the position-value ceiling (own balance, or balance + margin amount)
+    if(shares*entry>posLimit){shares=Math.floor(posLimit/entry);cappedBy1to1=true;}
     posValue=shares*entry;
     actualRiskUsd=shares*slDist;
     actualRiskPct=(actualRiskUsd/balance)*100;
@@ -19110,6 +19159,8 @@ function calcCalc(){
   } else if(bType==='contracts'||bType==='oz'){
     size=riskDollar/(inst.tickVal*(slDist/pip));
     posValue=size*inst.contract*entry;
+    // Cap to the position-value ceiling (own balance, or balance + margin amount)
+    if(posValue>posLimit){size=posLimit/(inst.contract*entry);posValue=size*inst.contract*entry;cappedBy1to1=true;}
     actualRiskUsd=size*inst.tickVal*(slDist/pip);
     actualRiskPct=(actualRiskUsd/balance)*100;
     marginReq=posValue/leverage;
@@ -19190,7 +19241,32 @@ function calcCalc(){
   var wCap=document.getElementById('calc-warn-cap');
   var wMar=document.getElementById('calc-warn-margin');
   wCap.style.display=cappedBy1to1?'block':'none';
-  if(cappedBy1to1)wCap.textContent='⚠ Position capped to fit your $'+calcFmt(balance,2)+' balance at 1:1. Enable "Use margin" above to size using '+leverage+':1 leverage. Actual risk: $'+calcFmt(actualRiskUsd,2)+' ('+calcFmt(actualRiskPct,2)+'%).';
+  if(cappedBy1to1){
+    if(calcUseMargin)wCap.textContent='⚠ Position capped to your margin limit: $'+calcFmt(balance,2)+' balance + $'+calcFmt(marginAmt,2)+' margin = $'+calcFmt(posLimit,2)+' max. Actual risk: $'+calcFmt(actualRiskUsd,2)+' ('+calcFmt(actualRiskPct,2)+'%).';
+    else wCap.textContent='⚠ Position capped to fit your $'+calcFmt(balance,2)+' balance at 1:1. Enable "Use margin" above to size using '+leverage+':1 leverage. Actual risk: $'+calcFmt(actualRiskUsd,2)+' ('+calcFmt(actualRiskPct,2)+'%).';
+  }
+  // Margin loan: only the part of the position above your own balance is borrowed, and only that accrues interest.
+  // Rate is annual (%); daily cost uses a 365-day year. Informational — not deducted from the R:R figures above.
+  var bSec=document.getElementById('calc-borrow-section');
+  if(bSec){
+    var borrowed=calcUseMargin?Math.max(0,posValue-balance):0;
+    if(borrowed>0){
+      bSec.style.display='block';
+      document.getElementById('calc-out-borrowed').textContent='$'+calcFmt(borrowed,2);
+      var _rEl=document.getElementById('calc-margin-rate');
+      var _rate=_rEl?parseFloat(_rEl.value):NaN;
+      var showInt=!isNaN(_rate)&&_rate>0;
+      document.getElementById('calc-int-row-day').style.display=showInt?'flex':'none';
+      document.getElementById('calc-int-row-yr').style.display=showInt?'flex':'none';
+      if(showInt){
+        var intYr=borrowed*_rate/100;
+        document.getElementById('calc-out-int-day').textContent='$'+calcFmt(intYr/365,2);
+        document.getElementById('calc-out-int-yr').textContent='$'+calcFmt(intYr,2);
+      }
+    } else {
+      bSec.style.display='none';
+    }
+  }
   wMar.style.display=(leverage>1&&marginUsedPct>80)?'block':'none';
   if(leverage>1&&marginUsedPct>80)wMar.textContent='⚠ Margin usage '+calcFmt(marginUsedPct,1)+'% — near limit.';
   // R:R
@@ -19267,6 +19343,12 @@ function calcCalc(){
 (function(){
   calcPopulateInstruments();
   calcOnInstrumentChange();
+  // Restore the broker's margin interest rate saved last time (it rarely changes)
+  try{
+    var _savedRate=localStorage.getItem('tj_calcMarginRate');
+    var _rateEl=document.getElementById('calc-margin-rate');
+    if(_savedRate!==null&&_rateEl)_rateEl.value=_savedRate;
+  }catch(e){}
   // Sync assets after DB is ready (runs after openDB resolves, but add a small delay safeguard)
   setTimeout(function(){if(typeof getAssets==='function')calcSyncAssets();},500);
 })();
@@ -23734,23 +23816,30 @@ function paGetTemplate(){
   }
   return saved;
 }
+// Alert times are always shown in Eastern Time. Intl switches between EST and EDT on its own
+// (daylight-saving aware), and the zone label ("EDT"/"EST") is appended so it is never ambiguous.
+var PA_TZ = 'America/New_York';
+function paEtNow(fmt, now){
+  now = now || new Date();
+  if(fmt === 'iso'){
+    var pt = {};
+    new Intl.DateTimeFormat('en-US',{timeZone:PA_TZ,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23',timeZoneName:'short'})
+      .formatToParts(now).forEach(function(p){ pt[p.type] = p.value; });
+    return pt.year+'-'+pt.month+'-'+pt.day+' '+pt.hour+':'+pt.minute+' '+pt.timeZoneName;
+  }
+  var dateOpt = {year:'numeric',month:'short',day:'numeric',timeZone:PA_TZ};
+  var timeOpt = {hour:'2-digit',minute:'2-digit',timeZone:PA_TZ,timeZoneName:'short'};
+  if(fmt === 'date-only') return now.toLocaleDateString(undefined,dateOpt);
+  if(fmt === 'time-only') return now.toLocaleTimeString(undefined,timeOpt);
+  return now.toLocaleDateString(undefined,dateOpt) + ' ' + now.toLocaleTimeString(undefined,timeOpt);
+}
 function paBuildMessage(a, currentPrice, provider){
   var ph = paGetPlaceholders();
   var providerLabel = (typeof PA_PROVIDER_LABELS !== 'undefined' && PA_PROVIDER_LABELS[provider]) || provider || '—';
   var dir = a.dir === 'above' ? ph.dirAbove : ph.dirBelow;
   var noteStr = a.note ? '\n' + ph.notePrefix + a.note : '';
   var now = new Date();
-  var dateStr;
-  if(ph.datetimeFmt === 'iso'){
-    dateStr = now.toISOString().slice(0,16).replace('T',' ');
-  } else if(ph.datetimeFmt === 'date-only'){
-    dateStr = now.toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'});
-  } else if(ph.datetimeFmt === 'time-only'){
-    dateStr = now.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
-  } else {
-    dateStr = now.toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'})
-            + ' ' + now.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
-  }
+  var dateStr = paEtNow(ph.datetimeFmt, now);   // Eastern Time (EST/EDT)
   return paGetTemplate()
     .replace(/\{symbol\}/g, a.symbol)
     .replace(/\{direction\}/g, dir)
@@ -23796,17 +23885,7 @@ function paTplPreview(){
   var dirAbove  = (dirAboveEl  && dirAboveEl.value  !== '') ? dirAboveEl.value  : ph.dirAbove;
   var datetimeFmt = (fmtEl && fmtEl.value) ? fmtEl.value : ph.datetimeFmt;
   var now = new Date();
-  var sampleDate;
-  if(datetimeFmt === 'iso'){
-    sampleDate = now.toISOString().slice(0,16).replace('T',' ');
-  } else if(datetimeFmt === 'date-only'){
-    sampleDate = now.toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'});
-  } else if(datetimeFmt === 'time-only'){
-    sampleDate = now.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
-  } else {
-    sampleDate = now.toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'})
-               + ' ' + now.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
-  }
+  var sampleDate = paEtNow(datetimeFmt, now);   // Eastern Time (EST/EDT)
   var txt = inp.value
     .replace(/\{symbol\}/g, 'EUR/USD')
     .replace(/\{direction\}/g, dirAbove)
@@ -24755,7 +24834,7 @@ async function paRender(){
       html += '<div class="pa-alert-note"><span style="opacity:.6;margin-right:4px;">📝</span>' + escHtml(a.note) + '</div>';
     }
     if(a.fired && a.firedAt){
-      var firedStr = new Date(a.firedAt).toLocaleDateString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+      var firedStr = new Date(a.firedAt).toLocaleDateString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',timeZone:PA_TZ,timeZoneName:'short'});
       html += '<div class="pa-alert-note"><span style="opacity:.6;margin-right:4px;">⏱</span>Triggered on: ' + escHtml(firedStr) + (a.firedByCloud ? ' <span style="font-size:9px;font-weight:700;background:rgba(77,127,255,.1);color:var(--accent);border:1px solid rgba(77,127,255,.2);border-radius:3px;padding:1px 5px;vertical-align:middle;letter-spacing:.03em;">☁ Cloud</span>' : '') + '</div>';
     }
     // Provider + countdown footer (only for active/unfired alerts)
@@ -27307,13 +27386,31 @@ function fmtPrice(p) {
   return (parts.length > 1 ? parseInt(parts[0],10).toLocaleString() + '.' + parts[1] : parseInt(parts[0],10).toLocaleString());
 }
 
+// Alert times are shown in Eastern Time. Intl switches between EST and EDT automatically
+// (daylight-saving aware) and the zone label ("EDT"/"EST") is appended.
+function etParts(d, opts) {
+  var o = { timeZone: 'America/New_York' };
+  for (var k in opts) o[k] = opts[k];
+  var out = {};
+  new Intl.DateTimeFormat('en-US', o).formatToParts(d).forEach(function(p) { out[p.type] = p.value; });
+  return out;
+}
 function fmtDatetime(fmt) {
   var now = new Date();
-  if (fmt === 'iso')       return now.toISOString();
-  if (fmt === 'date-only') return now.toISOString().slice(0, 10);
-  if (fmt === 'time-only') return now.toISOString().slice(11, 16) + ' UTC';
-  // 'locale' or unset — use a readable UTC string (Workers have no locale context)
-  return now.toUTCString().replace(' GMT', ' UTC');
+  var p = etParts(now, { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit', hourCycle:'h23', timeZoneName:'short' });
+  var date = p.year + '-' + p.month + '-' + p.day;
+  if (fmt === 'date-only') return date;
+  if (fmt === 'time-only') return p.hour + ':' + p.minute + ' ' + p.timeZoneName;
+  if (fmt === 'iso') {
+    // Eastern wall-clock time with its real UTC offset, e.g. 2026-10-18T14:50:00-04:00
+    var wallAsUtc = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second);
+    var offMin = Math.round((wallAsUtc - Math.floor(now.getTime() / 1000) * 1000) / 60000);
+    var sign = offMin < 0 ? '-' : '+', abs = Math.abs(offMin);
+    return date + 'T' + p.hour + ':' + p.minute + ':' + p.second + sign + ('0' + Math.floor(abs / 60)).slice(-2) + ':' + ('0' + (abs % 60)).slice(-2);
+  }
+  // 'locale' or unset — readable Eastern string, e.g. "Sun, 18 Oct 2026 14:50:00 EDT"
+  var q = etParts(now, { weekday:'short', day:'2-digit', month:'short' });
+  return q.weekday + ', ' + q.day + ' ' + q.month + ' ' + p.year + ' ' + p.hour + ':' + p.minute + ':' + p.second + ' ' + p.timeZoneName;
 }
 
 // Human-readable labels for provider codes — kept in sync with the page's PA_PROVIDER_LABELS.
