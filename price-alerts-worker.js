@@ -587,13 +587,31 @@ function fmtPrice(p) {
   return (parts.length > 1 ? parseInt(parts[0],10).toLocaleString() + '.' + parts[1] : parseInt(parts[0],10).toLocaleString());
 }
 
+// Alert times are shown in Eastern Time. Intl switches between EST and EDT automatically
+// (daylight-saving aware) and the zone label ("EDT"/"EST") is appended.
+function etParts(d, opts) {
+  var o = { timeZone: 'America/New_York' };
+  for (var k in opts) o[k] = opts[k];
+  var out = {};
+  new Intl.DateTimeFormat('en-US', o).formatToParts(d).forEach(function(p) { out[p.type] = p.value; });
+  return out;
+}
 function fmtDatetime(fmt) {
   var now = new Date();
-  if (fmt === 'iso')       return now.toISOString();
-  if (fmt === 'date-only') return now.toISOString().slice(0, 10);
-  if (fmt === 'time-only') return now.toISOString().slice(11, 16) + ' UTC';
-  // 'locale' or unset — use a readable UTC string (Workers have no locale context)
-  return now.toUTCString().replace(' GMT', ' UTC');
+  var p = etParts(now, { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit', hourCycle:'h23', timeZoneName:'short' });
+  var date = p.year + '-' + p.month + '-' + p.day;
+  if (fmt === 'date-only') return date;
+  if (fmt === 'time-only') return p.hour + ':' + p.minute + ' ' + p.timeZoneName;
+  if (fmt === 'iso') {
+    // Eastern wall-clock time with its real UTC offset, e.g. 2026-10-18T14:50:00-04:00
+    var wallAsUtc = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second);
+    var offMin = Math.round((wallAsUtc - Math.floor(now.getTime() / 1000) * 1000) / 60000);
+    var sign = offMin < 0 ? '-' : '+', abs = Math.abs(offMin);
+    return date + 'T' + p.hour + ':' + p.minute + ':' + p.second + sign + ('0' + Math.floor(abs / 60)).slice(-2) + ':' + ('0' + (abs % 60)).slice(-2);
+  }
+  // 'locale' or unset — readable Eastern string, e.g. "Sun, 18 Oct 2026 14:50:00 EDT"
+  var q = etParts(now, { weekday:'short', day:'2-digit', month:'short' });
+  return q.weekday + ', ' + q.day + ' ' + q.month + ' ' + p.year + ' ' + p.hour + ':' + p.minute + ':' + p.second + ' ' + p.timeZoneName;
 }
 
 // Human-readable labels for provider codes — kept in sync with the page's PA_PROVIDER_LABELS.
