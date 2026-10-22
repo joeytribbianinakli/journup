@@ -23,6 +23,18 @@
  *   Requires two Worker secrets, set directly in the Cloudflare dashboard —
  *   never sent from the page: CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET.
  *
+ * Alert list versioning (stops a stale device overwriting a newer list):
+ *   KV 'alerts' stays a plain array (GET /alerts is unchanged). A separate KV
+ *   key 'alerts_ver' holds an opaque version token ('0' when never set).
+ *   GET  /alerts/ver   -> { ver }
+ *   GET  /alerts/full  -> { ver, alerts }
+ *   POST /alerts       body { alerts:[...], base:'<ver the device last saw>', ver:'<new ver>' }
+ *                      Saved only if base === the stored ver, otherwise 409
+ *                      { error:'version_mismatch', ver:<current> }. A bare-array body
+ *                      (an old cached page that predates versioning) is also refused.
+ *   The cron bumps the token whenever it fires/removes an alert, and re-reads
+ *   the list right before writing so it only applies its own changes.
+ *
  * SYNC NOTE (for Claude/agents): this file is duplicated verbatim inside the
  * `cfDownloadWorker()` template string in trading_journal.html. Any change
  * here MUST be mirrored there so the two stay an exact copy.
@@ -76,9 +88,30 @@ async function handleRequest(request) {
     if (!raw) return jsonRes({ error: 'Not configured' }, 404, origin);
     return jsonRes(JSON.parse(raw), 200, origin);
   }
+  if (path === '/alerts/ver' && method === 'GET') {
+    return jsonRes({ ver: (await JOURNUP_KV.get('alerts_ver')) || '0' }, 200, origin);
+  }
+  if (path === '/alerts/full' && method === 'GET') {
+    // Read ver BEFORE the list. Writers put the list first and the ver second,
+    // so a read that races a write can only see (old ver + new list), which just
+    // causes a harmless extra re-pull — never (new ver + old list).
+    var fullVer = (await JOURNUP_KV.get('alerts_ver')) || '0';
+    var fullRaw = await JOURNUP_KV.get('alerts');
+    return jsonRes({ ver: fullVer, alerts: fullRaw ? JSON.parse(fullRaw) : [] }, 200, origin);
+  }
   if (path === '/alerts' && method === 'POST') {
-    var body = await request.json().catch(function() { return null; });
-    if (!Array.isArray(body)) return jsonRes({ error: 'Expected array' }, 400, origin);
+    var reqBody = await request.json().catch(function() { return null; });
+    if (Array.isArray(reqBody)) {
+      return jsonRes({ error: 'Page out of date — reload the journal (alert list is now versioned)', code: 'legacy_client' }, 409, origin);
+    }
+    if (!reqBody || !Array.isArray(reqBody.alerts) || typeof reqBody.base !== 'string' || typeof reqBody.ver !== 'string' || !reqBody.ver) {
+      return jsonRes({ error: 'Expected { alerts, base, ver }' }, 400, origin);
+    }
+    var curVer = (await JOURNUP_KV.get('alerts_ver')) || '0';
+    if (reqBody.base !== curVer) {
+      return jsonRes({ error: 'version_mismatch', ver: curVer }, 409, origin);
+    }
+    var body = reqBody.alerts;
     // Guard against a race with paCheckAll(): if the cron fires an alert
     // (sets fired:true in KV) between when a browser tab last pulled the
     // alert list and when it pushes its own copy back, that push would
@@ -95,7 +128,8 @@ async function handleRequest(request) {
       return (!a.fired && firedMap[a.id]) ? Object.assign({}, a, firedMap[a.id]) : a;
     });
     await JOURNUP_KV.put('alerts', JSON.stringify(merged));
-    return jsonRes({ ok: true, count: merged.length }, 200, origin);
+    await JOURNUP_KV.put('alerts_ver', reqBody.ver); // list first, ver second (see /alerts/full)
+    return jsonRes({ ok: true, count: merged.length, ver: reqBody.ver }, 200, origin);
   }
   if (path === '/alerts' && method === 'GET') {
     var raw = await JOURNUP_KV.get('alerts');
@@ -202,6 +236,11 @@ async function paCheckAll() {
   var alerts = JSON.parse(alertsRaw);
   var changed = false;
   var logEntries = [];
+  // The cron's own changes, applied onto a fresh re-read of the list right
+  // before writing (so an alert a device saves while this pass is busy
+  // fetching prices / sending messages is never overwritten).
+  var fireUpdates = {};
+  var removedIds = {};
 
   var active = alerts.filter(function(a) { return !a.fired; });
   if (active.length) {
@@ -219,9 +258,11 @@ async function paCheckAll() {
         if (!hit) continue;
         var idx = alerts.findIndex(function(x) { return x.id === a.id; });
         if (idx !== -1) { alerts[idx].fired = true; alerts[idx].firedAt = Date.now(); alerts[idx].firedPrice = price; }
+        fireUpdates[a.id] = { fired: true, firedAt: Date.now(), firedPrice: price };
         changed = true;
         var tgMsgId = await sendTelegram(buildMessage(a, price, cfg, result.provider), cfg);
         if (tgMsgId && idx !== -1) alerts[idx].tgMessageId = tgMsgId;
+        if (tgMsgId) fireUpdates[a.id].tgMessageId = tgMsgId;
         if (cfg.discordWebhook) await sendDiscord(buildDiscordEmbed(a, price, cfg, result.provider), cfg.discordWebhook);
         logEntries.push({ id: a.id, symbol: a.symbol, dir: a.dir, target: a.target, price: price, note: a.note || '', firedAt: Date.now() });
       }
@@ -247,6 +288,7 @@ async function paCheckAll() {
       if (al.fired && al.tgMessageId && al.firedAt && al.firedAt < cutoff) {
         try { await sendTelegramDelete(al.tgMessageId, cfg); } catch(e) {}
         changed = true;
+        removedIds[al.id] = true;
         continue; // drop the alert — its Telegram message is gone
       }
       keptAlerts.push(al);
@@ -254,7 +296,20 @@ async function paCheckAll() {
     alerts = keptAlerts;
   }
 
-  if (changed) await JOURNUP_KV.put('alerts', JSON.stringify(alerts));
+  if (changed) {
+    // Re-read the list now and apply only this pass's own changes to it.
+    var freshRaw = await JOURNUP_KV.get('alerts');
+    var fresh = freshRaw ? JSON.parse(freshRaw) : [];
+    var out = [];
+    for (var k = 0; k < fresh.length; k++) {
+      var fa = fresh[k];
+      if (removedIds[fa.id]) continue;
+      out.push(fireUpdates[fa.id] ? Object.assign({}, fa, fireUpdates[fa.id]) : fa);
+    }
+    await JOURNUP_KV.put('alerts', JSON.stringify(out));
+    // New version token so every device sees it changed and re-pulls.
+    await JOURNUP_KV.put('alerts_ver', 'w' + Date.now() + '-' + Math.random().toString(36).slice(2, 8));
+  }
   if (logEntries.length) {
     var existingRaw = await JOURNUP_KV.get('trigger_log');
     var log = (existingRaw ? JSON.parse(existingRaw) : []).concat(logEntries).slice(-200);
