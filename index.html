@@ -4979,9 +4979,13 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
                 <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z"/></svg>
                 Save and Sync
               </button>
-              <button class="btn btn-sm" onclick="cmSyncAlertsOnly()">
+              <button class="btn btn-sm" onclick="cmSyncWithCloud()" title="Replace this device's alerts with the cloud's list (never overwrites the cloud)">
                 <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><polyline points="23 20 23 14 17 14"/><path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15"/></svg>
-                Sync Alerts Only
+                Sync with Cloud
+              </button>
+              <button class="btn btn-sm" onclick="cmOverwriteCloud()" title="Recovery only: replace the cloud's alert list with THIS device's list">
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0018 9h-1.26A8 8 0 103 16.3"/></svg>
+                Overwrite Cloud with This Device
               </button>
               <button class="btn btn-sm" onclick="cmPullFired()">
                 <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -19663,7 +19667,7 @@ function ghIsConfigSetting(id){
 }
 var GH_BKP_CONFIG_FILE='bkp/config_backup.json'; // single config backup (always overwritten)
 var GH_ALERTS_FILE='tjalert.json';         // live alerts (always overwritten)
-var GH_BKP_ALERTS_FILE='bkp/alerts_backup.json'; // single alerts backup (manual backup only)
+var GH_BKP_ALERTS_FILE='bkp/alerts_backup.json'; // single alerts backup (written by manual AND scheduled auto backup)
 var GH_BKP_FX_FILE='bkp/fx_backup.json';   // single FX (USD/CAD conversions) backup — manual backup only, mirrors config backup
 var GH_WATCHLIST_FILE='tj_watchlist.json'; // live watchlist (always overwritten)
 var GH_BKP_WATCHLIST_FILE='bkp/watchlist_backup.json'; // single watchlist backup — manual backup only, mirrors config backup
@@ -20016,6 +20020,8 @@ async function ghPushNotesLive(){
         sha=existingFile.sha||null;
         var existingText=decodeURIComponent(escape(atob(existingFile.content.replace(/\n/g,''))));
         var existingData=JSON.parse(existingText);
+        // Worker unreachable: keep the alerts already in GitHub rather than write a possibly-stale list
+        if(freshAlerts===null) payload.alerts=Array.isArray(existingData)?existingData:(existingData.alerts||[]);
         var newCopy=Object.assign({},payload);delete newCopy.exportedAt;
         var oldCopy=Object.assign({},existingData);delete oldCopy.exportedAt;
         if(JSON.stringify(newCopy)===JSON.stringify(oldCopy))return; // no real change — skip push
@@ -20044,10 +20050,13 @@ function ghAutoSyncNotes(){
 async function ghPushAlertsFile(cfg){
   try{
     var tg = paGetTg ? paGetTg() : {token:'',chatId:''};
+    // With CloudMonitor set up, write the cloud's list (this device re-syncs first if it's
+    // behind) — never a possibly-stale local copy. null = worker unreachable (handled below).
+    var freshAlerts = await cmFreshAlerts();
     var payload={
       version:2,
       exportedAt:new Date().toISOString(),
-      alerts:_paAlerts,
+      alerts:(freshAlerts||_paAlerts),
       config:{
         token:   tg.token,
         chatId:  tg.chatId,
@@ -20103,13 +20112,15 @@ function ghAutoSyncAlerts(){
   }, 'alerts', 1500);
 }
 // Pull alerts from tjalert.json and restore config
-async function ghPullAlertsFile(cfg){
+async function ghPullAlertsFile(cfg, fromBoot){
   try{
     var raw=await ghFetchFileContent(cfg,GH_ALERTS_FILE);
     if(!raw)return;
     var data=JSON.parse(raw);
     var remote=Array.isArray(data)?data:(data.alerts||[]);
-    if(remote.length){
+    // At page-open auto-pull, GitHub is only a lagging mirror: when CloudMonitor is set up the
+    // cloud list is authoritative and must not be replaced by GitHub's copy.
+    if(remote.length && !(fromBoot && cmHasUrl())){
       _paAlerts=remote;
       localStorage.setItem(PA_KEY_ALERTS, JSON.stringify(_paAlerts));
     }
@@ -20242,7 +20253,7 @@ async function ghAutoPullOnSetup(){
       if(cfgStr){var cfgData=JSON.parse(cfgStr);await ghApplyConfigData(cfgData);}
     }catch(ce){console.warn('Config pull error:',ce.message);}
     // Pull alerts file
-    await ghPullAlertsFile(cfg);
+    await ghPullAlertsFile(cfg, true);
     // Pull FX conversions (USD/CAD Tracker) — mirrors ghPull(), otherwise this device
     // never sees FX edits made on another device until a manual Pull is run.
     try{
@@ -20629,8 +20640,9 @@ async function ghSnapshot(type,name){
       // Also overwrite the single alerts backup file (bkp/alerts_backup.json)
       // Only write if there are actually alerts to back up — never overwrite with an empty array
       try{
-        if(_paAlerts && _paAlerts.length > 0){
-        var alertsPayload={version:2,exportedAt:new Date().toISOString(),alerts:_paAlerts,config:{
+        var bkpAlerts = await cmFreshAlerts(); // cloud's list when CloudMonitor is set up; null = unreachable → skip
+        if(bkpAlerts && bkpAlerts.length > 0){
+        var alertsPayload={version:2,exportedAt:new Date().toISOString(),alerts:bkpAlerts,config:{
           provider:      localStorage.getItem(PA_KEY_PROVIDER)       || 'yahoo',
           oandaEnv:      localStorage.getItem(PA_KEY_OANDA_ENV)      || 'practice',
           finnhubKey:    localStorage.getItem(PA_KEY_FINNHUB_KEY)    || '',
@@ -24008,6 +24020,10 @@ var PA_PROVIDER_MIN_POLL_MS = {
   twelvedata: 2   * 60 * 1000    // 2 min base (dynamically scaled by paComputePollMs)
 };
 var PA_KEY_ALERTS       = 'tj-price-alerts';
+var PA_KEY_ALERTS_VER   = 'tj-pa-alerts-ver'; // last alert-list version token this device synced with the worker (see cmPushAlerts)
+var _cmPushQ      = Promise.resolve(); // serialises saves / pulls / backups-sync so they never interleave
+var _cmLegacy     = false;             // true once an old (pre-versioning) worker answered 404 on /alerts/ver
+var _cmSyncedOnce = false;             // true after this page session's first successful sync with the worker
 var PA_KEY_SRC_FILTER   = 'tj-pa-src-filter'; // last-selected Manual/Watchlist tab, remembered across visits
 // ── Cloud sync model ─────────────────────────────────────────────
 // CloudMonitor (the Cloudflare Worker) is the single source of truth
@@ -24019,6 +24035,11 @@ var PA_KEY_SRC_FILTER   = 'tj-pa-src-filter'; // last-selected Manual/Watchlist 
 //     so a device that deleted an alert — or another device that
 //     added one — is reflected everywhere without needing tombstones
 //     or a two-way merge.
+//   • The worker also keeps a version token for the list. Every save first
+//     checks it: if this device is behind (another device or the cron changed
+//     the list), it pulls the cloud list, re-applies the user's change on top
+//     (paSave's mutator), and only then pushes — so a stale device can never
+//     overwrite a newer list. See cmPushAlerts().
 var PA_KEY_TOKEN        = 'tj-pa-tg-token';
 var PA_KEY_CHATID       = 'tj-pa-tg-chatid';
 var PA_KEY_PROVIDER     = 'tj-pa-provider';   // legacy global (not used for routing; per-asset chains now)
@@ -24220,12 +24241,19 @@ function paSaveLocalOnly(){
   // Mirror to GitHub tjalert.json (bkp/alerts_backup.json only on Manual Backup)
   ghAutoSyncAlerts();
 }
-function paSave(){
-  paSaveLocalOnly();
+// `mutator` (optional) describes the change just made as a function that can be
+// re-applied to ANY copy of the list: mutator(list) edits it in place or returns a
+// new array. It's only used when this device turns out to be behind the cloud — the
+// cloud list is pulled, the mutator is replayed on it, then the result is pushed.
+// Keep mutators id-based and idempotent.
+function paSave(mutator){
+  if(!cmHasUrl()){ paSaveLocalOnly(); return; } // no CloudMonitor: local + GitHub mirror only, as before
+  try{ localStorage.setItem(PA_KEY_ALERTS, JSON.stringify(_paAlerts)); }catch(e){}
   // Push the full list to CloudMonitor (fire-and-forget) so every other
   // device sees the same alerts — including deletions — next time it
-  // loads the Price Alerts page. No-op if CloudMonitor isn't connected.
-  cmPushAlerts();
+  // loads the Price Alerts page. The GitHub mirror waits until the cloud
+  // push has settled, so it never receives a list the cloud rejected/changed.
+  cmPushAlerts(mutator).then(function(ok){ if(ok) ghAutoSyncAlerts(); });
 }
 function paGetTg(){
   return {
@@ -24706,19 +24734,24 @@ function paTgDeleteMessage(messageId){
 function paTgDeleteOldMessages(){
   var hours = parseInt(localStorage.getItem('tj-pa-delete-days') || '0', 10);
   if(!hours || hours < 1) return;
+  // With CloudMonitor set up, never clean up from a local copy that hasn't synced with
+  // the cloud yet this session — it may be stale. (The worker runs this cleanup too.)
+  if(cmHasUrl() && !_cmSyncedOnce) return;
   var cutoff = Date.now() - (hours * 60 * 60 * 1000);
   var changed = false;
+  var removedIds = {};
   _paAlerts = _paAlerts.filter(function(a){
     if(a.fired && a.tgMessageId && a.firedAt && a.firedAt < cutoff){
       paTgDeleteMessage(a.tgMessageId);
       changed = true;
+      removedIds[a.id] = true;
       return false; // drop — its Telegram message is gone
     }
     return true;
   });
   if(changed){
     paPruneOrphanedSymbols();
-    paSave();
+    paSave(function(list){ return list.filter(function(a){ return !removedIds[a.id]; }); });
     paRender();
   }
 }
@@ -24754,7 +24787,7 @@ function paAddAlert(){
     firedAt: null
   };
   _paAlerts.push(alert);
-  paSave();
+  paSave(function(list){ if(!list.some(function(x){ return x.id === alert.id; })) list.push(alert); });
   // clear form
   document.getElementById('pa-symbol').value  = '';
   document.getElementById('pa-target').value  = '';
@@ -24781,7 +24814,7 @@ function paDeleteAlert(id){
   if(target && target.fired && target.tgMessageId){ paTgDeleteMessage(target.tgMessageId); }
   _paAlerts = _paAlerts.filter(function(a){ return a.id !== id; });
   paPruneOrphanedSymbols();
-  paSave();
+  paSave(function(list){ return list.filter(function(a){ return a.id !== id; }); });
   paRender();
   if(_paAlerts.filter(function(a){return !a.fired;}).length === 0) paStopMonitoring();
 }
@@ -24839,7 +24872,13 @@ function paUpdateAlert(){
   _paAlerts[idx].fired     = false;
   _paAlerts[idx].firedAt   = null;
   _paAlerts[idx].firedPrice = undefined;
-  paSave();
+  var _editId = _paEditingId, _editDir = _paDir; // captured: paCancelEdit() below clears _paEditingId
+  paSave(function(list){
+    var x = list.find(function(a){ return a.id === _editId; });
+    if(!x) return; // deleted on another device meanwhile — nothing to edit
+    x.symbol = symbol; x.dir = _editDir; x.target = target; x.targetStr = rawInput; x.note = note;
+    x.fired = false; x.firedAt = null; x.firedPrice = undefined;
+  });
   paCancelEdit();
   paRender();
   paStartMonitoring();
@@ -24870,12 +24909,14 @@ function paClearFired(){
   var before = _paAlerts.length;
   // Delete any still-live Telegram message for the fired alerts being
   // cleared, so clearing early keeps Telegram in sync with the page too.
+  var clearedIds = {};
   _paAlerts.forEach(function(a){
+    if(a.fired) clearedIds[a.id] = true;
     if(a.fired && a.tgMessageId) paTgDeleteMessage(a.tgMessageId);
   });
   _paAlerts = _paAlerts.filter(function(a){ return !a.fired; });
   paPruneOrphanedSymbols();
-  paSave();
+  paSave(function(list){ return list.filter(function(a){ return !clearedIds[a.id]; }); });
   paRender();
   var removed = before - _paAlerts.length;
   if(removed > 0) toast('Removed ' + removed + ' fired alert' + (removed>1?'s':''), 'ok');
@@ -26294,7 +26335,7 @@ function cmFetch(path, method, body){
   if(secret) opts.headers['X-Worker-Secret'] = secret;
   if(body !== undefined) opts.body = JSON.stringify(body);
   return fetch(url + path, opts).then(function(r){
-    if(!r.ok) return r.json().then(function(e){ throw new Error(e.error || ('HTTP ' + r.status)); });
+    if(!r.ok) return r.json().then(function(e){ var er = new Error(e.error || ('HTTP ' + r.status)); er.status = r.status; throw er; });
     return r.json();
   });
 }
@@ -26375,24 +26416,94 @@ function cmAutoSyncConfig(){
     toast('⚠️ Saved locally, but auto-sync to CloudMonitor failed (' + err.message + ')', 'err');
   });
 }
-// Push the full local alert list up to CloudMonitor. Called by paSave()
-// after every add/edit/delete. No-op when no URL saved. Failures are
-// surfaced with a toast (not just logged) — if a push silently fails,
-// the next page load's authoritative pull (cmLoadAlerts) would otherwise
-// overwrite the correct local state with the server's stale copy,
-// effectively "undoing" whatever change was just made (e.g. resurrecting
-// a deleted/cleared alert).
+// Push the local alert list up to CloudMonitor. Called by paSave() after every
+// add/edit/delete. No-op when no URL saved. Resolves true when the cloud now holds
+// this change, false when it couldn't be saved (never rejects). Failures are surfaced
+// with a toast — if a push silently fails, the next page load's authoritative pull
+// (cmLoadAlerts) would otherwise overwrite the correct local state with the server's
+// copy, effectively "undoing" whatever change was just made.
 //
-// BUGFIX: the worker's cron can fire an alert (send Telegram, set
-// fired:true in KV) while this tab is open but hasn't re-pulled yet.
-// If we then blindly overwrite '/alerts' with our stale local copy
-// (fired:false), the cloud's fired flag gets reverted — so the next
-// cron pass sees an "active" alert again and fires (and messages) it
-// a second time the next time price touches the target. To prevent
-// this, pull the cloud's current fired-states first and merge them
-// into the local copy before pushing, so a fired alert can never be
-// un-fired by our own push.
-function cmPushAlerts(){
+// VERSIONING: the worker keeps a version token for the list (see the worker's header).
+// Before pushing we ask the worker for its current token:
+//   • same as the token this device last saw → we're up to date, push our list;
+//   • different (another device or the cron changed the list) → we're behind: pull the
+//     cloud list, replay `mutator` (the user's change) on top of it, then push.
+// The push carries the token it was based on; if the worker still disagrees (a write
+// landed in between) it answers 409 and we simply repeat the above. A stale device
+// therefore can never overwrite a newer list. `mutator` is optional — without one a
+// stale device just reloads the cloud list (it has no way to replay its change).
+function cmGetVer(){ return localStorage.getItem(PA_KEY_ALERTS_VER); }
+function cmSetVer(v){ try{ localStorage.setItem(PA_KEY_ALERTS_VER, v); }catch(e){} }
+function cmNewVer(){ return 'p' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8); }
+function cmPersistLocal(){ try{ localStorage.setItem(PA_KEY_ALERTS, JSON.stringify(_paAlerts)); }catch(e){} }
+function cmIsOldWorker(err){ return !!(err && err.status === 404); } // worker predates /alerts/ver + /alerts/full
+function cmApplyMutator(mutator){
+  if(typeof mutator !== 'function') return;
+  var res = mutator(_paAlerts);
+  if(Array.isArray(res)) _paAlerts = res;
+}
+// Run fn after everything already queued; the queue survives a failing fn.
+function cmQueue(fn){
+  var p = _cmPushQ.then(fn, fn);
+  _cmPushQ = p.then(function(){}, function(){});
+  return p;
+}
+// Replace the local list with the worker's current list + version token.
+function cmPullFull(){
+  return cmFetch('/alerts/full', 'GET').then(function(d){
+    if(!d || !Array.isArray(d.alerts) || typeof d.ver !== 'string') throw new Error('Unexpected response from worker');
+    _paAlerts = d.alerts;
+    cmSetVer(d.ver);
+    cmPersistLocal();
+    _cmSyncedOnce = true;
+    return d.ver;
+  });
+}
+function cmPushOnce(mutator, attempt){
+  return cmFetch('/alerts/ver', 'GET').then(function(v){
+    if(!v || typeof v.ver !== 'string') throw new Error('Unexpected response from worker');
+    if(cmGetVer() === v.ver) return { base: v.ver };          // up to date — push as is
+    // Behind the cloud: take the cloud's list, then re-apply this change on top of it.
+    return cmPullFull().then(function(ver){
+      var canReplay = (typeof mutator === 'function');
+      if(canReplay) cmApplyMutator(mutator);
+      cmPersistLocal();
+      paPruneOrphanedSymbols();
+      paRender();
+      paStartMonitoring();
+      toast(canReplay ? 'Alerts had changed on another device — reloaded them and kept your change'
+                      : 'Alerts had changed on another device — reloaded the latest list', canReplay ? 'ok' : '');
+      return { base: ver, skip: !canReplay };
+    });
+  }).then(function(st){
+    if(st.skip) return true;                                   // nothing of ours to push — local now equals the cloud
+    var nv = cmNewVer();
+    return cmFetch('/alerts', 'POST', { alerts: _paAlerts, base: st.base, ver: nv }).then(function(){
+      cmSetVer(nv);
+      _cmSyncedOnce = true;
+      return true;
+    });
+  }).catch(function(err){
+    if(err && err.status === 409 && attempt < 2) return cmPushOnce(mutator, attempt + 1); // a write landed in between — redo
+    throw err;
+  });
+}
+function cmPushAlerts(mutator){
+  if(!cmHasUrl()) return Promise.resolve(false);
+  return cmQueue(function(){
+    var legacy = function(){ return cmPushAlertsLegacy().then(function(){ return true; }); };
+    if(_cmLegacy) return legacy();
+    return cmPushOnce(mutator, 0).catch(function(err){
+      if(cmIsOldWorker(err)){ _cmLegacy = true; return legacy(); } // old worker: behave exactly as before
+      console.warn('CloudMonitor push failed:', err.message);
+      toast('⚠️ Saved locally but failed to sync to CloudMonitor (' + err.message + ') — the change may revert on next reload until you retry', 'err');
+      return false;
+    });
+  });
+}
+// Old-worker fallback: the previous push logic, unchanged (plain-array POST + client-side
+// fired-state merge). Only used until the versioned worker is deployed.
+function cmPushAlertsLegacy(){
   if(!cmHasUrl()) return Promise.resolve();
   return cmFetch('/alerts', 'GET').then(function(cloudAlerts){
     var cloudFiredMap = {};
@@ -26428,6 +26539,31 @@ function cmPushAlerts(){
     toast('⚠️ Saved locally but failed to sync to CloudMonitor (' + err.message + ') — the change may revert on next reload until you retry', 'err');
   });
 }
+
+// A fresh copy of the alert list that is safe to WRITE TO GITHUB (live file + backups).
+// CloudMonitor not set up → this device's list, as before. Otherwise the cloud's list
+// (this device re-syncs first if it's behind), or null if the worker can't be reached —
+// callers then leave GitHub's existing alerts alone instead of writing a possibly-stale list.
+function cmFreshAlerts(){
+  if(!cmHasUrl()) return Promise.resolve(_paAlerts);
+  return cmQueue(function(){
+    var viaPlainGet = function(){
+      return cmFetch('/alerts', 'GET').then(function(a){ return Array.isArray(a) ? a : null; }).catch(function(){ return null; });
+    };
+    if(_cmLegacy) return viaPlainGet();
+    return cmFetch('/alerts/ver', 'GET').then(function(v){
+      if(v && cmGetVer() === v.ver) return _paAlerts;           // already in sync
+      return cmPullFull().then(function(){
+        paPruneOrphanedSymbols();
+        paRender();
+        return _paAlerts;
+      });
+    }).catch(function(err){
+      if(cmIsOldWorker(err)){ _cmLegacy = true; return viaPlainGet(); }
+      return null;
+    });
+  });
+}
 // ── Authoritative pull ──────────────────────────────────────────
 // CloudMonitor is the single source of truth for the alert list once
 // connected: this OVERWRITES the local list with whatever is currently
@@ -26435,27 +26571,52 @@ function cmPushAlerts(){
 // loaded/navigated to, plus from the manual sync/pull buttons, so an
 // alert deleted or added on another device is always reflected here —
 // no tombstones or two-way merge logic needed. No-op when no URL saved.
+// Queued behind any save still in flight, so a pull can't clobber it.
+function cmPullLegacy(){
+  return cmFetch('/alerts', 'GET').then(function(cloudAlerts){
+    _cmSyncedOnce = true;
+    if(Array.isArray(cloudAlerts)){ _paAlerts = cloudAlerts; return true; }
+    return false;
+  });
+}
 function cmLoadAlerts(){
   if(!cmHasUrl()) return Promise.resolve();
   cmUpdateBadge('warn', 'Syncing with cloud…');
-  return cmFetch('/alerts', 'GET').then(function(cloudAlerts){
-    if(Array.isArray(cloudAlerts)){
-      _paAlerts = cloudAlerts;
-      paSaveLocalOnly();     // persist locally without re-pushing
-      paPruneOrphanedSymbols();
-      paRender();
-      paStartMonitoring();
-    }
-    cmUpdateBadge('ok', 'Connected · ' + (_paAlerts||[]).length + ' alert(s) in cloud');
-  }).catch(function(err){
-    cmUpdateBadge('off', 'Cannot reach worker: ' + err.message);
-    toast('CloudMonitor sync failed — showing last known alerts', 'err');
+  return cmQueue(function(){
+    var pull = _cmLegacy ? cmPullLegacy() : cmPullFull().then(function(){ return true; }).catch(function(err){
+      if(cmIsOldWorker(err)){ _cmLegacy = true; return cmPullLegacy(); }
+      throw err;
+    });
+    return pull.then(function(replaced){
+      if(replaced){
+        paSaveLocalOnly();     // persist locally without re-pushing
+        paPruneOrphanedSymbols();
+        paRender();
+        paStartMonitoring();
+      }
+      cmUpdateBadge('ok', 'Connected · ' + (_paAlerts||[]).length + ' alert(s) in cloud');
+    }).catch(function(err){
+      cmUpdateBadge('off', 'Cannot reach worker: ' + err.message);
+      toast('CloudMonitor sync failed — showing last known alerts', 'err');
+    });
   });
 }
 // "Save and Sync" — connects to the Worker URL, pushes config
-// (Telegram/Discord/secret), seeds the cloud with whatever alerts exist
-// locally right now, then re-pulls so the page reflects the cloud copy
-// (which, for a first-time connect, is just what we seeded it with).
+// (Telegram/Discord/secret), seeds the cloud with this device's alerts ONLY if
+// the cloud has none yet (a non-empty cloud list is never overwritten from here),
+// then re-pulls so the page reflects the cloud copy.
+function cmSeedIfCloudEmpty(){
+  if(_cmLegacy) return cmPushAlertsLegacy();
+  return cmFetch('/alerts/full', 'GET').then(function(d){
+    if(d && Array.isArray(d.alerts) && d.alerts.length === 0 && (_paAlerts||[]).length > 0){
+      var nv = cmNewVer();
+      return cmFetch('/alerts', 'POST', { alerts: _paAlerts, base: d.ver, ver: nv }).then(function(){ cmSetVer(nv); _cmSyncedOnce = true; });
+    }
+  }).catch(function(err){
+    if(cmIsOldWorker(err)){ _cmLegacy = true; return cmPushAlertsLegacy(); }
+    throw err;
+  });
+}
 function cmSaveAndPush(){
   var url    = ((document.getElementById('cm-worker-url')     || {}).value || '').trim();
   var secret = ((document.getElementById('cm-worker-secret')  || {}).value || '').trim();
@@ -26470,7 +26631,7 @@ function cmSaveAndPush(){
   }
   cmUpdateBadge('warn', 'Connecting & syncing…');
   cmFetch('/config', 'POST', cmBuildConfig())
-  .then(function(){ return cmPushAlerts(); }) // merges cloud fired-states instead of blindly overwriting
+  .then(function(){ return cmSeedIfCloudEmpty(); })
   .then(function(){ return cmLoadAlerts(); })
   .then(function(){
     toast('Connected to CloudMonitor · ' + (_paAlerts||[]).length + ' alert(s) in sync', 'ok');
@@ -26480,16 +26641,38 @@ function cmSaveAndPush(){
     toast('Save & sync failed: ' + err.message, 'err');
   });
 }
-// "Sync Alerts Only" — pushes whatever's local, then re-pulls the
-// authoritative cloud copy. Doesn't touch config (assumes the worker
-// is already connected).
-function cmSyncAlertsOnly(){
+// "Sync with Cloud" — pulls the cloud's alert list and replaces this device's
+// copy with it. Never pushes, so it can't overwrite a newer cloud list.
+// Doesn't touch config (assumes the worker is already connected).
+function cmSyncWithCloud(){
   if(!cmHasUrl()){ toast('Set up the cloud monitor first', 'err'); return; }
   cmUpdateBadge('warn', 'Syncing…');
-  cmPushAlerts()
-  .then(function(){ return cmLoadAlerts(); })
-  .then(function(){ toast('Alerts synced with cloud · ' + (_paAlerts||[]).length + ' total', 'ok'); })
-  .catch(function(err){ toast('Sync failed: ' + err.message, 'err'); });
+  cmLoadAlerts().then(function(){
+    if(cmIsConnected()) toast('Alerts synced with cloud · ' + (_paAlerts||[]).length + ' total', 'ok');
+  });
+}
+// "Overwrite Cloud with This Device" — recovery only. Replaces the cloud's alert list
+// with THIS device's list (e.g. after restoring alerts from GitHub). Asks first.
+function cmOverwriteCloud(){
+  if(!cmHasUrl()){ toast('Set up the cloud monitor first', 'err'); return; }
+  var n = (_paAlerts||[]).length;
+  if(!confirm('Overwrite the cloud alert list with THIS device\'s list?\n\nThis device has ' + n + ' alert(s). Whatever the cloud holds now will be replaced, including alerts added on other devices.\n\nUse this only to recover alerts. For normal syncing use "Sync with Cloud".')) return;
+  cmUpdateBadge('warn', 'Overwriting cloud…');
+  cmQueue(function(){
+    if(_cmLegacy) return cmPushAlertsLegacy();
+    return cmFetch('/alerts/ver', 'GET').then(function(v){
+      var nv = cmNewVer();
+      return cmFetch('/alerts', 'POST', { alerts: _paAlerts, base: v.ver, ver: nv }).then(function(){ cmSetVer(nv); _cmSyncedOnce = true; });
+    }).catch(function(err){
+      if(cmIsOldWorker(err)){ _cmLegacy = true; return cmPushAlertsLegacy(); }
+      throw err;
+    });
+  }).then(function(){ return cmLoadAlerts(); })
+  .then(function(){ if(cmIsConnected()) toast('Cloud overwritten with this device\'s ' + (_paAlerts||[]).length + ' alert(s)', 'ok'); })
+  .catch(function(err){
+    cmUpdateBadge('off', 'Error: ' + err.message);
+    toast('Overwrite failed: ' + err.message, 'err');
+  });
 }
 // silent=true → used on auto page-load sync; suppresses toasts.
 // Pulls the authoritative cloud copy (which naturally includes any
@@ -27081,6 +27264,18 @@ function cfDownloadWorker(){
  *   Requires two Worker secrets, set directly in the Cloudflare dashboard —
  *   never sent from the page: CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET.
  *
+ * Alert list versioning (stops a stale device overwriting a newer list):
+ *   KV 'alerts' stays a plain array (GET /alerts is unchanged). A separate KV
+ *   key 'alerts_ver' holds an opaque version token ('0' when never set).
+ *   GET  /alerts/ver   -> { ver }
+ *   GET  /alerts/full  -> { ver, alerts }
+ *   POST /alerts       body { alerts:[...], base:'<ver the device last saw>', ver:'<new ver>' }
+ *                      Saved only if base === the stored ver, otherwise 409
+ *                      { error:'version_mismatch', ver:<current> }. A bare-array body
+ *                      (an old cached page that predates versioning) is also refused.
+ *   The cron bumps the token whenever it fires/removes an alert, and re-reads
+ *   the list right before writing so it only applies its own changes.
+ *
  * SYNC NOTE (for Claude/agents): this file is duplicated verbatim inside the
  * \`cfDownloadWorker()\` template string in trading_journal.html. Any change
  * here MUST be mirrored there so the two stay an exact copy.
@@ -27120,7 +27315,7 @@ async function handleRequest(request) {
     }
   }
   var url = new URL(request.url);
-  var path = url.pathname.replace(/\/+$/, '');
+  var path = url.pathname.replace(/\\/+$/, '');
   var method = request.method;
 
   if (path === '/config' && method === 'POST') {
@@ -27134,9 +27329,30 @@ async function handleRequest(request) {
     if (!raw) return jsonRes({ error: 'Not configured' }, 404, origin);
     return jsonRes(JSON.parse(raw), 200, origin);
   }
+  if (path === '/alerts/ver' && method === 'GET') {
+    return jsonRes({ ver: (await JOURNUP_KV.get('alerts_ver')) || '0' }, 200, origin);
+  }
+  if (path === '/alerts/full' && method === 'GET') {
+    // Read ver BEFORE the list. Writers put the list first and the ver second,
+    // so a read that races a write can only see (old ver + new list), which just
+    // causes a harmless extra re-pull — never (new ver + old list).
+    var fullVer = (await JOURNUP_KV.get('alerts_ver')) || '0';
+    var fullRaw = await JOURNUP_KV.get('alerts');
+    return jsonRes({ ver: fullVer, alerts: fullRaw ? JSON.parse(fullRaw) : [] }, 200, origin);
+  }
   if (path === '/alerts' && method === 'POST') {
-    var body = await request.json().catch(function() { return null; });
-    if (!Array.isArray(body)) return jsonRes({ error: 'Expected array' }, 400, origin);
+    var reqBody = await request.json().catch(function() { return null; });
+    if (Array.isArray(reqBody)) {
+      return jsonRes({ error: 'Page out of date — reload the journal (alert list is now versioned)', code: 'legacy_client' }, 409, origin);
+    }
+    if (!reqBody || !Array.isArray(reqBody.alerts) || typeof reqBody.base !== 'string' || typeof reqBody.ver !== 'string' || !reqBody.ver) {
+      return jsonRes({ error: 'Expected { alerts, base, ver }' }, 400, origin);
+    }
+    var curVer = (await JOURNUP_KV.get('alerts_ver')) || '0';
+    if (reqBody.base !== curVer) {
+      return jsonRes({ error: 'version_mismatch', ver: curVer }, 409, origin);
+    }
+    var body = reqBody.alerts;
     // Guard against a race with paCheckAll(): if the cron fires an alert
     // (sets fired:true in KV) between when a browser tab last pulled the
     // alert list and when it pushes its own copy back, that push would
@@ -27153,7 +27369,8 @@ async function handleRequest(request) {
       return (!a.fired && firedMap[a.id]) ? Object.assign({}, a, firedMap[a.id]) : a;
     });
     await JOURNUP_KV.put('alerts', JSON.stringify(merged));
-    return jsonRes({ ok: true, count: merged.length }, 200, origin);
+    await JOURNUP_KV.put('alerts_ver', reqBody.ver); // list first, ver second (see /alerts/full)
+    return jsonRes({ ok: true, count: merged.length, ver: reqBody.ver }, 200, origin);
   }
   if (path === '/alerts' && method === 'GET') {
     var raw = await JOURNUP_KV.get('alerts');
@@ -27260,6 +27477,11 @@ async function paCheckAll() {
   var alerts = JSON.parse(alertsRaw);
   var changed = false;
   var logEntries = [];
+  // The cron's own changes, applied onto a fresh re-read of the list right
+  // before writing (so an alert a device saves while this pass is busy
+  // fetching prices / sending messages is never overwritten).
+  var fireUpdates = {};
+  var removedIds = {};
 
   var active = alerts.filter(function(a) { return !a.fired; });
   if (active.length) {
@@ -27277,9 +27499,11 @@ async function paCheckAll() {
         if (!hit) continue;
         var idx = alerts.findIndex(function(x) { return x.id === a.id; });
         if (idx !== -1) { alerts[idx].fired = true; alerts[idx].firedAt = Date.now(); alerts[idx].firedPrice = price; }
+        fireUpdates[a.id] = { fired: true, firedAt: Date.now(), firedPrice: price };
         changed = true;
         var tgMsgId = await sendTelegram(buildMessage(a, price, cfg, result.provider), cfg);
         if (tgMsgId && idx !== -1) alerts[idx].tgMessageId = tgMsgId;
+        if (tgMsgId) fireUpdates[a.id].tgMessageId = tgMsgId;
         if (cfg.discordWebhook) await sendDiscord(buildDiscordEmbed(a, price, cfg, result.provider), cfg.discordWebhook);
         logEntries.push({ id: a.id, symbol: a.symbol, dir: a.dir, target: a.target, price: price, note: a.note || '', firedAt: Date.now() });
       }
@@ -27305,6 +27529,7 @@ async function paCheckAll() {
       if (al.fired && al.tgMessageId && al.firedAt && al.firedAt < cutoff) {
         try { await sendTelegramDelete(al.tgMessageId, cfg); } catch(e) {}
         changed = true;
+        removedIds[al.id] = true;
         continue; // drop the alert — its Telegram message is gone
       }
       keptAlerts.push(al);
@@ -27312,7 +27537,20 @@ async function paCheckAll() {
     alerts = keptAlerts;
   }
 
-  if (changed) await JOURNUP_KV.put('alerts', JSON.stringify(alerts));
+  if (changed) {
+    // Re-read the list now and apply only this pass's own changes to it.
+    var freshRaw = await JOURNUP_KV.get('alerts');
+    var fresh = freshRaw ? JSON.parse(freshRaw) : [];
+    var out = [];
+    for (var k = 0; k < fresh.length; k++) {
+      var fa = fresh[k];
+      if (removedIds[fa.id]) continue;
+      out.push(fireUpdates[fa.id] ? Object.assign({}, fa, fireUpdates[fa.id]) : fa);
+    }
+    await JOURNUP_KV.put('alerts', JSON.stringify(out));
+    // New version token so every device sees it changed and re-pulls.
+    await JOURNUP_KV.put('alerts_ver', 'w' + Date.now() + '-' + Math.random().toString(36).slice(2, 8));
+  }
   if (logEntries.length) {
     var existingRaw = await JOURNUP_KV.get('trigger_log');
     var log = (existingRaw ? JSON.parse(existingRaw) : []).concat(logEntries).slice(-200);
@@ -27679,10 +27917,10 @@ function providerLabel(p) { return PROVIDER_LABELS[p] || p || '—'; }
 function buildMessage(a, price, cfg, provider) {
   var dir        = a.dir === 'above' ? (cfg.msgDirAbove || '📈 rose above') : (cfg.msgDirBelow || '📉 dropped below');
   var notePrefix = cfg.notePrefix !== undefined ? cfg.notePrefix : '📝 ';
-  var note       = a.note ? '\n' + notePrefix + a.note : '';
-  var tpl = cfg.msgTemplate || '🔔 <b>Price Alert Triggered!</b>\n\n<b>{symbol}</b> {direction} <b>{target}</b>\nCurrent price: <b>{price}</b> (via {provider}){note}\n<i>🕐 {datetime}</i>\n<i>— JournUp Price Alerts (cloud)</i>';
+  var note       = a.note ? '\\n' + notePrefix + a.note : '';
+  var tpl = cfg.msgTemplate || '🔔 <b>Price Alert Triggered!</b>\\n\\n<b>{symbol}</b> {direction} <b>{target}</b>\\nCurrent price: <b>{price}</b> (via {provider}){note}\\n<i>🕐 {datetime}</i>\\n<i>— JournUp Price Alerts (cloud)</i>';
   var datetime   = fmtDatetime(cfg.datetimeFmt);
-  return tpl.replace(/\{symbol\}/g, a.symbol).replace(/\{direction\}/g, dir).replace(/\{target\}/g, fmtPrice(a.target)).replace(/\{price\}/g, fmtPrice(price)).replace(/\{note\}/g, note).replace(/\{datetime\}/g, datetime).replace(/\{provider\}/g, providerLabel(provider));
+  return tpl.replace(/\\{symbol\\}/g, a.symbol).replace(/\\{direction\\}/g, dir).replace(/\\{target\\}/g, fmtPrice(a.target)).replace(/\\{price\\}/g, fmtPrice(price)).replace(/\\{note\\}/g, note).replace(/\\{datetime\\}/g, datetime).replace(/\\{provider\\}/g, providerLabel(provider));
 }
 
 function buildDiscordEmbed(a, price, cfg, provider) {
