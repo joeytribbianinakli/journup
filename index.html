@@ -5508,9 +5508,8 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
       #page-earnings .er-row.er-mine .er-sym{color:var(--amber);}
       /* Reported results: EPS actual vs estimate. rs-beat = green, rs-miss = red, rs-line / rs-rep = neutral. */
       #page-earnings .er-row.er-rep{grid-template-columns:78px 14px minmax(0,1fr) 70px 84px 78px 122px;}
-      #page-earnings .er-row.rs-beat{background:rgba(52,201,122,.07);box-shadow:inset 3px 0 0 var(--green);}
-      #page-earnings .er-row.rs-miss{background:rgba(232,85,85,.07);box-shadow:inset 3px 0 0 var(--red);}
-      #page-earnings .er-row.rs-line,#page-earnings .er-row.rs-rep{box-shadow:inset 3px 0 0 var(--border2);}
+      #page-earnings .er-row.rs-beat{background:rgba(52,201,122,.07);}
+      #page-earnings .er-row.rs-miss{background:rgba(232,85,85,.07);}
       #page-earnings .er-row.rs-beat:hover{background:rgba(52,201,122,.13);}
       #page-earnings .er-row.rs-miss:hover{background:rgba(232,85,85,.13);}
       #page-earnings .er-act{font-family:'DM Mono',monospace;font-size:11px;font-weight:700;text-align:right;white-space:nowrap;color:var(--text3);}
@@ -5537,9 +5536,8 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
       #page-earnings .er-tally .rs-miss{background:rgba(232,85,85,.14);color:var(--red);}
       #page-earnings .er-tally .rs-line{background:rgba(107,115,138,.14);color:var(--text2);}
       #page-earnings .er-mini.rs-beat,#page-earnings .er-mini.rs-miss,#page-earnings .er-mini.rs-line,#page-earnings .er-mini.rs-rep{padding-left:6px;border-radius:3px;}
-      #page-earnings .er-mini.rs-beat{background:rgba(52,201,122,.07);box-shadow:inset 2px 0 0 var(--green);}
-      #page-earnings .er-mini.rs-miss{background:rgba(232,85,85,.07);box-shadow:inset 2px 0 0 var(--red);}
-      #page-earnings .er-mini.rs-line,#page-earnings .er-mini.rs-rep{box-shadow:inset 2px 0 0 var(--border2);}
+      #page-earnings .er-mini.rs-beat{background:rgba(52,201,122,.07);}
+      #page-earnings .er-mini.rs-miss{background:rgba(232,85,85,.07);}
       #page-earnings .er-mres{margin-left:auto;font-family:'DM Mono',monospace;font-size:10px;font-weight:700;white-space:nowrap;color:var(--text2);}
       #page-earnings .er-mres.rs-beat{color:var(--green);}
       #page-earnings .er-mres.rs-miss{color:var(--red);}
@@ -30158,11 +30156,24 @@ function erPct(p){
   var a=Math.abs(p),t=a>=1000?'1000+':(a>=100?String(Math.round(a)):a.toFixed(1));
   return (p>0?'+':(p<0?'-':''))+t+'%';
 }
+function erDiffTxt(d){return (d>0?'+':'-')+'$'+Math.abs(d).toFixed(2);}
+// Text shown inside the Beat / Miss pill: the $ surprise (actual - estimate). Falls back to the feed's % only when
+// there is no $ figure to compute (no estimate or no actual). The % otherwise lives in the tooltip.
+function erResAmt(res){
+  if(res.k==='line'||res.k==='rep')return '';
+  if(res.diff!=null)return erDiffTxt(res.diff);
+  return res.pct!=null?erPct(res.pct):'';
+}
 function erResTitle(r,res){
   if(!res)return '';
   var t=r.a!=null?'Actual '+erEps(r.a):'Reported';
   if(r.e!=null)t+=' vs est '+erEps(r.e);
-  if(res.diff!=null&&res.k!=='line')t+=' ('+(res.diff>0?'+':'-')+'$'+Math.abs(res.diff).toFixed(2)+')';
+  var bits=[];
+  if(res.k!=='line'){
+    if(res.diff!=null)bits.push(erDiffTxt(res.diff));
+    if(res.pct!=null)bits.push(erPct(res.pct));
+  }
+  if(bits.length)t+=' ('+bits.join(', ')+')';
   return t;
 }
 function erTally(rows,today){
@@ -30192,7 +30203,7 @@ function erRowHtml(r,mine,today){
   // Day is today or earlier: add Actual + Beat/Miss columns (rows with no result yet show a muted placeholder)
   var k=res?' rs-'+res.k:'';
   var pill=res
-    ?'<span class="er-res'+k+'" title="'+escHtml(erResTitle(r,res))+'">'+ER_RES_LABEL[res.k]+(res.pct!=null&&res.k!=='line'?' '+erPct(res.pct):'')+'</span>'
+    ?'<span class="er-res'+k+'" title="'+escHtml(erResTitle(r,res))+'">'+ER_RES_LABEL[res.k]+(erResAmt(res)?' '+erResAmt(res):'')+'</span>'
     :'<span class="er-res er-wait">'+(r.d===today?'Awaiting':'No data')+'</span>';
   return '<div class="er-row er-rep'+(m?' er-mine':'')+k+'">'+head+
     '<span class="er-act'+k+'">'+(r.a!=null?erEps(r.a):'&mdash;')+'</span>'+pill+'</div>';
@@ -30234,7 +30245,7 @@ function erRenderWeek(){
       return '<div class="er-grp"><div class="er-gh"><span class="badge '+x.g[2]+'">'+x.g[3]+'</span><span class="er-n" style="margin-left:auto">'+x.items.length+'</span></div>'+
         list.map(function(r){
           var res=r.d<=today?erResult(r):null;
-          var tail=res?'<span class="er-mres rs-'+res.k+'" title="'+escHtml(erResTitle(r,res))+'">'+(res.k==='beat'?'&#9650; ':(res.k==='miss'?'&#9660; ':''))+(res.k==='line'?'In line':(res.pct!=null?erPct(res.pct).replace(/^[+-]/,''):'Rep.'))+'</span>':'<span class="er-cap">'+erCap(r.c)+'</span>';
+          var tail=res?'<span class="er-mres rs-'+res.k+'" title="'+escHtml(erResTitle(r,res))+'">'+(res.k==='beat'?'&#9650; ':(res.k==='miss'?'&#9660; ':''))+(res.k==='line'?'In line':(res.k==='rep'?'Rep.':erResAmt(res).replace(/^[+-]/,'')))+'</span>':'<span class="er-cap">'+erCap(r.c)+'</span>';
           return '<div class="er-mini'+(res?' rs-'+res.k:'')+'"><span class="er-sym" style="'+(mine[r.s]?'color:var(--amber)':'')+'">'+escHtml(r.s)+'</span>'+(mine[r.s]?'<span class="er-star">&#9733;</span>':'')+tail+'</div>';}).join('')+
         (x.items.length>lim?'<button type="button" class="er-more" onclick="erGoDay(\''+d+'\')">+'+(x.items.length-lim)+' more</button>':'')+'</div>';
     }).join('');
