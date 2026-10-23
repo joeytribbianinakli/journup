@@ -35,6 +35,17 @@
  *   The cron bumps the token whenever it fires/removes an alert, and re-reads
  *   the list right before writing so it only applies its own changes.
  *
+ * Earnings calendar (free — Nasdaq's public feed, optional Finnhub fallback; no AI):
+ *   GET  /earnings?from=YYYY-MM-DD&to=YYYY-MM-DD[&force=1]   max 14 days per call
+ *        -> { from, to, src:[...], updated, stale, errors:[...], rows:[{s,n,d,t,c,e,q}] }
+ *        t = 'bmo' (before open) | 'amc' (after close) | 'dmh' (during hours) | '' (not confirmed)
+ *   GET  /earnings/status   -> digest settings + last send state
+ *   POST /earnings/notify   body { date? } sends the digest now (test); date defaults to the next weekday
+ *   Config keys pushed from the page: earningsEnabled, earningsSendTime ('HH:MM' US Eastern),
+ *   earningsSymbols, earningsMinCapB, earningsOnlyMine. The cron sends the digest once each Sun–Thu
+ *   evening after earningsSendTime (so "tomorrow" is always a weekday). KV keys: 'earn:wk:<monday>'
+ *   (weekly cache), 'earnings_notify' (last-send state, prevents duplicates).
+ *
  * SYNC NOTE (for Claude/agents): this file is duplicated verbatim inside the
  * `cfDownloadWorker()` template string in trading_journal.html. Any change
  * here MUST be mirrored there so the two stay an exact copy.
@@ -222,6 +233,38 @@ async function handleRequest(request) {
       return jsonRes({ ok: false, error: e.message }, 500, origin);
     }
   }
+  if (path === '/earnings' && method === 'GET') {
+    try { return await earnHandleRange(url, origin); }
+    catch(e) { return jsonRes({ error: e.message }, 500, origin); }
+  }
+  if (path === '/earnings/status' && method === 'GET') {
+    var esRaw = await JOURNUP_KV.get('earnings_notify');
+    var esCfgRaw = await JOURNUP_KV.get('config');
+    var esCfg = esCfgRaw ? JSON.parse(esCfgRaw) : {};
+    return jsonRes({
+      configured: !!esCfgRaw,
+      enabled: esCfg.earningsEnabled === true,
+      telegram: !!(esCfg.telegramToken && esCfg.telegramChatId),
+      sendTime: esCfg.earningsSendTime || '18:00',
+      symbols: Object.keys(earnSymSet(esCfg.earningsSymbols)).length,
+      last: esRaw ? JSON.parse(esRaw) : null
+    }, 200, origin);
+  }
+  if (path === '/earnings/notify' && method === 'POST') {
+    var enBody = await request.json().catch(function() { return {}; });
+    var enCfgRaw = await JOURNUP_KV.get('config');
+    if (!enCfgRaw) return jsonRes({ error: 'Not configured — save settings from the page first' }, 400, origin);
+    var enCfg = JSON.parse(enCfgRaw);
+    if (!enCfg.telegramToken || !enCfg.telegramChatId) return jsonRes({ error: 'Telegram is not set up' }, 400, origin);
+    var enTarget = (enBody && earnParse(enBody.date)) ? enBody.date : earnNextWeekday(earnEtNow().date);
+    try {
+      var enRes = await earnSendDigest(enCfg, enTarget);
+      if (!enRes.ok) return jsonRes({ error: 'Telegram did not accept the message', target: enTarget }, 502, origin);
+      return jsonRes({ ok: true, target: enTarget, messages: enRes.sent, count: enRes.count, src: enRes.src }, 200, origin);
+    } catch(e) {
+      return jsonRes({ error: e.message, target: enTarget }, 502, origin);
+    }
+  }
   return jsonRes({ error: 'Not found' }, 404, origin);
 }
 
@@ -229,6 +272,8 @@ async function paCheckAll() {
   var cfgRaw = await JOURNUP_KV.get('config');
   if (!cfgRaw) return;
   var cfg = JSON.parse(cfgRaw);
+  // Evening earnings digest (own state in KV; errors here must never block price alerts).
+  try { await earnNotifyIfDue(cfg); } catch(e) {}
   // Poll interval is controlled entirely by the Cloudflare cron trigger
   // in the dashboard — no throttle guard needed here.
   var alertsRaw = await JOURNUP_KV.get('alerts');
@@ -724,4 +769,307 @@ async function sendTelegramDelete(messageId, cfg) {
   });
   var d = await r.json().catch(function(){ return {}; });
   return !!d.ok;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Earnings calendar — free, keyless, no AI. Plain API data + deterministic code.
+// ─────────────────────────────────────────────────────────────────────────────
+// Row shape (compact so a busy earnings week stays small in KV):
+//   { s:'AAPL', n:'Apple Inc.', d:'2026-10-29', t:'bmo'|'amc'|'dmh'|'', c:<market cap USD>|null, e:<EPS estimate>|null, q:'Sep/2026' }
+//   t: bmo = before market open, amc = after market close, dmh = during market hours, '' = time not confirmed.
+// Sources, in order: (1) Nasdaq's public earnings calendar feed — no key, has market cap and
+// pre/post-market timing, one request per day; (2) Finnhub /calendar/earnings, only if a Finnhub
+// key is saved (free tier) — used when Nasdaq is unreachable. Finnhub has no market cap, so with
+// that fallback only "your symbols" can be told apart from the rest.
+// Weeks (Mon–Sun) are cached in KV as 'earn:wk:<monday>' so the page and the evening digest stay
+// well inside the free-plan subrequest limit (see EARN_MAX_SPAN_DAYS).
+
+var EARN_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+var EARN_DAY_MS = 86400000;
+var EARN_MAX_SPAN_DAYS = 14;   // GET /earnings range cap: ≤3 weeks → ≤15 day-fetches + a few KV ops, under the free plan's 50 subrequests
+var EARN_WEEK_TTL_SEC = 90 * 86400;
+
+function earnPad(n) { return (n < 10 ? '0' : '') + n; }
+function earnIso(d) { return d.getUTCFullYear() + '-' + earnPad(d.getUTCMonth() + 1) + '-' + earnPad(d.getUTCDate()); }
+// 'YYYY-MM-DD' → Date at 00:00 UTC, or null for anything that isn't a real calendar date (e.g. 2026-02-31).
+function earnParse(iso) {
+  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
+  if (!m) return null;
+  var d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+  return earnIso(d) === iso ? d : null;
+}
+function earnAddDays(iso, n) { var d = earnParse(iso); d.setUTCDate(d.getUTCDate() + n); return earnIso(d); }
+function earnDow(iso) { return earnParse(iso).getUTCDay(); } // 0 = Sun … 6 = Sat
+function earnMonday(iso) { var d = earnParse(iso); d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7)); return earnIso(d); }
+function earnNextWeekday(iso) { var n = earnAddDays(iso, 1); while (earnDow(n) === 0 || earnDow(n) === 6) n = earnAddDays(n, 1); return n; }
+// Tickers are compared in one normalised form: upper-case, BRK-B / BRK/B → BRK.B
+function earnSym(s) {
+  s = String(s || '').trim().toUpperCase().replace(/[\/\-]/g, '.');
+  return /^[A-Z0-9][A-Z0-9.]{0,9}$/.test(s) ? s : '';
+}
+function earnSymSet(arr) {
+  var o = {};
+  (Array.isArray(arr) ? arr : []).forEach(function(x) { var s = earnSym(x); if (s) o[s] = true; });
+  return o;
+}
+// "$3,010,000,000" → 3010000000 · "$(0.12)" / "-0.12" → -0.12 · "N/A" / "" / null → null
+function earnNum(v) {
+  if (v === null || v === undefined) return null;
+  if (typeof v === 'number') return isFinite(v) ? v : null;
+  var s = String(v).trim();
+  if (!s) return null;
+  var neg = s.indexOf('(') !== -1 || s.charAt(0) === '-';
+  var n = parseFloat(s.replace(/[^0-9.]/g, ''));
+  if (isNaN(n)) return null;
+  return neg ? -n : n;
+}
+
+// fetch + JSON parse under one timeout, so a hung upstream can't stall the whole request
+async function earnFetchJson(url, headers, ms) {
+  var ctl = new AbortController();
+  var timer = setTimeout(function() { ctl.abort(); }, ms || 9000);
+  try {
+    var r = await fetch(url, { headers: headers || {}, signal: ctl.signal });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return await r.json();
+  } finally { clearTimeout(timer); }
+}
+function earnErrText(e) { return e && e.name === 'AbortError' ? 'timed out' : (e && e.message) || 'failed'; }
+
+function earnNasdaqTime(t) {
+  t = String(t || '').toLowerCase();
+  if (t.indexOf('pre') !== -1) return 'bmo';      // time-pre-market
+  if (t.indexOf('after') !== -1) return 'amc';    // time-after-hours
+  return '';                                      // time-not-supplied
+}
+async function earnNasdaqDay(iso) {
+  var hdr = { 'User-Agent': EARN_UA, 'Accept': 'application/json, text/plain, */*', 'Accept-Language': 'en-US,en;q=0.9', 'Origin': 'https://www.nasdaq.com', 'Referer': 'https://www.nasdaq.com/' };
+  var d = null, lastErr = null;
+  for (var attempt = 0; attempt < 2 && d === null; attempt++) {
+    try { d = await earnFetchJson('https://api.nasdaq.com/api/calendar/earnings?date=' + iso, hdr, 9000); }
+    catch (e) { lastErr = e; }
+  }
+  if (d === null) throw new Error('Nasdaq ' + earnErrText(lastErr));
+  var okStatus = !!(d && d.status && d.status.rCode === 200);
+  if (!d || (!d.data && !okStatus)) throw new Error('Nasdaq: unexpected response');
+  var rows = (d.data && d.data.rows) || [];     // a day with no reports comes back as rows: null
+  var out = [];
+  for (var i = 0; i < rows.length; i++) {
+    var x = rows[i], sym = earnSym(x.symbol);
+    if (!sym) continue;
+    out.push({ s: sym, n: x.name || '', d: iso, t: earnNasdaqTime(x.time), c: earnNum(x.marketCap), e: earnNum(x.epsForecast), q: x.fiscalQuarterEnding || '' });
+  }
+  return out;
+}
+async function earnFinnhubRange(from, to, key) {
+  var d;
+  try { d = await earnFetchJson('https://finnhub.io/api/v1/calendar/earnings?from=' + from + '&to=' + to + '&token=' + encodeURIComponent(key), {}, 12000); }
+  catch (e) { throw new Error('Finnhub ' + earnErrText(e)); }
+  var list = d && d.earningsCalendar;
+  if (!Array.isArray(list)) throw new Error('Finnhub: unexpected response');
+  var out = [];
+  for (var i = 0; i < list.length; i++) {
+    var x = list[i], sym = earnSym(x.symbol);
+    if (!sym || !earnParse(x.date)) continue;
+    var h = String(x.hour || '').toLowerCase();
+    out.push({ s: sym, n: '', d: x.date, t: (h === 'bmo' || h === 'amc' || h === 'dmh') ? h : '', c: null, e: earnNum(x.epsEstimate), q: (x.quarter && x.year) ? ('Q' + x.quarter + ' ' + x.year) : '' });
+  }
+  return out;
+}
+
+// A cached week is "final" once it was fetched after the week ended; before that it expires on a
+// schedule that tightens as the week approaches (24h → 6h → 3h) so near-term dates stay accurate.
+function earnStale(monday, t, now) {
+  var start = Date.parse(monday + 'T00:00:00Z'), end = start + 7 * EARN_DAY_MS;
+  if (t >= end) return false;
+  var age = now - t;
+  if (now >= end) return true;
+  if (now >= start - EARN_DAY_MS) return age > 3 * 3600000;
+  return age > ((start - now) < 14 * EARN_DAY_MS ? 6 : 24) * 3600000;
+}
+async function earnFetchWeek(monday, cfg) {
+  var err = null, i;
+  try {
+    var days = [];
+    for (i = 0; i < 5; i++) days.push(earnAddDays(monday, i));
+    var first = await earnNasdaqDay(days[0]);                     // probe one day first: if Nasdaq is blocking us, fail fast
+    var rest = await Promise.all(days.slice(1).map(earnNasdaqDay));
+    var rows = first;
+    rest.forEach(function(r) { rows = rows.concat(r); });
+    return { src: 'nasdaq', rows: rows };
+  } catch (e) { err = e; }
+  if (cfg && cfg.finnhubKey) {
+    try { return { src: 'finnhub', rows: await earnFinnhubRange(monday, earnAddDays(monday, 6), cfg.finnhubKey) }; }
+    catch (e2) { err = new Error(err.message + ' · ' + e2.message); }
+  }
+  throw err;
+}
+async function earnLoadWeek(monday, cfg, force) {
+  var key = 'earn:wk:' + monday, now = Date.now(), cached = null;
+  var raw = await JOURNUP_KV.get(key);
+  if (raw) { try { cached = JSON.parse(raw); } catch (e) { cached = null; } }
+  if (cached) {
+    var fresh = !earnStale(monday, cached.t, now);
+    // a manual refresh is honoured at most once every 2 minutes per week (protects the upstream feeds)
+    if (fresh && !(force && now - cached.t > 120000)) return cached;
+  }
+  try {
+    var w = await earnFetchWeek(monday, cfg);
+    w.t = now;
+    await JOURNUP_KV.put(key, JSON.stringify(w), { expirationTtl: EARN_WEEK_TTL_SEC });
+    return w;
+  } catch (e) {
+    if (cached) { cached.stale = true; cached.error = e.message; return cached; }  // better an old answer than none
+    throw e;
+  }
+}
+
+// GET /earnings?from=YYYY-MM-DD&to=YYYY-MM-DD[&force=1]
+async function earnHandleRange(url, origin) {
+  var from = url.searchParams.get('from'), to = url.searchParams.get('to');
+  if (!earnParse(from) || !earnParse(to) || to < from) return jsonRes({ error: 'Expected from=YYYY-MM-DD&to=YYYY-MM-DD' }, 400, origin);
+  if ((earnParse(to) - earnParse(from)) / EARN_DAY_MS >= EARN_MAX_SPAN_DAYS) return jsonRes({ error: 'Range too large (max ' + EARN_MAX_SPAN_DAYS + ' days) — request one week at a time' }, 400, origin);
+  var cfgRaw = await JOURNUP_KV.get('config');
+  var cfg = cfgRaw ? JSON.parse(cfgRaw) : {};
+  var force = url.searchParams.get('force') === '1';
+  var rows = [], srcs = [], errors = [], updated = null, stale = false, any = false;
+  for (var mon = earnMonday(from); mon <= to; mon = earnAddDays(mon, 7)) {
+    try {
+      var w = await earnLoadWeek(mon, cfg, force);
+      any = true;
+      if (srcs.indexOf(w.src) === -1) srcs.push(w.src);
+      if (updated === null || w.t < updated) updated = w.t;
+      if (w.stale) { stale = true; errors.push({ week: mon, error: w.error }); }
+      for (var i = 0; i < w.rows.length; i++) if (w.rows[i].d >= from && w.rows[i].d <= to) rows.push(w.rows[i]);
+    } catch (e) { errors.push({ week: mon, error: e.message }); }
+  }
+  if (!any) return jsonRes({ error: errors.length ? errors[0].error : 'No earnings source available', errors: errors }, 502, origin);
+  return jsonRes({ from: from, to: to, src: srcs, updated: updated, stale: stale, errors: errors, rows: rows }, 200, origin);
+}
+
+// ── Evening digest ───────────────────────────────────────────────────────────
+// Config keys pushed from the page: earningsEnabled, earningsSendTime ('HH:MM', US Eastern),
+// earningsSymbols (array), earningsMinCapB (market-cap floor in $B for "notable" names),
+// earningsOnlyMine (true = only your symbols).
+function earnEtNow() {
+  var p = etParts(new Date(), { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', weekday: 'short' });
+  return { date: p.year + '-' + p.month + '-' + p.day, hour: +p.hour, minute: +p.minute, dow: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(p.weekday) };
+}
+function earnParseHM(s, def) {
+  var m = /^(\d{1,2}):(\d{2})$/.exec(String(s || ''));
+  if (!m) return def;
+  var h = +m[1], mi = +m[2];
+  return (h < 24 && mi < 60) ? h * 60 + mi : def;
+}
+function earnEsc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function earnCapText(c) {
+  if (c === null || c === undefined) return '';
+  var v, u;
+  if (c >= 1e12) { v = c / 1e12; u = 'T'; } else if (c >= 1e9) { v = c / 1e9; u = 'B'; } else { v = c / 1e6; u = 'M'; }
+  var s = (v >= 100 || u === 'M') ? Math.round(v).toString() : v.toFixed(1);
+  if (s.slice(-2) === '.0') s = s.slice(0, -2);
+  return '$' + s + u;
+}
+function earnSortRows(rows) {
+  return rows.slice().sort(function(a, b) {
+    var ac = a.c === null ? -1 : a.c, bc = b.c === null ? -1 : b.c;
+    return (bc - ac) || (a.s < b.s ? -1 : a.s > b.s ? 1 : 0);
+  });
+}
+function earnLine(r) {
+  var bits = [];
+  var cap = earnCapText(r.c);
+  if (cap) bits.push(cap);
+  if (r.e !== null && r.e !== undefined) bits.push('EPS est ' + (r.e < 0 ? '-$' + Math.abs(r.e).toFixed(2) : '$' + r.e.toFixed(2)));
+  var nm = r.n ? ' ' + earnEsc(r.n.length > 26 ? r.n.slice(0, 25) + '…' : r.n) : '';
+  return '• <b>' + earnEsc(r.s) + '</b>' + nm + (bits.length ? ' · ' + bits.join(' · ') : '');
+}
+var EARN_GROUPS = [['bmo', '🟠 <i><u>Before market open</u></i>'], ['amc', '🟣 <i><u>After market close</u></i>'], ['dmh', '<i><u>During market hours</u></i>'], ['', '<i><u>Time not confirmed</u></i>']];
+
+// → array of Telegram-ready HTML messages (split at line boundaries to stay under Telegram's 4096-char cap)
+function earnBuildDigest(target, rows, cfg, src) {
+  var mine = earnSymSet(cfg.earningsSymbols);
+  var onlyMine = cfg.earningsOnlyMine === true;
+  var capB = parseFloat(cfg.earningsMinCapB); if (!(capB > 0)) capB = 10;
+  var capsKnown = src !== 'finnhub';   // Finnhub rows carry no market cap
+  var mineRows = [], notable = [];
+  rows.forEach(function(r) {
+    if (mine[r.s]) mineRows.push(r);
+    else if (!onlyMine && r.c !== null && r.c >= capB * 1e9) notable.push(r);
+  });
+  var label = new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }).format(earnParse(target));
+  var head = '📅 <b>Earnings tomorrow · ' + label + '</b>';
+  var lines = [head, '<i>Times refer to the US market session (Eastern)</i>', ''];
+
+  function section(title, list) {
+    if (!list.length) return;
+    lines.push(title);
+    EARN_GROUPS.forEach(function(g) {
+      var items = earnSortRows(list.filter(function(r) { return r.t === g[0]; }));
+      if (!items.length) return;
+      lines.push(g[1]);
+      items.forEach(function(r) { lines.push(earnLine(r)); });
+      lines.push('');   // blank line after each category
+    });
+  }
+  section('<b>Your symbols</b>', mineRows);
+  var cap = 40, shown = notable;
+  if (!onlyMine) {
+    var trimmed = earnSortRows(notable).slice(0, cap);
+    shown = trimmed;
+    section('<b>Notable (≥ $' + capB + 'B)</b>', shown);
+    if (notable.length > cap) lines.push('<i>+' + (notable.length - cap) + ' more notable names not shown</i>', '');
+  }
+  if (!mineRows.length && !shown.length) {
+    lines.push(onlyMine || !capsKnown ? 'None of your symbols report tomorrow.' : 'None of your symbols — and no names above $' + capB + 'B — report tomorrow.');
+    lines.push('');
+  }
+  if (!onlyMine && !capsKnown) lines.push('<i>Market cap isn’t available from the fallback source, so only your symbols can be listed.</i>');
+  lines.push('<i>Source: ' + (src === 'finnhub' ? 'Finnhub' : 'Nasdaq') + ' · dates can still shift until a company confirms</i>');
+
+  var msgs = [], cur = '';
+  lines.forEach(function(l) {
+    if (cur && cur.length + l.length + 1 > 3800) { msgs.push(cur.replace(/\s+$/, '')); cur = '📅 <b>Earnings ' + label + ' (cont.)</b>\n'; }
+    cur += (cur ? '\n' : '') + l;
+  });
+  if (cur.replace(/\s+$/, '')) msgs.push(cur.replace(/\s+$/, ''));
+  return msgs;
+}
+// Always a fresh pull for the target day (never the week cache) so the digest reflects the latest dates.
+async function earnFreshDay(iso, cfg) {
+  var err = null;
+  try { return { rows: await earnNasdaqDay(iso), src: 'nasdaq' }; } catch (e) { err = e; }
+  if (cfg.finnhubKey) {
+    try { return { rows: await earnFinnhubRange(iso, iso, cfg.finnhubKey), src: 'finnhub' }; } catch (e2) { err = new Error(err.message + ' · ' + e2.message); }
+  }
+  throw err;
+}
+async function earnSendDigest(cfg, target) {
+  var day = await earnFreshDay(target, cfg);
+  var msgs = earnBuildDigest(target, day.rows, cfg, day.src);
+  var sent = 0;
+  for (var i = 0; i < msgs.length; i++) {
+    var id = await sendTelegram(msgs[i], cfg);
+    if (!id) return { ok: false, sent: sent, count: day.rows.length, src: day.src, target: target };
+    sent++;
+  }
+  return { ok: true, sent: sent, count: day.rows.length, src: day.src, target: target };
+}
+// Called from the cron on every tick. Sends once per evening (Sun–Thu, so the "next day" is always
+// a weekday) after the configured Eastern send time. State lives in KV 'earnings_notify'.
+// A failed attempt is retried every 10 minutes, up to 6 times, so a brief upstream outage doesn't
+// cost you the day's message.
+async function earnNotifyIfDue(cfg) {
+  if (!cfg || cfg.earningsEnabled !== true || !cfg.telegramToken || !cfg.telegramChatId) return;
+  var et = earnEtNow();
+  if (et.dow === 5 || et.dow === 6) return;
+  if (et.hour * 60 + et.minute < earnParseHM(cfg.earningsSendTime, 18 * 60)) return;
+  var raw = await JOURNUP_KV.get('earnings_notify');
+  var st = raw ? JSON.parse(raw) : {};
+  var today = st.date === et.date;
+  if (today && (st.sent || (st.attempts || 0) >= 6)) return;
+  if (today && st.at && Date.now() - st.at < 600000) return;
+  var target = earnAddDays(et.date, 1), ok = false;
+  try { ok = (await earnSendDigest(cfg, target)).ok; } catch (e) { ok = false; }
+  await JOURNUP_KV.put('earnings_notify', JSON.stringify({ date: et.date, target: target, sent: ok, attempts: (today ? (st.attempts || 0) : 0) + 1, at: Date.now() }));
 }
