@@ -5530,7 +5530,6 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
       #page-earnings .er-sbox.rs-miss{background:rgba(232,85,85,.08);border-color:rgba(232,85,85,.4);}
       #page-earnings .er-sbox.rs-miss b,#page-earnings .er-sbox.rs-miss span{color:var(--red);}
       #page-earnings .er-tally{display:flex;flex-wrap:wrap;gap:4px;margin:0 0 8px;}
-      #page-earnings .er-cell .er-tally{margin:4px 0 0;}
       #page-earnings .er-tally span{font-family:'DM Mono',monospace;font-size:10px;font-weight:700;padding:1px 6px;border-radius:3px;}
       #page-earnings .er-tally .rs-beat{background:rgba(52,201,122,.14);color:var(--green);}
       #page-earnings .er-tally .rs-miss{background:rgba(232,85,85,.14);color:var(--red);}
@@ -5541,7 +5540,7 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
       #page-earnings .er-mres{margin-left:auto;font-family:'DM Mono',monospace;font-size:10px;font-weight:700;white-space:nowrap;color:var(--text2);}
       #page-earnings .er-mres.rs-beat{color:var(--green);}
       #page-earnings .er-mres.rs-miss{color:var(--red);}
-      #page-earnings .er-col.er-past.er-has,#page-earnings .er-cell.er-past.er-has{opacity:1;}
+      #page-earnings .er-col.er-past.er-has{opacity:1;}
       #page-earnings .er-more{display:block;width:100%;margin-top:6px;padding:6px;border:1px dashed var(--border2);border-radius:var(--radius);background:none;color:var(--text3);font-family:'DM Sans',sans-serif;font-size:11px;font-weight:600;cursor:pointer;}
       #page-earnings .er-more:hover{color:var(--accent);border-color:var(--accent);}
       #page-earnings .er-week{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;align-items:start;}
@@ -5558,18 +5557,13 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
       #page-earnings .er-mini .er-sym{font-size:11px;}
       #page-earnings .er-mini .er-cap{margin-left:auto;font-size:10px;}
       #page-earnings .er-none{font-size:11px;color:var(--text3);font-style:italic;}
-      #page-earnings .er-month{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;}
-      #page-earnings .er-mhd{font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);text-align:center;padding-bottom:2px;}
-      #page-earnings .er-cell{min-height:92px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:7px 8px;cursor:pointer;transition:border-color .12s,background .12s;display:flex;flex-direction:column;gap:4px;}
-      #page-earnings .er-cell:hover{border-color:var(--accent);background:var(--bg3);}
-      #page-earnings .er-cell.er-off{background:none;border-style:dashed;border-color:transparent;cursor:default;}
-      #page-earnings .er-cell.er-today{border-color:var(--green);}
-      #page-earnings .er-cell.er-past{opacity:.65;}
-      #page-earnings .er-cd{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:var(--text2);}
-      #page-earnings .er-cd .er-cnt{margin-left:auto;font-family:'DM Mono',monospace;font-size:10px;color:var(--text3);}
-      #page-earnings .er-ct{font-family:'DM Mono',monospace;font-size:10px;color:var(--text2);line-height:1.5;word-break:break-word;}
-      #page-earnings .er-ct i{font-style:normal;color:var(--amber);font-weight:700;}
-      #page-earnings .er-ct u{text-decoration:none;color:var(--text3);}
+      #page-earnings .er-tday{margin-bottom:12px;}
+      #page-earnings .er-th{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px;}
+      #page-earnings .er-th.er-today{color:var(--green);}
+      #page-earnings .er-th .er-n{margin-left:auto;font-family:'DM Mono',monospace;font-size:10px;color:var(--text3);font-weight:400;}
+      #page-earnings .er-tsum{font-size:11px;color:var(--text3);margin-bottom:10px;}
+      #page-earnings .er-nx{grid-template-columns:78px 14px minmax(0,1fr) auto auto;}
+      #page-earnings .er-nx .er-cap.er-when{color:var(--text);font-weight:700;}
       #page-earnings .er-foot{font-size:10px;color:var(--text3);margin-top:12px;line-height:1.6;}
       #page-earnings details.er-panel{margin-top:16px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);}
       #page-earnings details.er-panel>summary{cursor:pointer;list-style:none;padding:12px 16px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);}
@@ -5596,9 +5590,6 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
         #page-earnings .er-spacer{display:none;}
       }
       @media(max-width:600px){
-        #page-earnings .er-month{gap:3px;}
-        #page-earnings .er-cell{min-height:64px;padding:5px;}
-        #page-earnings .er-ct{display:none;}
         #page-earnings .er-range{min-width:0;}
       }
       </style>
@@ -5607,7 +5598,12 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
         <div class="er-seg" id="er-view-seg">
           <button type="button" data-v="day" onclick="erSetView('day')">Day</button>
           <button type="button" data-v="week" onclick="erSetView('week')">Week</button>
-          <button type="button" data-v="month" onclick="erSetView('month')">Month</button>
+          <button type="button" data-v="table" onclick="erSetView('table')" title="List every report in a date range">Table</button>
+        </div>
+        <div class="er-seg" id="er-scope-seg" style="display:none" title="Date range shown in the table">
+          <button type="button" data-s="week" onclick="erSetScope('week')">Week</button>
+          <button type="button" data-s="month" onclick="erSetScope('month')">Month</button>
+          <button type="button" data-s="quarter" onclick="erSetScope('quarter')">Quarter</button>
         </div>
         <div class="er-nav">
           <button type="button" class="btn btn-sm" id="er-prev" onclick="erStep(-1)" aria-label="Previous">&#8249;</button>
@@ -10221,7 +10217,7 @@ async function populateSessionSelects(restoreSessionId){
   updateFilterSessionSummary('edg-session-filter','edg-filter-summary','edg-skipped-filter');
 }
 // ══ Navigation ════════════════════════════════════
-var pageMap={'pre-checklist':{title:'Pre-trade checklist',sub:'Calendar → Checklist → Calculator → Log trade'},dashboard:{title:'Dashboard',sub:'Overview of your trading performance'},log:{title:'Log trade',sub:'Record a new trade entry'},history:{title:'Trade history',sub:'Browse and filter all your trades'},sessions:{title:'Sessions',sub:'Manage your trading session periods'},'checklist-editor':{title:'Checklist editor',sub:'Edit checklist items globally'},backup:{title:'Settings',sub:'Backup, sync, integrations and AI configuration'},montecarlo:{title:'Monte Carlo',sub:'Simulate future equity paths from historical trade data'},calculator:{title:'Position Size Calculator',sub:'Forex · Crypto · Gold · Stocks · Indices'},calendar:{title:'Calendar view',sub:'Visual trade activity by day, week and year'},'ai-analyzer':{title:'AI Trade Analyzer',sub:'Intelligent session review powered by AI'},'price-alerts':{title:'Price Alerts',sub:'Get notified on your phone when a price target is hit'},'watchlist':{title:'Watchlist',sub:'Track assets you\'re keeping an eye on'},fxstreet:{title:'Economic calendar',sub:'ForexFactory calendar — check before trading'},'trade-analytics':{title:'Trade Analytics',sub:'Ratings, error types, direction & entry-time performance'},edge:{title:'Edge Analyzer',sub:'Is there a statistically real edge in your logged trades?'},'fx-tracker':{title:'USD/CAD Tracker',sub:'Track your CAD→USD conversions and currency gains/losses'},earnings:{title:'Earnings',sub:'Earnings calendar for the current quarter — by day, week and month'},'notes':{title:'Notes',sub:'Todos, reminders and things to remember — your personal sticky-note board'}};;
+var pageMap={'pre-checklist':{title:'Pre-trade checklist',sub:'Calendar → Checklist → Calculator → Log trade'},dashboard:{title:'Dashboard',sub:'Overview of your trading performance'},log:{title:'Log trade',sub:'Record a new trade entry'},history:{title:'Trade history',sub:'Browse and filter all your trades'},sessions:{title:'Sessions',sub:'Manage your trading session periods'},'checklist-editor':{title:'Checklist editor',sub:'Edit checklist items globally'},backup:{title:'Settings',sub:'Backup, sync, integrations and AI configuration'},montecarlo:{title:'Monte Carlo',sub:'Simulate future equity paths from historical trade data'},calculator:{title:'Position Size Calculator',sub:'Forex · Crypto · Gold · Stocks · Indices'},calendar:{title:'Calendar view',sub:'Visual trade activity by day, week and year'},'ai-analyzer':{title:'AI Trade Analyzer',sub:'Intelligent session review powered by AI'},'price-alerts':{title:'Price Alerts',sub:'Get notified on your phone when a price target is hit'},'watchlist':{title:'Watchlist',sub:'Track assets you\'re keeping an eye on'},fxstreet:{title:'Economic calendar',sub:'ForexFactory calendar — check before trading'},'trade-analytics':{title:'Trade Analytics',sub:'Ratings, error types, direction & entry-time performance'},edge:{title:'Edge Analyzer',sub:'Is there a statistically real edge in your logged trades?'},'fx-tracker':{title:'USD/CAD Tracker',sub:'Track your CAD→USD conversions and currency gains/losses'},earnings:{title:'Earnings',sub:'Earnings calendar for the current quarter — by day, week or table'},'notes':{title:'Notes',sub:'Todos, reminders and things to remember — your personal sticky-note board'}};;
 var _currentPage='dashboard';
 function nav(id,btn){
   // Reset log form when navigating away — but preserve it if going back to calc within the flow
@@ -29973,6 +29969,8 @@ var ER_GROUPS = [['bmo','Before market open','badge-amber','Pre-market'], ['amc'
                  ['dmh','During market hours','badge-blue','Intraday'], ['','Time not confirmed','badge-gray','TBA']];
 var ER_DAYS = ['Mon','Tue','Wed','Thu','Fri'];
 var _erView = 'week', _erFilter = 'notable', _erDate = '', _erSearch = '';
+var _erScope = 'month', ER_SCOPE_KEY = 'tj-earn-scope';   // Table view: which date range it lists (week | month | quarter)
+function erEff(){return _erView==='table'?_erScope:_erView;} // the range unit currently shown
 var _erWeeks = {};        // monday ISO -> {rows, src[], updated, stale, errors[], at}
 var _erWeekErr = {};      // monday ISO -> last load error message
 var _erInflight = {};     // monday ISO -> promise (de-dupes overlapping loads)
@@ -29993,12 +29991,22 @@ function erQuarter(iso){
   return {q:q+1,y:y,start:erIso(new Date(y,q*3,1)),end:erIso(new Date(y,q*3+3,0))};
 }
 function erMonthBounds(iso){var d=erParse(iso);return {first:erIso(new Date(d.getFullYear(),d.getMonth(),1)),last:erIso(new Date(d.getFullYear(),d.getMonth()+1,0))};}
+// Date range the Table view lists (weekdays only are rendered)
+function erTableRange(){
+  var d=_erDate,Q=erQuarter(erTodayIso());
+  if(_erScope==='week'){var m=erMon(d);return {from:m,to:erAdd(m,4)};}
+  if(_erScope==='quarter')return {from:Q.start,to:Q.end};
+  var b=erMonthBounds(d);return {from:b.first,to:b.last};
+}
 // Which Mondays' worth of data does the current view need?
 function erWeeksFor(view,date){
-  if(view!=='month')return [erMon(date)];
-  var b=erMonthBounds(date),out=[];
-  for(var m=erMon(b.first);m<=b.last;m=erAdd(m,7))out.push(m);
-  return out;
+  if(_erSearch){ // a search covers the whole quarter: this week onwards first (so the next date appears fast), then earlier weeks
+    var SQ=erQuarter(erTodayIso()),cur=erMon(erTodayIso()),fut=[],past=[];
+    for(var sw=erMon(SQ.start);sw<=SQ.end;sw=erAdd(sw,7))(sw>=cur?fut:past).push(sw);
+    return fut.concat(past.reverse());
+  }
+  if(view==='table'){var r=erTableRange(),o=[];for(var w=erMon(r.from);w<=r.to;w=erAdd(w,7))o.push(w);return o;}
+  return [erMon(date)];
 }
 
 // ── symbols & settings ──────────────────────────────────────────────────
@@ -30113,27 +30121,40 @@ function erByTime(rows,mine){
 
 // ── rendering ───────────────────────────────────────────────────────────
 function erCanStep(dir){
-  var Q=erQuarter(erTodayIso()),nd;
-  if(_erView==='day'){nd=erAdd(_erDate,dir);while(erDow(nd)>4)nd=erAdd(nd,dir);return nd>=Q.start&&nd<=Q.end;}
-  if(_erView==='week'){nd=erAdd(erMon(_erDate),7*dir);return erAdd(nd,4)>=Q.start&&nd<=Q.end;}
+  var Q=erQuarter(erTodayIso()),nd,ev=erEff();
+  if(ev==='quarter')return false;
+  if(ev==='day'){nd=erAdd(_erDate,dir);while(erDow(nd)>4)nd=erAdd(nd,dir);return nd>=Q.start&&nd<=Q.end;}
+  if(ev==='week'){nd=erAdd(erMon(_erDate),7*dir);return erAdd(nd,4)>=Q.start&&nd<=Q.end;}
   var d=erParse(_erDate);d.setDate(1);d.setMonth(d.getMonth()+dir);nd=erIso(d);return nd>=Q.start&&nd<=Q.end;
 }
 function erStep(dir){
   if(!erCanStep(dir))return;
-  if(_erView==='day'){var nd=erAdd(_erDate,dir);while(erDow(nd)>4)nd=erAdd(nd,dir);_erDate=nd;}
-  else if(_erView==='week'){_erDate=erAdd(erMon(_erDate),7*dir);}
+  var ev=erEff();
+  if(ev==='day'){var nd=erAdd(_erDate,dir);while(erDow(nd)>4)nd=erAdd(nd,dir);_erDate=nd;}
+  else if(ev==='week'){_erDate=erAdd(erMon(_erDate),7*dir);}
   else{var d=erParse(_erDate);d.setDate(1);d.setMonth(d.getMonth()+dir);_erDate=erIso(d);}
   erLoad(false);
 }
-function erGoToday(){_erDate=_erView==='day'?erSnap(erTodayIso()):erTodayIso();erLoad(false);}
+function erGoToday(){_erDate=erEff()==='day'?erSnap(erTodayIso()):erTodayIso();erLoad(false);}
+// Week view -> Table view scoped to the week being shown (_erDate is left alone, so the same week stays selected)
+function erGoWeek(){_erView='table';_erScope='week';try{localStorage.setItem(ER_KEYS.view,'table');localStorage.setItem(ER_SCOPE_KEY,'week');}catch(e){}erLoad(false);}
 function erGoDay(iso){_erView='day';_erDate=iso;try{localStorage.setItem(ER_KEYS.view,'day');}catch(e){}erLoad(false);}
+// Picking a view / range ends an active search so the buttons always do something visible
+function erClearSearch(){_erSearch='';var el=document.getElementById('er-search');if(el)el.value='';}
 function erSetView(v){
-  _erView=v;if(v==='day')_erDate=erSnap(_erDate);
+  erClearSearch();
+  _erView=v;if(erEff()==='day')_erDate=erSnap(_erDate);
   try{localStorage.setItem(ER_KEYS.view,v);}catch(e){}
   erLoad(false);
 }
+function erSetScope(sc){
+  erClearSearch();
+  _erScope=sc;
+  try{localStorage.setItem(ER_SCOPE_KEY,sc);}catch(e){}
+  erLoad(false);
+}
 function erSetFilter(f){_erFilter=f;try{localStorage.setItem(ER_KEYS.filter,f);}catch(e){}erRender();}
-function erOnSearch(v){_erSearch=(v||'').trim();erRender();}
+function erOnSearch(v){var was=_erSearch;_erSearch=(v||'').trim();if(_erSearch&&!was)erLoad(false);else erRender();} // a search covers the whole quarter, so load every week when it starts
 function erShowAllToggle(key){_erShowAll[key]=true;erRender();}
 
 // ── reported results: EPS actual vs estimate ────────────────────────────
@@ -30247,31 +30268,65 @@ function erRenderWeek(){
           var res=r.d<=today?erResult(r):null;
           var tail=res?'<span class="er-mres rs-'+res.k+'" title="'+escHtml(erResTitle(r,res))+'">'+(res.k==='beat'?'&#9650; ':(res.k==='miss'?'&#9660; ':''))+(res.k==='line'?'In line':(res.k==='rep'?'Rep.':erResAmt(res).replace(/^[+-]/,'')))+'</span>':'<span class="er-cap">'+erCap(r.c)+'</span>';
           return '<div class="er-mini'+(res?' rs-'+res.k:'')+'"><span class="er-sym" style="'+(mine[r.s]?'color:var(--amber)':'')+'">'+escHtml(r.s)+'</span>'+(mine[r.s]?'<span class="er-star">&#9733;</span>':'')+tail+'</div>';}).join('')+
-        (x.items.length>lim?'<button type="button" class="er-more" onclick="erGoDay(\''+d+'\')">+'+(x.items.length-lim)+' more</button>':'')+'</div>';
+        (x.items.length>lim?'<button type="button" class="er-more" onclick="erGoWeek()" title="Open this week in Table">+'+(x.items.length-lim)+' more</button>':'')+'</div>';
     }).join('');
     var tl=rows&&rows.length?erTally(rows,today):null;
-    cols+='<div class="er-col'+(d===today?' er-today':'')+(d<today?' er-past':'')+(tl&&tl.n?' er-has':'')+'"><div class="er-ch" onclick="erGoDay(\''+d+'\')"><strong>'+ER_DAYS[i]+'</strong><span>'+erFmt(d,{month:'short',day:'numeric'})+'</span><em>'+(rows===null?'':rows.length)+'</em></div>'+(tl?erTallyHtml(tl):'')+inner+'</div>';
+    cols+='<div class="er-col'+(d===today?' er-today':'')+(d<today?' er-past':'')+(tl&&tl.n?' er-has':'')+'"><div class="er-ch" onclick="erGoWeek()" title="Open this week in Table"><strong>'+ER_DAYS[i]+'</strong><span>'+erFmt(d,{month:'short',day:'numeric'})+'</span><em>'+(rows===null?'':rows.length)+'</em></div>'+(tl?erTallyHtml(tl):'')+inner+'</div>';
   }
   return '<div class="er-week">'+cols+'</div>';
 }
-function erRenderMonth(){
-  var b=erMonthBounds(_erDate),mine=erMySet(),today=erTodayIso();
-  var html='<div class="er-month">'+ER_DAYS.map(function(n){return '<div class="er-mhd">'+n+'</div>';}).join('');
-  for(var mon=erMon(b.first);mon<=b.last;mon=erAdd(mon,7)){
-    for(var i=0;i<5;i++){
-      var d=erAdd(mon,i);
-      if(d<b.first||d>b.last){html+='<div class="er-cell er-off"></div>';continue;}
-      var rows=erRowsOn(d,mine),inner='',hasRes=false;
-      if(rows===null)inner='<div class="er-ct">'+(_erWeekErr[mon]?'<u>—</u>':'<u>…</u>')+'</div>';
-      else if(rows.length){
-        var top=erSort(rows,mine).slice(0,3).map(function(r){return mine[r.s]?'<i>'+escHtml(r.s)+'</i>':escHtml(r.s);}).join(' ');
-        inner='<div class="er-ct">'+top+(rows.length>3?' <u>+'+(rows.length-3)+'</u>':'')+'</div>';
-        var tl=erTally(rows,today);if(tl.n){inner+=erTallyHtml(tl);hasRes=true;}
-      }
-      html+='<div class="er-cell'+(d===today?' er-today':'')+(d<today?' er-past':'')+(hasRes?' er-has':'')+'" onclick="erGoDay(\''+d+'\')"><div class="er-cd">'+erParse(d).getDate()+'<span class="er-cnt">'+(rows&&rows.length?rows.length:'')+'</span></div>'+inner+'</div>';
-    }
+function erDayBlock(d,rows,mine,today,past){
+  return '<div class="er-card er-tday"'+(past?' style="opacity:.8"':'')+'><div class="er-th'+(d===today?' er-today':'')+'">'+erFmt(d,{weekday:'short',month:'short',day:'numeric'})+'<span class="er-n">'+rows.length+'</span></div>'+
+    erByTime(rows,mine).map(function(x){
+      var key=d+'|'+x.g[0],lim=60,list=(_erShowAll[key]||x.items.length<=lim)?x.items:x.items.slice(0,lim);
+      return '<div class="er-grp"><div class="er-gh"><span class="badge '+x.g[2]+'">'+x.g[3]+'</span>'+x.g[1]+'<span class="er-n">'+x.items.length+'</span></div>'+
+        list.map(function(rr){return erRowHtml(rr,mine,today);}).join('')+
+        (list.length<x.items.length?'<button type="button" class="er-more" onclick="erShowAllToggle(\''+key+'\')">Show all '+x.items.length+'</button>':'')+'</div>';
+    }).join('')+'</div>';
+}
+function erRenderTable(){
+  var r=erTableRange(),mine=erMySet(),today=erTodayIso(),html='',total=0,pending=0,all=[];
+  for(var d=r.from;d<=r.to;d=erAdd(d,1)){
+    if(erDow(d)>4)continue;
+    var rows=erRowsOn(d,mine);
+    if(rows===null){pending++;continue;}
+    if(!rows.length)continue;
+    total+=rows.length;all=all.concat(rows);
+    html+=erDayBlock(d,rows,mine,today,false);
   }
-  return html+'</div>';
+  var bad=erWeeksFor('table',_erDate).some(function(m){return _erWeekErr[m]&&!_erWeeks[m];});
+  if(!total)return '<div class="er-card er-empty">'+(pending?(bad?'Couldn&rsquo;t load this range.':'Loading earnings&hellip;'):erEmptyHint().replace(/(on|for) this day/,'in this range'))+'</div>';
+  return '<div class="er-tsum">'+total+' earnings'+(pending?' so far &middot; loading more&hellip;':'')+'</div>'+erSummaryHtml(all,today)+html;
+}
+// Search ignores the selected view / date range: it looks through every day of the current quarter and leads with each
+// matching company's NEXT earnings date (or, if it has already reported this quarter, when it reported).
+function erRenderSearch(){
+  var mine=erMySet(),today=erTodayIso(),Q=erQuarter(today),q=_erSearch.toLowerCase(),hits=[],pending=0,bad=false;
+  erWeeksFor(_erView,_erDate).forEach(function(m){
+    var w=_erWeeks[m];
+    if(!w){if(_erWeekErr[m])bad=true;else pending++;return;}
+    w.rows.forEach(function(r){if(r.s.toLowerCase().indexOf(q)!==-1||(r.n||'').toLowerCase().indexOf(q)!==-1)hits.push(r);});
+  });
+  if(!hits.length)return '<div class="er-card er-empty">'+(pending?'Searching the quarter&hellip;':bad?'Couldn&rsquo;t load part of the quarter.':'No match for &ldquo;'+escHtml(_erSearch)+'&rdquo; in Q'+Q.q+' '+Q.y+' (every date searched).')+'</div>';
+  function tl(r){for(var i=0;i<ER_GROUPS.length;i++)if(ER_GROUPS[i][0]===r.t)return ER_GROUPS[i][3];return '';}
+  var by={};
+  hits.forEach(function(r){var b=by[r.s]||(by[r.s]={nx:null,last:null});if(r.d>today){if(!b.nx||r.d<b.nx.d)b.nx=r;}else if(r.d===today){if(!b.nx||b.nx.d>today||r.d<b.nx.d)b.nx=r;}else if(!b.last||r.d>b.last.d)b.last=r;});
+  function sk(b){return b.nx?'0'+b.nx.d:'1'+b.last.d;}
+  var syms=Object.keys(by).map(function(k){return by[k];}).sort(function(a,b){return sk(a)<sk(b)?-1:sk(a)>sk(b)?1:0;});
+  var sum='<div class="er-card er-tday"><div class="er-th">Next earnings date</div>'+syms.slice(0,8).map(function(b){
+    var r=b.nx||b.last,m=!!mine[r.s],res=(!b.nx||r.d<=today)?erResult(r):null;
+    var third=res?'<span class="er-res rs-'+res.k+'" title="'+escHtml(erResTitle(r,res))+'">'+ER_RES_LABEL[res.k]+(erResAmt(res)?' '+erResAmt(res):'')+'</span>':'<span class="er-cap">'+tl(r)+'</span>';
+    return '<div class="er-row er-nx'+(m?' er-mine':'')+'"><span class="er-sym">'+escHtml(r.s)+'</span>'+
+      (m?'<span class="er-star" title="In your symbols">&#9733;</span>':'<span></span>')+
+      '<span class="er-name" title="'+escHtml(r.n||'')+'">'+escHtml(r.n||'')+'</span>'+
+      '<span class="er-cap er-when" style="'+(b.nx?'':'color:var(--text3);font-weight:400')+'">'+(b.nx?'':'Reported ')+erFmt(r.d,{weekday:'short',month:'short',day:'numeric'})+(b.nx&&r.d===today?' (today)':'')+'</span>'+third+'</div>';
+  }).join('')+(syms.length>8?'<div class="er-none" style="padding:4px">+'+(syms.length-8)+' more companies &mdash; narrow the search to see each date</div>':'')+
+  (syms.some(function(b){return !b.nx;})?'<div class="er-none" style="padding:4px">&ldquo;Reported&rdquo; = already out this quarter; the next date isn&rsquo;t in this quarter&rsquo;s calendar.</div>':'')+'</div>';
+  var dates={};
+  hits.forEach(function(r){(dates[r.d]=dates[r.d]||[]).push(r);});
+  var ds=Object.keys(dates),up=ds.filter(function(d){return d>=today;}).sort(),pa=ds.filter(function(d){return d<today;}).sort().reverse();
+  var html=up.concat(pa).map(function(d){return erDayBlock(d,dates[d],mine,today,d<today);}).join('');
+  return '<div class="er-tsum">'+hits.length+' report'+(hits.length===1?'':'s')+' in Q'+Q.q+' '+Q.y+(pending?' so far &middot; searching the rest&hellip;':'')+'</div>'+sum+html;
 }
 function erRenderStatus(){
   var el=document.getElementById('er-status');if(!el)return;
@@ -30292,20 +30347,24 @@ function erRender(){
   var page=document.getElementById('page-earnings');if(!page)return;
   var Q=erQuarter(erTodayIso());
   document.getElementById('er-quarter').textContent='Q'+Q.q+' '+Q.y+' \u00b7 '+erFmt(Q.start,{month:'short',day:'numeric'})+' \u2013 '+erFmt(Q.end,{month:'short',day:'numeric'});
-  var label;
-  if(_erView==='day')label=erFmt(_erDate,{weekday:'short',month:'short',day:'numeric',year:'numeric'});
-  else if(_erView==='week'){var mon=erMon(_erDate),fri=erAdd(mon,4);label=erFmt(mon,{month:'short',day:'numeric'})+' \u2013 '+(erParse(mon).getMonth()===erParse(fri).getMonth()?erParse(fri).getDate():erFmt(fri,{month:'short',day:'numeric'}));}
+  var label,ev=erEff();
+  if(ev==='day')label=erFmt(_erDate,{weekday:'short',month:'short',day:'numeric',year:'numeric'});
+  else if(ev==='week'){var mon=erMon(_erDate),fri=erAdd(mon,4);label=erFmt(mon,{month:'short',day:'numeric'})+' \u2013 '+(erParse(mon).getMonth()===erParse(fri).getMonth()?erParse(fri).getDate():erFmt(fri,{month:'short',day:'numeric'}));}
+  else if(ev==='quarter')label='Q'+Q.q+' '+Q.y;
   else label=erFmt(_erDate,{month:'long',year:'numeric'});
-  document.getElementById('er-range').textContent=label;
-  document.getElementById('er-prev').disabled=!erCanStep(-1);
-  document.getElementById('er-next').disabled=!erCanStep(1);
-  Array.prototype.forEach.call(document.querySelectorAll('#er-view-seg button'),function(b){b.classList.toggle('on',b.dataset.v===_erView);});
+  document.getElementById('er-range').textContent=_erSearch?'Search \u00b7 Q'+Q.q+' '+Q.y:label;
+  document.getElementById('er-prev').disabled=!!_erSearch||!erCanStep(-1);
+  document.getElementById('er-next').disabled=!!_erSearch||!erCanStep(1);
+  Array.prototype.forEach.call(document.querySelectorAll('#er-view-seg button'),function(b){b.classList.toggle('on',!_erSearch&&b.dataset.v===_erView);});
+  var ss=document.getElementById('er-scope-seg');if(ss)ss.style.display=(_erView==='table'&&!_erSearch)?'':'none';
+  Array.prototype.forEach.call(document.querySelectorAll('#er-scope-seg button'),function(b){b.classList.toggle('on',b.dataset.s===_erScope);});
   Array.prototype.forEach.call(document.querySelectorAll('#er-filter-seg button'),function(b){b.classList.toggle('on',b.dataset.f===_erFilter);});
   erRenderStatus();
   var body=document.getElementById('er-body'),html;
   if(_erErrKind==='nourl')html='<div class="er-card er-empty"><b>Earnings needs your Cloud Monitor worker.</b><br>It fetches the calendar and sends the evening Telegram message. Add your Worker URL in Settings, then come back.<br><button type="button" class="btn btn-primary btn-sm" onclick="erOpenSettings()">Open Settings</button></div>';
   else if(_erErrKind==='oldworker')html='<div class="er-card er-empty"><b>Your deployed worker predates the Earnings feature.</b><br>Download the updated worker, paste it over your current one in the Cloudflare dashboard and deploy &mdash; nothing else changes (your KV data and cron stay as they are).<br><button type="button" class="btn btn-primary btn-sm" onclick="cfDownloadWorker()">Download updated worker</button></div>';
-  else html=_erView==='day'?erRenderDay():_erView==='week'?erRenderWeek():erRenderMonth();
+  else if(_erSearch)html=erRenderSearch();
+  else html=_erView==='day'?erRenderDay():_erView==='week'?erRenderWeek():erRenderTable();
   if(!_erErrKind)html+='<div class="er-foot">Dates and times come from Nasdaq&rsquo;s public earnings calendar and can still move until a company confirms. The evening Telegram message re-checks tomorrow&rsquo;s date from scratch. &#9733; = one of your symbols. For companies that have reported, Beat / Miss compares the actual EPS with the consensus estimate (within a cent = In line).</div>';
   body.innerHTML=html;
 }
@@ -30381,13 +30440,14 @@ async function erSendTest(){
 async function erInit(){
   var v=localStorage.getItem(ER_KEYS.view),f=localStorage.getItem(ER_KEYS.filter);
   if(!_erInited){
-    _erView=(v==='day'||v==='week'||v==='month')?v:'week';
+    _erView=(v==='day'||v==='week'||v==='table')?v:'week';   // a saved 'month' view (removed) falls back to Week
+    var sc=localStorage.getItem(ER_SCOPE_KEY);_erScope=(sc==='week'||sc==='month'||sc==='quarter')?sc:'month';
     _erFilter=(f==='mine'||f==='notable'||f==='all')?f:'notable';
     _erInited=true;
   }
   var Q=erQuarter(erTodayIso());
   if(!_erDate||_erDate<Q.start||_erDate>Q.end)_erDate=erTodayIso();
-  if(_erView==='day')_erDate=erSnap(_erDate);
+  if(erEff()==='day')_erDate=erSnap(_erDate);
   erLoadSettingsUi();erRender();
   await erRefreshWl();erLoadSettingsUi();
   erLoad(false);
