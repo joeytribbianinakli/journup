@@ -1420,11 +1420,14 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
       <button type="button" class="nav-section-header" onclick="toggleNavSection('market-tools')">
         <svg class="nav-section-chevron" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
         <span class="nav-section-title">Market Tools</span>
-        <span class="nav-section-count">4</span>
+        <span class="nav-section-count">5</span>
       </button>
       <div class="nav-section-collapse"><div class="nav-section-body">
         <button class="nav-item" id="nav-fxstreet" onclick="_flowActive=false;nav('fxstreet',this)">
           <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Economic calendar
+        </button>
+        <button class="nav-item" onclick="nav('earnings',this)" id="nav-earnings">
+          <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="3" y1="20" x2="21" y2="20"/></svg>Earnings
         </button>
         <button class="nav-item" onclick="nav('price-alerts',this)" id="nav-price-alerts">
           <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/><circle cx="18" cy="5" r="3" fill="var(--red)" stroke="none" id="nav-alerts-badge" style="display:none"/></svg>Price Alerts
@@ -3537,10 +3540,10 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
            Only the collapsible panels (card headers) carry an (i) info icon (.th-info, same component as the
            Trade Analytics page) saying WHICH PAGES USE it — group / sub-section titles deliberately have none. These claims are hand-written, so when you
            change what uses what, update the matching icon text here. Current facts:
-             • Telegram / Discord / Message Template   → Price Alerts page only.
+             • Telegram                                → Price Alerts + Earnings (evening digest).  Discord / Message Template → Price Alerts page only.
              • Cloud Monitor (Cloudflare Worker)       → Price Alerts (fires alerts), CAD/USD Tracker (fxDoFetch → Worker /price,
-                                                         falls back to Yahoo), Cloudinary old-image deletion (cloudinaryDeleteImage).
-             • Price Data Providers (API keys)         → Price Alerts + CAD/USD Tracker (keys go to the Worker via cmBuildConfig).
+                                                         falls back to Yahoo), Earnings (GET /earnings + evening digest cron), Cloudinary old-image deletion (cloudinaryDeleteImage).
+             • Price Data Providers (API keys)         → Price Alerts + CAD/USD Tracker (+ Earnings, Finnhub key only, as a fallback) (keys go to the Worker via cmBuildConfig).
              • Cloudinary                              → Log trade, Trade history, Notes.  AI Provider → AI Analyzer only.
              • Backup / GitHub                         → every page.
            Don't re-add outside "Used by" boxes; keep this info inside the icons. Also in the Cloud Monitor body: an (i) next to
@@ -3895,7 +3898,7 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
             <div class="pa-cloud-title">
               <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z"/></svg>
               Cloud Monitor
-              <span class="th-info" tabindex="0" onclick="event.stopPropagation()">i<span class="th-info-tip">Used by <b>Price Alerts</b> (watches prices and fires alerts while the app is closed), the <b>CAD/USD Tracker</b> (live USD/CAD rate) and <b>Cloudinary image deletion</b> (images older than ~10 min: Log trade, Trade history, Notes).</span></span><span id="cm-status-badge" class="pa-cloud-badge off">Not connected</span>
+              <span class="th-info" tabindex="0" onclick="event.stopPropagation()">i<span class="th-info-tip">Used by <b>Price Alerts</b> (watches prices and fires alerts while the app is closed), the <b>CAD/USD Tracker</b> (live USD/CAD rate), <b>Earnings</b> (calendar data and the evening Telegram alert) and <b>Cloudinary image deletion</b> (images older than ~10 min: Log trade, Trade history, Notes).</span></span><span id="cm-status-badge" class="pa-cloud-badge off">Not connected</span>
             </div>
             <svg id="cm-setup-chev" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--text3);flex-shrink:0;transition:transform .15s"><polyline points="6 9 12 15 18 9"/></svg>
           </div>
@@ -3946,7 +3949,7 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
             <div class="pa-cloud-title">
               <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
               Cloudflare Worker — Deploy Guide
-              <span class="th-info" tabindex="0" onclick="event.stopPropagation()">i<span class="th-info-tip">Reference only, nothing here is saved. How to deploy the Worker that Cloud Monitor connects to (used by Price Alerts, the <b>CAD/USD Tracker</b> and Cloudinary image deletion).</span></span><span class="pa-cloud-badge warn" style="font-size:9px;padding:1px 6px">Reference</span>
+              <span class="th-info" tabindex="0" onclick="event.stopPropagation()">i<span class="th-info-tip">Reference only, nothing here is saved. How to deploy the Worker that Cloud Monitor connects to (used by Price Alerts, the <b>CAD/USD Tracker</b>, <b>Earnings</b> and Cloudinary image deletion).</span></span><span class="pa-cloud-badge warn" style="font-size:9px;padding:1px 6px">Reference</span>
             </div>
             <svg id="cf-deploy-chev" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--text3);flex-shrink:0;transition:transform .15s"><polyline points="6 9 12 15 18 9"/></svg>
           </div>
@@ -4022,7 +4025,7 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
             <p class="pa-ptitle" style="cursor:pointer;user-select:none;margin-bottom:0;" onclick="paProviderTogglePanel()">
               <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
               Price Data Providers
-              <span class="th-info" tabindex="0" onclick="event.stopPropagation()">i<span class="th-info-tip">Used by <b>Price Alerts</b> (alert monitoring) and the <b>CAD/USD Tracker</b> (live USD/CAD rate). Keys are saved in this browser and sent to your Worker, which does the lookups. Without a Worker the CAD/USD Tracker falls back to Yahoo (no key).</span></span><span id="pa-provider-badge" class="pa-connected-badge not" style="margin-left:auto">No polling</span>
+              <span class="th-info" tabindex="0" onclick="event.stopPropagation()">i<span class="th-info-tip">Used by <b>Price Alerts</b> (alert monitoring) and the <b>CAD/USD Tracker</b> (live USD/CAD rate). Keys are saved in this browser and sent to your Worker, which does the lookups. The <b>Earnings</b> page also uses the Finnhub key as a fallback when Nasdaq&#39;s feed is unreachable (it works without any key). Without a Worker the CAD/USD Tracker falls back to Yahoo (no key).</span></span><span id="pa-provider-badge" class="pa-connected-badge not" style="margin-left:auto">No polling</span>
               <svg id="pa-provider-panel-chevron" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transition:transform .2s;margin-left:6px;flex-shrink:0"><polyline points="6 9 12 15 18 9"/></svg>
             </p>
             <div id="pa-provider-panel-body" style="display:none;margin-top:14px;">
@@ -4311,7 +4314,7 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
             <p class="pa-ptitle" style="cursor:pointer;user-select:none;margin-bottom:0;" onclick="paTgTogglePanel()">
               <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.198 2.433a2.242 2.242 0 00-1.022.215l-16.5 7.5a2.25 2.25 0 00.068 4.14l4.204 1.582 1.584 4.87a.75.75 0 001.426-.024l1.059-4.232 5.982 5.982a2.25 2.25 0 003.584-1.022L23.767 4.5a2.25 2.25 0 00-2.569-2.067z"/></svg>
               Telegram Notifications
-              <span class="th-info" tabindex="0" onclick="event.stopPropagation()">i<span class="th-info-tip">Used by the <b>Price Alerts</b> page only. Triggered alerts are sent to this Telegram chat.</span></span><span id="pa-tg-badge" class="pa-cloud-badge off" style="margin-left:auto">Not configured</span>
+              <span class="th-info" tabindex="0" onclick="event.stopPropagation()">i<span class="th-info-tip">Used by <b>Price Alerts</b> (triggered alerts) and <b>Earnings</b> (the evening digest). Both are sent to this Telegram chat.</span></span><span id="pa-tg-badge" class="pa-cloud-badge off" style="margin-left:auto">Not configured</span>
               <svg id="pa-tg-panel-chevron" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transition:transform .2s;margin-left:6px;flex-shrink:0"><polyline points="6 9 12 15 18 9"/></svg>
             </p>
             <div id="pa-tg-panel-body" style="display:none;margin-top:14px;">
@@ -5461,6 +5464,162 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
         </div>
       </div>
     </div><!-- /page-watchlist -->
+    <!-- EARNINGS -->
+    <div class="page" id="page-earnings">
+      <style>
+      #page-earnings .er-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:10px;}
+      #page-earnings .er-spacer{flex:1;min-width:8px;}
+      #page-earnings .er-seg{display:inline-flex;border:1px solid var(--border2);border-radius:var(--radius);overflow:hidden;background:var(--bg3);}
+      #page-earnings .er-seg button{border:none;background:none;color:var(--text2);font-family:'DM Sans',sans-serif;font-size:11px;font-weight:600;padding:6px 12px;cursor:pointer;transition:background .12s,color .12s;}
+      #page-earnings .er-seg button+button{border-left:1px solid var(--border2);}
+      #page-earnings .er-seg button:hover{background:var(--bg4);color:var(--text);}
+      #page-earnings .er-seg button.on{background:var(--accent);color:#fff;}
+      #page-earnings .er-nav{display:inline-flex;align-items:center;gap:6px;}
+      #page-earnings .er-nav .btn[disabled]{opacity:.35;cursor:default;}
+      #page-earnings .er-range{font-size:13px;font-weight:700;color:var(--text);min-width:150px;text-align:center;}
+      #page-earnings .er-q{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);font-family:'DM Mono',monospace;}
+      #page-earnings .er-search{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;padding:6px 10px;outline:none;width:170px;}
+      #page-earnings .er-search:focus{border-color:var(--accent);}
+      #page-earnings .er-status{font-size:11px;color:var(--text3);margin-bottom:10px;min-height:16px;display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;}
+      #page-earnings .er-status .er-warn{color:var(--amber);}
+      #page-earnings .er-status .er-bad{color:var(--red);}
+      #page-earnings .er-status a{color:var(--accent);cursor:pointer;text-decoration:none;}
+      #page-earnings .er-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px 16px;}
+      #page-earnings .er-empty{padding:26px 16px;text-align:center;color:var(--text3);font-size:12px;line-height:1.6;}
+      #page-earnings .er-empty b{color:var(--text2);}
+      #page-earnings .er-empty .btn{margin-top:10px;}
+      #page-earnings .er-strip{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:12px;}
+      #page-earnings .er-chip{display:flex;flex-direction:column;align-items:center;gap:2px;padding:7px 4px;border-radius:var(--radius);border:1px solid var(--border);background:var(--bg3);color:var(--text2);font-family:'DM Sans',sans-serif;font-size:11px;font-weight:600;cursor:pointer;transition:all .12s;}
+      #page-earnings .er-chip b{font-family:'DM Mono',monospace;font-size:13px;color:var(--text);}
+      #page-earnings .er-chip:hover{border-color:var(--border2);background:var(--bg4);}
+      #page-earnings .er-chip.on{border-color:var(--accent);background:rgba(77,127,255,.1);color:var(--accent);}
+      #page-earnings .er-chip.on b{color:var(--accent);}
+      #page-earnings .er-chip.today span::after{content:' ·';color:var(--green);}
+      #page-earnings .er-grp{margin-bottom:14px;}
+      #page-earnings .er-grp:last-child{margin-bottom:0;}
+      #page-earnings .er-gh{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:700;color:var(--text2);margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid var(--border);}
+      #page-earnings .er-gh .er-n{margin-left:auto;font-family:'DM Mono',monospace;font-size:10px;color:var(--text3);}
+      #page-earnings .er-row{display:grid;grid-template-columns:78px 14px minmax(0,1fr) 70px 78px;align-items:center;gap:8px;padding:5px 4px;font-size:12px;border-radius:4px;}
+      #page-earnings .er-row:hover{background:var(--bg3);}
+      #page-earnings .er-sym{font-family:'DM Mono',monospace;font-weight:700;color:var(--text);}
+      #page-earnings .er-star{color:var(--amber);font-size:11px;line-height:1;}
+      #page-earnings .er-name{color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+      #page-earnings .er-cap,#page-earnings .er-eps{font-family:'DM Mono',monospace;font-size:11px;color:var(--text3);text-align:right;white-space:nowrap;}
+      #page-earnings .er-row.er-mine .er-sym{color:var(--amber);}
+      #page-earnings .er-more{display:block;width:100%;margin-top:6px;padding:6px;border:1px dashed var(--border2);border-radius:var(--radius);background:none;color:var(--text3);font-family:'DM Sans',sans-serif;font-size:11px;font-weight:600;cursor:pointer;}
+      #page-earnings .er-more:hover{color:var(--accent);border-color:var(--accent);}
+      #page-earnings .er-week{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;align-items:start;}
+      #page-earnings .er-col{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:10px;min-height:120px;}
+      #page-earnings .er-col.er-today{border-color:var(--green);}
+      #page-earnings .er-col.er-past{opacity:.7;}
+      #page-earnings .er-ch{display:flex;align-items:baseline;gap:6px;margin-bottom:8px;cursor:pointer;}
+      #page-earnings .er-ch strong{font-size:12px;color:var(--text);}
+      #page-earnings .er-ch span{font-size:10px;color:var(--text3);}
+      #page-earnings .er-ch em{margin-left:auto;font-style:normal;font-family:'DM Mono',monospace;font-size:11px;font-weight:700;color:var(--text2);}
+      #page-earnings .er-col .er-grp{margin-bottom:8px;}
+      #page-earnings .er-col .er-gh{font-size:9px;letter-spacing:.06em;text-transform:uppercase;padding-bottom:4px;margin-bottom:4px;}
+      #page-earnings .er-mini{display:flex;align-items:center;gap:5px;padding:2px 2px;font-size:11px;}
+      #page-earnings .er-mini .er-sym{font-size:11px;}
+      #page-earnings .er-mini .er-cap{margin-left:auto;font-size:10px;}
+      #page-earnings .er-none{font-size:11px;color:var(--text3);font-style:italic;}
+      #page-earnings .er-month{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;}
+      #page-earnings .er-mhd{font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);text-align:center;padding-bottom:2px;}
+      #page-earnings .er-cell{min-height:92px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:7px 8px;cursor:pointer;transition:border-color .12s,background .12s;display:flex;flex-direction:column;gap:4px;}
+      #page-earnings .er-cell:hover{border-color:var(--accent);background:var(--bg3);}
+      #page-earnings .er-cell.er-off{background:none;border-style:dashed;border-color:transparent;cursor:default;}
+      #page-earnings .er-cell.er-today{border-color:var(--green);}
+      #page-earnings .er-cell.er-past{opacity:.65;}
+      #page-earnings .er-cd{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:var(--text2);}
+      #page-earnings .er-cd .er-cnt{margin-left:auto;font-family:'DM Mono',monospace;font-size:10px;color:var(--text3);}
+      #page-earnings .er-ct{font-family:'DM Mono',monospace;font-size:10px;color:var(--text2);line-height:1.5;word-break:break-word;}
+      #page-earnings .er-ct i{font-style:normal;color:var(--amber);font-weight:700;}
+      #page-earnings .er-ct u{text-decoration:none;color:var(--text3);}
+      #page-earnings .er-foot{font-size:10px;color:var(--text3);margin-top:12px;line-height:1.6;}
+      #page-earnings details.er-panel{margin-top:16px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);}
+      #page-earnings details.er-panel>summary{cursor:pointer;list-style:none;padding:12px 16px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);}
+      #page-earnings details.er-panel>summary::-webkit-details-marker{display:none;}
+      #page-earnings details.er-panel[open]>summary{border-bottom:1px solid var(--border);color:var(--text2);}
+      #page-earnings .er-pbody{padding:14px 16px;}
+      #page-earnings .er-set{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;}
+      #page-earnings .er-field label.er-lbl{display:block;font-size:10px;font-weight:600;color:var(--text3);margin-bottom:6px;letter-spacing:.04em;}
+      #page-earnings .er-field input[type=text],#page-earnings .er-field input[type=time],#page-earnings .er-field select{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;padding:6px 10px;outline:none;box-sizing:border-box;}
+      #page-earnings .er-field input[type=text]{width:100%;margin-top:6px;}
+      #page-earnings .er-field input:focus,#page-earnings .er-field select:focus{border-color:var(--accent);}
+      #page-earnings .er-check{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text2);margin-bottom:7px;cursor:pointer;}
+      #page-earnings .er-inline{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text2);margin:2px 0 9px;}
+      #page-earnings .er-actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:14px;padding-top:14px;border-top:1px solid var(--border);}
+      #page-earnings .er-tgstate{font-size:11px;color:var(--text3);}
+      #page-earnings .er-note{font-size:10px;color:var(--text3);margin-top:10px;line-height:1.6;}
+      @media(max-width:900px){
+        #page-earnings .er-week{grid-template-columns:1fr;}
+        #page-earnings .er-row{grid-template-columns:64px 12px minmax(0,1fr) 62px;}
+        #page-earnings .er-row .er-eps{display:none;}
+        #page-earnings .er-search{width:100%;order:9;}
+        #page-earnings .er-spacer{display:none;}
+      }
+      @media(max-width:600px){
+        #page-earnings .er-month{gap:3px;}
+        #page-earnings .er-cell{min-height:64px;padding:5px;}
+        #page-earnings .er-ct{display:none;}
+        #page-earnings .er-range{min-width:0;}
+      }
+      </style>
+
+      <div class="er-bar">
+        <div class="er-seg" id="er-view-seg">
+          <button type="button" data-v="day" onclick="erSetView('day')">Day</button>
+          <button type="button" data-v="week" onclick="erSetView('week')">Week</button>
+          <button type="button" data-v="month" onclick="erSetView('month')">Month</button>
+        </div>
+        <div class="er-nav">
+          <button type="button" class="btn btn-sm" id="er-prev" onclick="erStep(-1)" aria-label="Previous">&#8249;</button>
+          <div class="er-range" id="er-range">&mdash;</div>
+          <button type="button" class="btn btn-sm" id="er-next" onclick="erStep(1)" aria-label="Next">&#8250;</button>
+          <button type="button" class="btn btn-sm" onclick="erGoToday()">Today</button>
+        </div>
+        <span class="er-q" id="er-quarter"></span>
+        <div class="er-spacer"></div>
+        <div class="er-seg" id="er-filter-seg">
+          <button type="button" data-f="mine" onclick="erSetFilter('mine')" title="Only the symbols you follow">My symbols</button>
+          <button type="button" data-f="notable" onclick="erSetFilter('notable')" title="Your symbols plus large companies">Notable</button>
+          <button type="button" data-f="all" onclick="erSetFilter('all')" title="Every reporting company">All</button>
+        </div>
+        <input type="search" class="er-search" id="er-search" placeholder="Search ticker or name" oninput="erOnSearch(this.value)" autocomplete="off">
+        <button type="button" class="btn btn-sm" id="er-refresh-btn" onclick="erRefresh()">Refresh</button>
+      </div>
+      <div class="er-status" id="er-status"></div>
+      <div id="er-body"></div>
+
+      <details class="er-panel" id="er-settings">
+        <summary>Settings &middot; Telegram evening alert</summary>
+        <div class="er-pbody">
+          <div class="er-set">
+            <div class="er-field">
+              <label class="er-lbl">YOUR SYMBOLS</label>
+              <label class="er-check"><input type="checkbox" id="er-use-wl" onchange="erSaveSettings()"> Include stocks from my Watchlists <span id="er-wl-count" style="color:var(--text3)"></span></label>
+              <input type="text" id="er-custom" placeholder="Extra tickers, e.g. NVDA, TSLA, BRK.B" onchange="erSaveSettings()" autocomplete="off">
+            </div>
+            <div class="er-field">
+              <label class="er-lbl">&ldquo;NOTABLE&rdquo; MEANS A MARKET CAP OF AT LEAST</label>
+              <select id="er-mincap" onchange="erSaveSettings()">
+                <option value="5">$5B</option><option value="10">$10B</option><option value="25">$25B</option><option value="50">$50B</option><option value="100">$100B</option>
+              </select>
+            </div>
+            <div class="er-field">
+              <label class="er-lbl">TELEGRAM ALERT</label>
+              <label class="er-check"><input type="checkbox" id="er-tg-on" onchange="erSaveSettings()"> Send tomorrow&rsquo;s earnings each evening (Sun&ndash;Thu)</label>
+              <div class="er-inline"><span>at</span><input type="time" id="er-tg-time" onchange="erSaveSettings()"><span>Eastern</span></div>
+              <label class="er-check"><input type="checkbox" id="er-tg-notable" onchange="erSaveSettings()"> Include notable names, not just my symbols</label>
+            </div>
+          </div>
+          <div class="er-actions">
+            <button type="button" class="btn btn-primary btn-sm" id="er-test-btn" onclick="erSendTest()">Send tomorrow&rsquo;s earnings now</button>
+            <span class="er-tgstate" id="er-tgstate"></span>
+          </div>
+          <div class="er-note">The alert runs on your Cloud Monitor worker, so it arrives even when this page is closed. Pre-market / after-close timing comes from the data source; companies that haven&rsquo;t confirmed a time are listed as &ldquo;Time not confirmed&rdquo;. Your watchlist symbols are sent to the worker automatically whenever they change.</div>
+        </div>
+      </details>
+    </div><!-- /page-earnings -->
     <!-- NOTES -->
     <div class="page" id="page-notes">
       <style>
@@ -10021,7 +10180,7 @@ async function populateSessionSelects(restoreSessionId){
   updateFilterSessionSummary('edg-session-filter','edg-filter-summary','edg-skipped-filter');
 }
 // ══ Navigation ════════════════════════════════════
-var pageMap={'pre-checklist':{title:'Pre-trade checklist',sub:'Calendar → Checklist → Calculator → Log trade'},dashboard:{title:'Dashboard',sub:'Overview of your trading performance'},log:{title:'Log trade',sub:'Record a new trade entry'},history:{title:'Trade history',sub:'Browse and filter all your trades'},sessions:{title:'Sessions',sub:'Manage your trading session periods'},'checklist-editor':{title:'Checklist editor',sub:'Edit checklist items globally'},backup:{title:'Settings',sub:'Backup, sync, integrations and AI configuration'},montecarlo:{title:'Monte Carlo',sub:'Simulate future equity paths from historical trade data'},calculator:{title:'Position Size Calculator',sub:'Forex · Crypto · Gold · Stocks · Indices'},calendar:{title:'Calendar view',sub:'Visual trade activity by day, week and year'},'ai-analyzer':{title:'AI Trade Analyzer',sub:'Intelligent session review powered by AI'},'price-alerts':{title:'Price Alerts',sub:'Get notified on your phone when a price target is hit'},'watchlist':{title:'Watchlist',sub:'Track assets you\'re keeping an eye on'},fxstreet:{title:'Economic calendar',sub:'ForexFactory calendar — check before trading'},'trade-analytics':{title:'Trade Analytics',sub:'Ratings, error types, direction & entry-time performance'},edge:{title:'Edge Analyzer',sub:'Is there a statistically real edge in your logged trades?'},'fx-tracker':{title:'USD/CAD Tracker',sub:'Track your CAD→USD conversions and currency gains/losses'},'notes':{title:'Notes',sub:'Todos, reminders and things to remember — your personal sticky-note board'}};;
+var pageMap={'pre-checklist':{title:'Pre-trade checklist',sub:'Calendar → Checklist → Calculator → Log trade'},dashboard:{title:'Dashboard',sub:'Overview of your trading performance'},log:{title:'Log trade',sub:'Record a new trade entry'},history:{title:'Trade history',sub:'Browse and filter all your trades'},sessions:{title:'Sessions',sub:'Manage your trading session periods'},'checklist-editor':{title:'Checklist editor',sub:'Edit checklist items globally'},backup:{title:'Settings',sub:'Backup, sync, integrations and AI configuration'},montecarlo:{title:'Monte Carlo',sub:'Simulate future equity paths from historical trade data'},calculator:{title:'Position Size Calculator',sub:'Forex · Crypto · Gold · Stocks · Indices'},calendar:{title:'Calendar view',sub:'Visual trade activity by day, week and year'},'ai-analyzer':{title:'AI Trade Analyzer',sub:'Intelligent session review powered by AI'},'price-alerts':{title:'Price Alerts',sub:'Get notified on your phone when a price target is hit'},'watchlist':{title:'Watchlist',sub:'Track assets you\'re keeping an eye on'},fxstreet:{title:'Economic calendar',sub:'ForexFactory calendar — check before trading'},'trade-analytics':{title:'Trade Analytics',sub:'Ratings, error types, direction & entry-time performance'},edge:{title:'Edge Analyzer',sub:'Is there a statistically real edge in your logged trades?'},'fx-tracker':{title:'USD/CAD Tracker',sub:'Track your CAD→USD conversions and currency gains/losses'},earnings:{title:'Earnings',sub:'Earnings calendar for the current quarter — by day, week and month'},'notes':{title:'Notes',sub:'Todos, reminders and things to remember — your personal sticky-note board'}};;
 var _currentPage='dashboard';
 function nav(id,btn){
   // Reset log form when navigating away — but preserve it if going back to calc within the flow
@@ -26771,7 +26930,7 @@ function cmBuildConfig(){
   var knownCrypto = ['BTC','ETH','BNB','SOL','XRP','ADA','DOGE','AVAX','DOT','MATIC','LTC','LINK','UNI','ATOM','TRX','TON','SHIB'];
   var commodities = ['XAUUSD','XAGUSD','GOLD','SILVER','OIL','CRUDE','WTI','BRENT','NATGAS','CORN','WHEAT'];
   var indices     = ['US30','US500','SP500','SPX','NAS100','NASDAQ','DAX','UK100','GDAXI','YM=F','ES=F','NQ=F'];
-  return {
+  var _cmCfg = {
     telegramToken:   localStorage.getItem('tj-pa-tg-token')      || '',
     telegramChatId:  localStorage.getItem('tj-pa-tg-chatid')     || '',
     discordWebhook:  discord,
@@ -26802,6 +26961,9 @@ function cmBuildConfig(){
     // Auto-delete: server-side cleanup runs even when the app/browser is closed
     deleteHours:     parseInt(localStorage.getItem('tj-pa-delete-days') || '0', 10),
   };
+  // Earnings page: digest settings the worker's cron needs (symbols, send time, market-cap floor)
+  if(typeof erWorkerConfig === 'function') Object.assign(_cmCfg, erWorkerConfig());
+  return _cmCfg;
 }
 // ── Cloud connection checks ──────────────────────────────────────
 // cmHasUrl()      — is a worker URL saved at all? Used internally to decide
@@ -27926,6 +28088,17 @@ function cfDownloadWorker(){
  *   The cron bumps the token whenever it fires/removes an alert, and re-reads
  *   the list right before writing so it only applies its own changes.
  *
+ * Earnings calendar (free — Nasdaq's public feed, optional Finnhub fallback; no AI):
+ *   GET  /earnings?from=YYYY-MM-DD&to=YYYY-MM-DD[&force=1]   max 14 days per call
+ *        -> { from, to, src:[...], updated, stale, errors:[...], rows:[{s,n,d,t,c,e,q}] }
+ *        t = 'bmo' (before open) | 'amc' (after close) | 'dmh' (during hours) | '' (not confirmed)
+ *   GET  /earnings/status   -> digest settings + last send state
+ *   POST /earnings/notify   body { date? } sends the digest now (test); date defaults to the next weekday
+ *   Config keys pushed from the page: earningsEnabled, earningsSendTime ('HH:MM' US Eastern),
+ *   earningsSymbols, earningsMinCapB, earningsOnlyMine. The cron sends the digest once each Sun–Thu
+ *   evening after earningsSendTime (so "tomorrow" is always a weekday). KV keys: 'earn:wk:<monday>'
+ *   (weekly cache), 'earnings_notify' (last-send state, prevents duplicates).
+ *
  * SYNC NOTE (for Claude/agents): this file is duplicated verbatim inside the
  * \`cfDownloadWorker()\` template string in trading_journal.html. Any change
  * here MUST be mirrored there so the two stay an exact copy.
@@ -28113,6 +28286,38 @@ async function handleRequest(request) {
       return jsonRes({ ok: false, error: e.message }, 500, origin);
     }
   }
+  if (path === '/earnings' && method === 'GET') {
+    try { return await earnHandleRange(url, origin); }
+    catch(e) { return jsonRes({ error: e.message }, 500, origin); }
+  }
+  if (path === '/earnings/status' && method === 'GET') {
+    var esRaw = await JOURNUP_KV.get('earnings_notify');
+    var esCfgRaw = await JOURNUP_KV.get('config');
+    var esCfg = esCfgRaw ? JSON.parse(esCfgRaw) : {};
+    return jsonRes({
+      configured: !!esCfgRaw,
+      enabled: esCfg.earningsEnabled === true,
+      telegram: !!(esCfg.telegramToken && esCfg.telegramChatId),
+      sendTime: esCfg.earningsSendTime || '18:00',
+      symbols: Object.keys(earnSymSet(esCfg.earningsSymbols)).length,
+      last: esRaw ? JSON.parse(esRaw) : null
+    }, 200, origin);
+  }
+  if (path === '/earnings/notify' && method === 'POST') {
+    var enBody = await request.json().catch(function() { return {}; });
+    var enCfgRaw = await JOURNUP_KV.get('config');
+    if (!enCfgRaw) return jsonRes({ error: 'Not configured — save settings from the page first' }, 400, origin);
+    var enCfg = JSON.parse(enCfgRaw);
+    if (!enCfg.telegramToken || !enCfg.telegramChatId) return jsonRes({ error: 'Telegram is not set up' }, 400, origin);
+    var enTarget = (enBody && earnParse(enBody.date)) ? enBody.date : earnNextWeekday(earnEtNow().date);
+    try {
+      var enRes = await earnSendDigest(enCfg, enTarget);
+      if (!enRes.ok) return jsonRes({ error: 'Telegram did not accept the message', target: enTarget }, 502, origin);
+      return jsonRes({ ok: true, target: enTarget, messages: enRes.sent, count: enRes.count, src: enRes.src }, 200, origin);
+    } catch(e) {
+      return jsonRes({ error: e.message, target: enTarget }, 502, origin);
+    }
+  }
   return jsonRes({ error: 'Not found' }, 404, origin);
 }
 
@@ -28120,6 +28325,8 @@ async function paCheckAll() {
   var cfgRaw = await JOURNUP_KV.get('config');
   if (!cfgRaw) return;
   var cfg = JSON.parse(cfgRaw);
+  // Evening earnings digest (own state in KV; errors here must never block price alerts).
+  try { await earnNotifyIfDue(cfg); } catch(e) {}
   // Poll interval is controlled entirely by the Cloudflare cron trigger
   // in the dashboard — no throttle guard needed here.
   var alertsRaw = await JOURNUP_KV.get('alerts');
@@ -28615,6 +28822,309 @@ async function sendTelegramDelete(messageId, cfg) {
   });
   var d = await r.json().catch(function(){ return {}; });
   return !!d.ok;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Earnings calendar — free, keyless, no AI. Plain API data + deterministic code.
+// ─────────────────────────────────────────────────────────────────────────────
+// Row shape (compact so a busy earnings week stays small in KV):
+//   { s:'AAPL', n:'Apple Inc.', d:'2026-10-29', t:'bmo'|'amc'|'dmh'|'', c:<market cap USD>|null, e:<EPS estimate>|null, q:'Sep/2026' }
+//   t: bmo = before market open, amc = after market close, dmh = during market hours, '' = time not confirmed.
+// Sources, in order: (1) Nasdaq's public earnings calendar feed — no key, has market cap and
+// pre/post-market timing, one request per day; (2) Finnhub /calendar/earnings, only if a Finnhub
+// key is saved (free tier) — used when Nasdaq is unreachable. Finnhub has no market cap, so with
+// that fallback only "your symbols" can be told apart from the rest.
+// Weeks (Mon–Sun) are cached in KV as 'earn:wk:<monday>' so the page and the evening digest stay
+// well inside the free-plan subrequest limit (see EARN_MAX_SPAN_DAYS).
+
+var EARN_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+var EARN_DAY_MS = 86400000;
+var EARN_MAX_SPAN_DAYS = 14;   // GET /earnings range cap: ≤3 weeks → ≤15 day-fetches + a few KV ops, under the free plan's 50 subrequests
+var EARN_WEEK_TTL_SEC = 90 * 86400;
+
+function earnPad(n) { return (n < 10 ? '0' : '') + n; }
+function earnIso(d) { return d.getUTCFullYear() + '-' + earnPad(d.getUTCMonth() + 1) + '-' + earnPad(d.getUTCDate()); }
+// 'YYYY-MM-DD' → Date at 00:00 UTC, or null for anything that isn't a real calendar date (e.g. 2026-02-31).
+function earnParse(iso) {
+  var m = /^(\\d{4})-(\\d{2})-(\\d{2})$/.exec(iso || '');
+  if (!m) return null;
+  var d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+  return earnIso(d) === iso ? d : null;
+}
+function earnAddDays(iso, n) { var d = earnParse(iso); d.setUTCDate(d.getUTCDate() + n); return earnIso(d); }
+function earnDow(iso) { return earnParse(iso).getUTCDay(); } // 0 = Sun … 6 = Sat
+function earnMonday(iso) { var d = earnParse(iso); d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7)); return earnIso(d); }
+function earnNextWeekday(iso) { var n = earnAddDays(iso, 1); while (earnDow(n) === 0 || earnDow(n) === 6) n = earnAddDays(n, 1); return n; }
+// Tickers are compared in one normalised form: upper-case, BRK-B / BRK/B → BRK.B
+function earnSym(s) {
+  s = String(s || '').trim().toUpperCase().replace(/[\\/\\-]/g, '.');
+  return /^[A-Z0-9][A-Z0-9.]{0,9}$/.test(s) ? s : '';
+}
+function earnSymSet(arr) {
+  var o = {};
+  (Array.isArray(arr) ? arr : []).forEach(function(x) { var s = earnSym(x); if (s) o[s] = true; });
+  return o;
+}
+// "$3,010,000,000" → 3010000000 · "$(0.12)" / "-0.12" → -0.12 · "N/A" / "" / null → null
+function earnNum(v) {
+  if (v === null || v === undefined) return null;
+  if (typeof v === 'number') return isFinite(v) ? v : null;
+  var s = String(v).trim();
+  if (!s) return null;
+  var neg = s.indexOf('(') !== -1 || s.charAt(0) === '-';
+  var n = parseFloat(s.replace(/[^0-9.]/g, ''));
+  if (isNaN(n)) return null;
+  return neg ? -n : n;
+}
+
+// fetch + JSON parse under one timeout, so a hung upstream can't stall the whole request
+async function earnFetchJson(url, headers, ms) {
+  var ctl = new AbortController();
+  var timer = setTimeout(function() { ctl.abort(); }, ms || 9000);
+  try {
+    var r = await fetch(url, { headers: headers || {}, signal: ctl.signal });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return await r.json();
+  } finally { clearTimeout(timer); }
+}
+function earnErrText(e) { return e && e.name === 'AbortError' ? 'timed out' : (e && e.message) || 'failed'; }
+
+function earnNasdaqTime(t) {
+  t = String(t || '').toLowerCase();
+  if (t.indexOf('pre') !== -1) return 'bmo';      // time-pre-market
+  if (t.indexOf('after') !== -1) return 'amc';    // time-after-hours
+  return '';                                      // time-not-supplied
+}
+async function earnNasdaqDay(iso) {
+  var hdr = { 'User-Agent': EARN_UA, 'Accept': 'application/json, text/plain, */*', 'Accept-Language': 'en-US,en;q=0.9', 'Origin': 'https://www.nasdaq.com', 'Referer': 'https://www.nasdaq.com/' };
+  var d = null, lastErr = null;
+  for (var attempt = 0; attempt < 2 && d === null; attempt++) {
+    try { d = await earnFetchJson('https://api.nasdaq.com/api/calendar/earnings?date=' + iso, hdr, 9000); }
+    catch (e) { lastErr = e; }
+  }
+  if (d === null) throw new Error('Nasdaq ' + earnErrText(lastErr));
+  var okStatus = !!(d && d.status && d.status.rCode === 200);
+  if (!d || (!d.data && !okStatus)) throw new Error('Nasdaq: unexpected response');
+  var rows = (d.data && d.data.rows) || [];     // a day with no reports comes back as rows: null
+  var out = [];
+  for (var i = 0; i < rows.length; i++) {
+    var x = rows[i], sym = earnSym(x.symbol);
+    if (!sym) continue;
+    out.push({ s: sym, n: x.name || '', d: iso, t: earnNasdaqTime(x.time), c: earnNum(x.marketCap), e: earnNum(x.epsForecast), q: x.fiscalQuarterEnding || '' });
+  }
+  return out;
+}
+async function earnFinnhubRange(from, to, key) {
+  var d;
+  try { d = await earnFetchJson('https://finnhub.io/api/v1/calendar/earnings?from=' + from + '&to=' + to + '&token=' + encodeURIComponent(key), {}, 12000); }
+  catch (e) { throw new Error('Finnhub ' + earnErrText(e)); }
+  var list = d && d.earningsCalendar;
+  if (!Array.isArray(list)) throw new Error('Finnhub: unexpected response');
+  var out = [];
+  for (var i = 0; i < list.length; i++) {
+    var x = list[i], sym = earnSym(x.symbol);
+    if (!sym || !earnParse(x.date)) continue;
+    var h = String(x.hour || '').toLowerCase();
+    out.push({ s: sym, n: '', d: x.date, t: (h === 'bmo' || h === 'amc' || h === 'dmh') ? h : '', c: null, e: earnNum(x.epsEstimate), q: (x.quarter && x.year) ? ('Q' + x.quarter + ' ' + x.year) : '' });
+  }
+  return out;
+}
+
+// A cached week is "final" once it was fetched after the week ended; before that it expires on a
+// schedule that tightens as the week approaches (24h → 6h → 3h) so near-term dates stay accurate.
+function earnStale(monday, t, now) {
+  var start = Date.parse(monday + 'T00:00:00Z'), end = start + 7 * EARN_DAY_MS;
+  if (t >= end) return false;
+  var age = now - t;
+  if (now >= end) return true;
+  if (now >= start - EARN_DAY_MS) return age > 3 * 3600000;
+  return age > ((start - now) < 14 * EARN_DAY_MS ? 6 : 24) * 3600000;
+}
+async function earnFetchWeek(monday, cfg) {
+  var err = null, i;
+  try {
+    var days = [];
+    for (i = 0; i < 5; i++) days.push(earnAddDays(monday, i));
+    var first = await earnNasdaqDay(days[0]);                     // probe one day first: if Nasdaq is blocking us, fail fast
+    var rest = await Promise.all(days.slice(1).map(earnNasdaqDay));
+    var rows = first;
+    rest.forEach(function(r) { rows = rows.concat(r); });
+    return { src: 'nasdaq', rows: rows };
+  } catch (e) { err = e; }
+  if (cfg && cfg.finnhubKey) {
+    try { return { src: 'finnhub', rows: await earnFinnhubRange(monday, earnAddDays(monday, 6), cfg.finnhubKey) }; }
+    catch (e2) { err = new Error(err.message + ' · ' + e2.message); }
+  }
+  throw err;
+}
+async function earnLoadWeek(monday, cfg, force) {
+  var key = 'earn:wk:' + monday, now = Date.now(), cached = null;
+  var raw = await JOURNUP_KV.get(key);
+  if (raw) { try { cached = JSON.parse(raw); } catch (e) { cached = null; } }
+  if (cached) {
+    var fresh = !earnStale(monday, cached.t, now);
+    // a manual refresh is honoured at most once every 2 minutes per week (protects the upstream feeds)
+    if (fresh && !(force && now - cached.t > 120000)) return cached;
+  }
+  try {
+    var w = await earnFetchWeek(monday, cfg);
+    w.t = now;
+    await JOURNUP_KV.put(key, JSON.stringify(w), { expirationTtl: EARN_WEEK_TTL_SEC });
+    return w;
+  } catch (e) {
+    if (cached) { cached.stale = true; cached.error = e.message; return cached; }  // better an old answer than none
+    throw e;
+  }
+}
+
+// GET /earnings?from=YYYY-MM-DD&to=YYYY-MM-DD[&force=1]
+async function earnHandleRange(url, origin) {
+  var from = url.searchParams.get('from'), to = url.searchParams.get('to');
+  if (!earnParse(from) || !earnParse(to) || to < from) return jsonRes({ error: 'Expected from=YYYY-MM-DD&to=YYYY-MM-DD' }, 400, origin);
+  if ((earnParse(to) - earnParse(from)) / EARN_DAY_MS >= EARN_MAX_SPAN_DAYS) return jsonRes({ error: 'Range too large (max ' + EARN_MAX_SPAN_DAYS + ' days) — request one week at a time' }, 400, origin);
+  var cfgRaw = await JOURNUP_KV.get('config');
+  var cfg = cfgRaw ? JSON.parse(cfgRaw) : {};
+  var force = url.searchParams.get('force') === '1';
+  var rows = [], srcs = [], errors = [], updated = null, stale = false, any = false;
+  for (var mon = earnMonday(from); mon <= to; mon = earnAddDays(mon, 7)) {
+    try {
+      var w = await earnLoadWeek(mon, cfg, force);
+      any = true;
+      if (srcs.indexOf(w.src) === -1) srcs.push(w.src);
+      if (updated === null || w.t < updated) updated = w.t;
+      if (w.stale) { stale = true; errors.push({ week: mon, error: w.error }); }
+      for (var i = 0; i < w.rows.length; i++) if (w.rows[i].d >= from && w.rows[i].d <= to) rows.push(w.rows[i]);
+    } catch (e) { errors.push({ week: mon, error: e.message }); }
+  }
+  if (!any) return jsonRes({ error: errors.length ? errors[0].error : 'No earnings source available', errors: errors }, 502, origin);
+  return jsonRes({ from: from, to: to, src: srcs, updated: updated, stale: stale, errors: errors, rows: rows }, 200, origin);
+}
+
+// ── Evening digest ───────────────────────────────────────────────────────────
+// Config keys pushed from the page: earningsEnabled, earningsSendTime ('HH:MM', US Eastern),
+// earningsSymbols (array), earningsMinCapB (market-cap floor in $B for "notable" names),
+// earningsOnlyMine (true = only your symbols).
+function earnEtNow() {
+  var p = etParts(new Date(), { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', weekday: 'short' });
+  return { date: p.year + '-' + p.month + '-' + p.day, hour: +p.hour, minute: +p.minute, dow: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(p.weekday) };
+}
+function earnParseHM(s, def) {
+  var m = /^(\\d{1,2}):(\\d{2})$/.exec(String(s || ''));
+  if (!m) return def;
+  var h = +m[1], mi = +m[2];
+  return (h < 24 && mi < 60) ? h * 60 + mi : def;
+}
+function earnEsc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function earnCapText(c) {
+  if (c === null || c === undefined) return '';
+  var v, u;
+  if (c >= 1e12) { v = c / 1e12; u = 'T'; } else if (c >= 1e9) { v = c / 1e9; u = 'B'; } else { v = c / 1e6; u = 'M'; }
+  var s = (v >= 100 || u === 'M') ? Math.round(v).toString() : v.toFixed(1);
+  if (s.slice(-2) === '.0') s = s.slice(0, -2);
+  return '$' + s + u;
+}
+function earnSortRows(rows) {
+  return rows.slice().sort(function(a, b) {
+    var ac = a.c === null ? -1 : a.c, bc = b.c === null ? -1 : b.c;
+    return (bc - ac) || (a.s < b.s ? -1 : a.s > b.s ? 1 : 0);
+  });
+}
+function earnLine(r) {
+  var bits = [];
+  var cap = earnCapText(r.c);
+  if (cap) bits.push(cap);
+  if (r.e !== null && r.e !== undefined) bits.push('EPS est ' + (r.e < 0 ? '-$' + Math.abs(r.e).toFixed(2) : '$' + r.e.toFixed(2)));
+  var nm = r.n ? ' ' + earnEsc(r.n.length > 26 ? r.n.slice(0, 25) + '…' : r.n) : '';
+  return '• <b>' + earnEsc(r.s) + '</b>' + nm + (bits.length ? ' · ' + bits.join(' · ') : '');
+}
+var EARN_GROUPS = [['bmo', '🟠 <i><u>Before market open</u></i>'], ['amc', '🟣 <i><u>After market close</u></i>'], ['dmh', '<i><u>During market hours</u></i>'], ['', '<i><u>Time not confirmed</u></i>']];
+
+// → array of Telegram-ready HTML messages (split at line boundaries to stay under Telegram's 4096-char cap)
+function earnBuildDigest(target, rows, cfg, src) {
+  var mine = earnSymSet(cfg.earningsSymbols);
+  var onlyMine = cfg.earningsOnlyMine === true;
+  var capB = parseFloat(cfg.earningsMinCapB); if (!(capB > 0)) capB = 10;
+  var capsKnown = src !== 'finnhub';   // Finnhub rows carry no market cap
+  var mineRows = [], notable = [];
+  rows.forEach(function(r) {
+    if (mine[r.s]) mineRows.push(r);
+    else if (!onlyMine && r.c !== null && r.c >= capB * 1e9) notable.push(r);
+  });
+  var label = new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }).format(earnParse(target));
+  var head = '📅 <b>Earnings tomorrow · ' + label + '</b>';
+  var lines = [head, '<i>Times refer to the US market session (Eastern)</i>', ''];
+
+  function section(title, list) {
+    if (!list.length) return;
+    lines.push(title);
+    EARN_GROUPS.forEach(function(g) {
+      var items = earnSortRows(list.filter(function(r) { return r.t === g[0]; }));
+      if (!items.length) return;
+      lines.push(g[1]);
+      items.forEach(function(r) { lines.push(earnLine(r)); });
+      lines.push('');   // blank line after each category
+    });
+  }
+  section('<b>Your symbols</b>', mineRows);
+  var cap = 40, shown = notable;
+  if (!onlyMine) {
+    var trimmed = earnSortRows(notable).slice(0, cap);
+    shown = trimmed;
+    section('<b>Notable (≥ $' + capB + 'B)</b>', shown);
+    if (notable.length > cap) lines.push('<i>+' + (notable.length - cap) + ' more notable names not shown</i>', '');
+  }
+  if (!mineRows.length && !shown.length) {
+    lines.push(onlyMine || !capsKnown ? 'None of your symbols report tomorrow.' : 'None of your symbols — and no names above $' + capB + 'B — report tomorrow.');
+    lines.push('');
+  }
+  if (!onlyMine && !capsKnown) lines.push('<i>Market cap isn’t available from the fallback source, so only your symbols can be listed.</i>');
+  lines.push('<i>Source: ' + (src === 'finnhub' ? 'Finnhub' : 'Nasdaq') + ' · dates can still shift until a company confirms</i>');
+
+  var msgs = [], cur = '';
+  lines.forEach(function(l) {
+    if (cur && cur.length + l.length + 1 > 3800) { msgs.push(cur.replace(/\\s+$/, '')); cur = '📅 <b>Earnings ' + label + ' (cont.)</b>\\n'; }
+    cur += (cur ? '\\n' : '') + l;
+  });
+  if (cur.replace(/\\s+$/, '')) msgs.push(cur.replace(/\\s+$/, ''));
+  return msgs;
+}
+// Always a fresh pull for the target day (never the week cache) so the digest reflects the latest dates.
+async function earnFreshDay(iso, cfg) {
+  var err = null;
+  try { return { rows: await earnNasdaqDay(iso), src: 'nasdaq' }; } catch (e) { err = e; }
+  if (cfg.finnhubKey) {
+    try { return { rows: await earnFinnhubRange(iso, iso, cfg.finnhubKey), src: 'finnhub' }; } catch (e2) { err = new Error(err.message + ' · ' + e2.message); }
+  }
+  throw err;
+}
+async function earnSendDigest(cfg, target) {
+  var day = await earnFreshDay(target, cfg);
+  var msgs = earnBuildDigest(target, day.rows, cfg, day.src);
+  var sent = 0;
+  for (var i = 0; i < msgs.length; i++) {
+    var id = await sendTelegram(msgs[i], cfg);
+    if (!id) return { ok: false, sent: sent, count: day.rows.length, src: day.src, target: target };
+    sent++;
+  }
+  return { ok: true, sent: sent, count: day.rows.length, src: day.src, target: target };
+}
+// Called from the cron on every tick. Sends once per evening (Sun–Thu, so the "next day" is always
+// a weekday) after the configured Eastern send time. State lives in KV 'earnings_notify'.
+// A failed attempt is retried every 10 minutes, up to 6 times, so a brief upstream outage doesn't
+// cost you the day's message.
+async function earnNotifyIfDue(cfg) {
+  if (!cfg || cfg.earningsEnabled !== true || !cfg.telegramToken || !cfg.telegramChatId) return;
+  var et = earnEtNow();
+  if (et.dow === 5 || et.dow === 6) return;
+  if (et.hour * 60 + et.minute < earnParseHM(cfg.earningsSendTime, 18 * 60)) return;
+  var raw = await JOURNUP_KV.get('earnings_notify');
+  var st = raw ? JSON.parse(raw) : {};
+  var today = st.date === et.date;
+  if (today && (st.sent || (st.attempts || 0) >= 6)) return;
+  if (today && st.at && Date.now() - st.at < 600000) return;
+  var target = earnAddDays(et.date, 1), ok = false;
+  try { ok = (await earnSendDigest(cfg, target)).ok; } catch (e) { ok = false; }
+  await JOURNUP_KV.put('earnings_notify', JSON.stringify({ date: et.date, target: target, sent: ok, attempts: (today ? (st.attempts || 0) : 0) + 1, at: Date.now() }));
 }`;
   var blob = new Blob([src], { type: 'text/javascript' });
   var a = document.createElement('a');
@@ -29389,6 +29899,380 @@ var _wlNavOriginal = nav;
 nav = function(id, btn){
   _wlNavOriginal(id, btn);
   if(id === 'watchlist') wlInit();
+};
+// ══ Earnings calendar ════════════════════════════════════════════════
+// Data comes from the Cloud Monitor worker (GET /earnings): Nasdaq's public earnings feed, with
+// Finnhub as an optional fallback. No AI — grouping, sorting and filtering below are plain code.
+// Rows: {s symbol, n name, d date, t 'bmo'|'amc'|'dmh'|'' (before open / after close / intraday /
+// not confirmed), c market cap USD|null, e EPS estimate|null, q fiscal quarter}.
+// The page browses the CURRENT calendar quarter only. The evening Telegram digest is sent by the
+// worker's cron; this page only stores its settings and pushes them via cmBuildConfig()/erWorkerConfig().
+var ER_KEYS = {syms:'tj-earn-symbols', useWl:'tj-earn-use-wl', cap:'tj-earn-mincap', tgOn:'tj-earn-tg-on', tgTime:'tj-earn-tg-time',
+               tgNotable:'tj-earn-tg-notable', view:'tj-earn-view', filter:'tj-earn-filter', sig:'tj-earn-cfg-sig', wlCache:'tj-earn-wl-cache'};
+var ER_GROUPS = [['bmo','Before market open','badge-amber','Pre-market'], ['amc','After market close','badge-purple','After-hours'],
+                 ['dmh','During market hours','badge-blue','Intraday'], ['','Time not confirmed','badge-gray','TBA']];
+var ER_DAYS = ['Mon','Tue','Wed','Thu','Fri'];
+var _erView = 'week', _erFilter = 'notable', _erDate = '', _erSearch = '';
+var _erWeeks = {};        // monday ISO -> {rows, src[], updated, stale, errors[], at}
+var _erWeekErr = {};      // monday ISO -> last load error message
+var _erInflight = {};     // monday ISO -> promise (de-dupes overlapping loads)
+var _erLoading = 0, _erErrKind = null;
+var _erWl = [], _erWlLoaded = false, _erShowAll = {}, _erPushTimer = null, _erInited = false;
+
+// ── date helpers (local time; ISO strings 'YYYY-MM-DD') ─────────────────
+function erIso(d){return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
+function erParse(iso){var p=iso.split('-');return new Date(+p[0],+p[1]-1,+p[2]);}
+function erAdd(iso,n){var d=erParse(iso);d.setDate(d.getDate()+n);return erIso(d);}
+function erMon(iso){var d=erParse(iso);d.setDate(d.getDate()-((d.getDay()+6)%7));return erIso(d);}
+function erDow(iso){return (erParse(iso).getDay()+6)%7;} // 0 = Mon … 6 = Sun
+function erTodayIso(){return erIso(new Date());}
+function erSnap(iso){var w=erDow(iso);return w===5?erAdd(iso,2):w===6?erAdd(iso,1):iso;} // weekend → Monday
+function erFmt(iso,o){return erParse(iso).toLocaleDateString('en-US',o);}
+function erQuarter(iso){
+  var p=iso.split('-'),y=+p[0],q=Math.floor((+p[1]-1)/3);
+  return {q:q+1,y:y,start:erIso(new Date(y,q*3,1)),end:erIso(new Date(y,q*3+3,0))};
+}
+function erMonthBounds(iso){var d=erParse(iso);return {first:erIso(new Date(d.getFullYear(),d.getMonth(),1)),last:erIso(new Date(d.getFullYear(),d.getMonth()+1,0))};}
+// Which Mondays' worth of data does the current view need?
+function erWeeksFor(view,date){
+  if(view!=='month')return [erMon(date)];
+  var b=erMonthBounds(date),out=[];
+  for(var m=erMon(b.first);m<=b.last;m=erAdd(m,7))out.push(m);
+  return out;
+}
+
+// ── symbols & settings ──────────────────────────────────────────────────
+function erNorm(x){x=String(x||'').trim().toUpperCase().replace(/[\/\-]/g,'.');return /^[A-Z0-9][A-Z0-9.]{0,9}$/.test(x)?x:'';}
+function erCustomSyms(){
+  var seen={},out=[];
+  (localStorage.getItem(ER_KEYS.syms)||'').split(/[\s,;]+/).forEach(function(t){var n=erNorm(t);if(n&&!seen[n]){seen[n]=1;out.push(n);}});
+  return out;
+}
+// Watchlist stocks. Until the watchlist has been read this session, fall back to the last copy we
+// saw, so a config push triggered from another page never wipes the worker's symbol list.
+function erWlSyms(){
+  if(localStorage.getItem(ER_KEYS.useWl)==='0')return [];
+  if(_erWlLoaded)return _erWl;
+  try{return JSON.parse(localStorage.getItem(ER_KEYS.wlCache)||'[]');}catch(e){return [];}
+}
+async function erRefreshWl(){
+  if(localStorage.getItem(ER_KEYS.useWl)==='0'){_erWl=[];_erWlLoaded=true;return;}
+  try{
+    var lists=await getWatchlists(),seen={},out=[];
+    lists.forEach(function(w){(w.items||[]).forEach(function(it){
+      if(!/stock|equit|share|etf/i.test(it.assetType||''))return;
+      var n=erNorm(it.pair);if(n&&!seen[n]){seen[n]=1;out.push(n);}
+    });});
+    _erWl=out;_erWlLoaded=true;
+    try{localStorage.setItem(ER_KEYS.wlCache,JSON.stringify(out));}catch(e){}
+  }catch(e){}
+}
+function erMySet(){var s={};erCustomSyms().concat(erWlSyms()).forEach(function(x){s[x]=true;});return s;}
+function erMinCap(){var v=parseFloat(localStorage.getItem(ER_KEYS.cap));return v>0?v:10;}
+function erTgTime(){var t=localStorage.getItem(ER_KEYS.tgTime)||'18:00';return /^\d{1,2}:\d{2}$/.test(t)?t:'18:00';}
+// Settings the worker needs for the evening digest; merged into cmBuildConfig().
+function erWorkerConfig(){
+  return {
+    earningsEnabled:  localStorage.getItem(ER_KEYS.tgOn)!=='0',
+    earningsSendTime: erTgTime(),
+    earningsSymbols:  Object.keys(erMySet()),
+    earningsMinCapB:  erMinCap(),
+    earningsOnlyMine: localStorage.getItem(ER_KEYS.tgNotable)==='0'
+  };
+}
+
+// ── formatting ──────────────────────────────────────────────────────────
+function erCap(c){
+  if(c==null)return '';
+  var v,u;
+  if(c>=1e12){v=c/1e12;u='T';}else if(c>=1e9){v=c/1e9;u='B';}else{v=c/1e6;u='M';}
+  var s=(v>=100||u==='M')?String(Math.round(v)):v.toFixed(1);
+  if(s.slice(-2)==='.0')s=s.slice(0,-2);
+  return '$'+s+u;
+}
+function erEps(e){return (e<0?'-$':'$')+Math.abs(e).toFixed(2);}
+function erAgo(ms){
+  var m=Math.round((Date.now()-ms)/60000);
+  if(m<1)return 'just now';if(m<60)return m+' min ago';
+  var h=Math.round(m/60);if(h<24)return h+' h ago';
+  return Math.round(h/24)+' d ago';
+}
+
+// ── data ────────────────────────────────────────────────────────────────
+function erEnsureWeek(mon,force){
+  var c=_erWeeks[mon];
+  if(!force&&c&&Date.now()-c.at<600000)return Promise.resolve(c);
+  if(_erInflight[mon])return _erInflight[mon];
+  var p=cmFetch('/earnings?from='+mon+'&to='+erAdd(mon,6)+(force?'&force=1':''),'GET').then(function(res){
+    var w={rows:res.rows||[],src:res.src||[],updated:res.updated||null,stale:!!res.stale,errors:res.errors||[],at:Date.now()};
+    _erWeeks[mon]=w;delete _erWeekErr[mon];return w;
+  }).catch(function(e){
+    _erWeekErr[mon]=e.message||'failed';throw e;
+  }).then(function(w){delete _erInflight[mon];return w;},function(e){delete _erInflight[mon];throw e;});
+  _erInflight[mon]=p;return p;
+}
+async function erLoad(force){
+  if(!cmHasUrl()){_erErrKind='nourl';erRender();return;}
+  _erErrKind=null;_erLoading++;erRender();
+  try{
+    var mons=erWeeksFor(_erView,_erDate);
+    for(var i=0;i<mons.length;i++){
+      try{await erEnsureWeek(mons[i],force);}
+      catch(e){if(e&&e.status===404){_erErrKind='oldworker';break;}}
+      erRender(); // progressive: each week appears as soon as it arrives
+    }
+  }finally{_erLoading--;}
+  erRender();
+}
+function erRefresh(){erLoad(true);}
+
+// ── filtering / sorting ─────────────────────────────────────────────────
+function erVisible(r,mine){
+  if(_erSearch){var q=_erSearch.toLowerCase();return r.s.toLowerCase().indexOf(q)!==-1||(r.n||'').toLowerCase().indexOf(q)!==-1;}
+  if(mine[r.s])return true;
+  if(_erFilter==='mine')return false;
+  if(_erFilter==='all')return true;
+  return r.c!=null&&r.c>=erMinCap()*1e9;
+}
+// null = that week hasn't loaded (yet)
+function erRowsOn(iso,mine){
+  var w=_erWeeks[erMon(iso)];
+  if(!w)return null;
+  return w.rows.filter(function(r){return r.d===iso&&erVisible(r,mine);});
+}
+function erSort(list,mine){
+  return list.slice().sort(function(a,b){
+    var am=mine[a.s]?1:0,bm=mine[b.s]?1:0;if(am!==bm)return bm-am;
+    var ac=a.c==null?-1:a.c,bc=b.c==null?-1:b.c;if(ac!==bc)return bc-ac;
+    return a.s<b.s?-1:a.s>b.s?1:0;
+  });
+}
+function erByTime(rows,mine){
+  return ER_GROUPS.map(function(g){return {g:g,items:erSort(rows.filter(function(r){return r.t===g[0];}),mine)};}).filter(function(x){return x.items.length;});
+}
+
+// ── rendering ───────────────────────────────────────────────────────────
+function erCanStep(dir){
+  var Q=erQuarter(erTodayIso()),nd;
+  if(_erView==='day'){nd=erAdd(_erDate,dir);while(erDow(nd)>4)nd=erAdd(nd,dir);return nd>=Q.start&&nd<=Q.end;}
+  if(_erView==='week'){nd=erAdd(erMon(_erDate),7*dir);return erAdd(nd,4)>=Q.start&&nd<=Q.end;}
+  var d=erParse(_erDate);d.setDate(1);d.setMonth(d.getMonth()+dir);nd=erIso(d);return nd>=Q.start&&nd<=Q.end;
+}
+function erStep(dir){
+  if(!erCanStep(dir))return;
+  if(_erView==='day'){var nd=erAdd(_erDate,dir);while(erDow(nd)>4)nd=erAdd(nd,dir);_erDate=nd;}
+  else if(_erView==='week'){_erDate=erAdd(erMon(_erDate),7*dir);}
+  else{var d=erParse(_erDate);d.setDate(1);d.setMonth(d.getMonth()+dir);_erDate=erIso(d);}
+  erLoad(false);
+}
+function erGoToday(){_erDate=_erView==='day'?erSnap(erTodayIso()):erTodayIso();erLoad(false);}
+function erGoDay(iso){_erView='day';_erDate=iso;try{localStorage.setItem(ER_KEYS.view,'day');}catch(e){}erLoad(false);}
+function erSetView(v){
+  _erView=v;if(v==='day')_erDate=erSnap(_erDate);
+  try{localStorage.setItem(ER_KEYS.view,v);}catch(e){}
+  erLoad(false);
+}
+function erSetFilter(f){_erFilter=f;try{localStorage.setItem(ER_KEYS.filter,f);}catch(e){}erRender();}
+function erOnSearch(v){_erSearch=(v||'').trim();erRender();}
+function erShowAllToggle(key){_erShowAll[key]=true;erRender();}
+
+function erRowHtml(r,mine){
+  var m=!!mine[r.s];
+  return '<div class="er-row'+(m?' er-mine':'')+'"><span class="er-sym">'+escHtml(r.s)+'</span>'+
+    (m?'<span class="er-star" title="In your symbols">&#9733;</span>':'<span></span>')+
+    '<span class="er-name" title="'+escHtml(r.n||'')+'">'+escHtml(r.n||'')+'</span>'+
+    '<span class="er-cap">'+erCap(r.c)+'</span>'+
+    '<span class="er-eps">'+(r.e!=null?'est '+erEps(r.e):'')+'</span></div>';
+}
+function erEmptyHint(){
+  if(_erSearch)return 'No match for &ldquo;'+escHtml(_erSearch)+'&rdquo; on this day.';
+  if(_erFilter==='mine')return 'None of your symbols report here. Switch to <b>Notable</b> or <b>All</b>, or add tickers in Settings below.';
+  if(_erFilter==='notable')return 'Nothing from your symbols or large companies. Try <b>All</b> for every reporting company.';
+  return 'No earnings reported for this day.';
+}
+function erDayLoadingHtml(iso){
+  return _erWeekErr[erMon(iso)]?'<div class="er-none er-bad">Couldn&rsquo;t load</div>':'<div class="er-none">Loading&hellip;</div>';
+}
+function erRenderDay(){
+  var iso=_erDate,mine=erMySet(),today=erTodayIso(),mon=erMon(iso),strip='';
+  for(var i=0;i<5;i++){
+    var d=erAdd(mon,i),rs=erRowsOn(d,mine);
+    strip+='<button type="button" class="er-chip'+(d===iso?' on':'')+(d===today?' today':'')+'" onclick="erGoDay(\''+d+'\')"><span>'+ER_DAYS[i]+' '+erParse(d).getDate()+'</span><b>'+(rs===null?'&hellip;':rs.length)+'</b></button>';
+  }
+  var rows=erRowsOn(iso,mine),body;
+  if(rows===null)body='<div class="er-empty">'+(_erWeekErr[mon]?'Couldn&rsquo;t load this day.':'Loading earnings&hellip;')+'</div>';
+  else if(!rows.length)body='<div class="er-empty">'+erEmptyHint()+'</div>';
+  else body=erByTime(rows,mine).map(function(x){
+    var key=iso+'|'+x.g[0],lim=60,list=(_erShowAll[key]||x.items.length<=lim)?x.items:x.items.slice(0,lim);
+    return '<div class="er-grp"><div class="er-gh"><span class="badge '+x.g[2]+'">'+x.g[3]+'</span>'+x.g[1]+'<span class="er-n">'+x.items.length+'</span></div>'+
+      list.map(function(r){return erRowHtml(r,mine);}).join('')+
+      (list.length<x.items.length?'<button type="button" class="er-more" onclick="erShowAllToggle(\''+key+'\')">Show all '+x.items.length+'</button>':'')+'</div>';
+  }).join('');
+  return '<div class="er-strip">'+strip+'</div><div class="er-card">'+body+'</div>';
+}
+function erRenderWeek(){
+  var mon=erMon(_erDate),mine=erMySet(),today=erTodayIso(),cols='';
+  for(var i=0;i<5;i++){
+    var d=erAdd(mon,i),rows=erRowsOn(d,mine),inner;
+    if(rows===null)inner=erDayLoadingHtml(d);
+    else if(!rows.length)inner='<div class="er-none">Nothing</div>';
+    else inner=erByTime(rows,mine).map(function(x){
+      var lim=8,list=x.items.slice(0,lim);
+      return '<div class="er-grp"><div class="er-gh"><span class="badge '+x.g[2]+'">'+x.g[3]+'</span><span class="er-n" style="margin-left:auto">'+x.items.length+'</span></div>'+
+        list.map(function(r){return '<div class="er-mini"><span class="er-sym" style="'+(mine[r.s]?'color:var(--amber)':'')+'">'+escHtml(r.s)+'</span>'+(mine[r.s]?'<span class="er-star">&#9733;</span>':'')+'<span class="er-cap">'+erCap(r.c)+'</span></div>';}).join('')+
+        (x.items.length>lim?'<button type="button" class="er-more" onclick="erGoDay(\''+d+'\')">+'+(x.items.length-lim)+' more</button>':'')+'</div>';
+    }).join('');
+    cols+='<div class="er-col'+(d===today?' er-today':'')+(d<today?' er-past':'')+'"><div class="er-ch" onclick="erGoDay(\''+d+'\')"><strong>'+ER_DAYS[i]+'</strong><span>'+erFmt(d,{month:'short',day:'numeric'})+'</span><em>'+(rows===null?'':rows.length)+'</em></div>'+inner+'</div>';
+  }
+  return '<div class="er-week">'+cols+'</div>';
+}
+function erRenderMonth(){
+  var b=erMonthBounds(_erDate),mine=erMySet(),today=erTodayIso();
+  var html='<div class="er-month">'+ER_DAYS.map(function(n){return '<div class="er-mhd">'+n+'</div>';}).join('');
+  for(var mon=erMon(b.first);mon<=b.last;mon=erAdd(mon,7)){
+    for(var i=0;i<5;i++){
+      var d=erAdd(mon,i);
+      if(d<b.first||d>b.last){html+='<div class="er-cell er-off"></div>';continue;}
+      var rows=erRowsOn(d,mine),inner='';
+      if(rows===null)inner='<div class="er-ct">'+(_erWeekErr[mon]?'<u>—</u>':'<u>…</u>')+'</div>';
+      else if(rows.length){
+        var top=erSort(rows,mine).slice(0,3).map(function(r){return mine[r.s]?'<i>'+escHtml(r.s)+'</i>':escHtml(r.s);}).join(' ');
+        inner='<div class="er-ct">'+top+(rows.length>3?' <u>+'+(rows.length-3)+'</u>':'')+'</div>';
+      }
+      html+='<div class="er-cell'+(d===today?' er-today':'')+(d<today?' er-past':'')+'" onclick="erGoDay(\''+d+'\')"><div class="er-cd">'+erParse(d).getDate()+'<span class="er-cnt">'+(rows&&rows.length?rows.length:'')+'</span></div>'+inner+'</div>';
+    }
+  }
+  return html+'</div>';
+}
+function erRenderStatus(){
+  var el=document.getElementById('er-status');if(!el)return;
+  var parts=[],mons=erWeeksFor(_erView,_erDate),loaded=mons.map(function(m){return _erWeeks[m];}).filter(Boolean);
+  if(_erLoading>0)parts.push('<span>Loading&hellip;</span>');
+  if(loaded.length){
+    var src=[],upd=null,stale=false;
+    loaded.forEach(function(w){w.src.forEach(function(s){if(src.indexOf(s)===-1)src.push(s);});if(w.updated&&(upd===null||w.updated<upd))upd=w.updated;if(w.stale)stale=true;});
+    parts.push('<span>Source: '+src.map(function(s){return s==='finnhub'?'Finnhub':'Nasdaq';}).join(' + ')+(upd?' &middot; updated '+erAgo(upd):'')+'</span>');
+    if(stale)parts.push('<span class="er-warn">Showing saved data &mdash; the latest refresh failed.</span>');
+    if(src.length===1&&src[0]==='finnhub'&&_erFilter==='notable')parts.push('<span class="er-warn">Market cap isn&rsquo;t available from Finnhub, so Notable shows only your symbols.</span>');
+  }
+  var failed=mons.filter(function(m){return _erWeekErr[m]&&!_erWeeks[m];});
+  if(failed.length&&_erErrKind!=='oldworker'&&_erErrKind!=='nourl')parts.push('<span class="er-bad">Couldn&rsquo;t load: '+escHtml(_erWeekErr[failed[0]])+' &middot; <a onclick="erRefresh()">Retry</a></span>');
+  el.innerHTML=parts.join('');
+}
+function erRender(){
+  var page=document.getElementById('page-earnings');if(!page)return;
+  var Q=erQuarter(erTodayIso());
+  document.getElementById('er-quarter').textContent='Q'+Q.q+' '+Q.y+' \u00b7 '+erFmt(Q.start,{month:'short',day:'numeric'})+' \u2013 '+erFmt(Q.end,{month:'short',day:'numeric'});
+  var label;
+  if(_erView==='day')label=erFmt(_erDate,{weekday:'short',month:'short',day:'numeric',year:'numeric'});
+  else if(_erView==='week'){var mon=erMon(_erDate),fri=erAdd(mon,4);label=erFmt(mon,{month:'short',day:'numeric'})+' \u2013 '+(erParse(mon).getMonth()===erParse(fri).getMonth()?erParse(fri).getDate():erFmt(fri,{month:'short',day:'numeric'}));}
+  else label=erFmt(_erDate,{month:'long',year:'numeric'});
+  document.getElementById('er-range').textContent=label;
+  document.getElementById('er-prev').disabled=!erCanStep(-1);
+  document.getElementById('er-next').disabled=!erCanStep(1);
+  Array.prototype.forEach.call(document.querySelectorAll('#er-view-seg button'),function(b){b.classList.toggle('on',b.dataset.v===_erView);});
+  Array.prototype.forEach.call(document.querySelectorAll('#er-filter-seg button'),function(b){b.classList.toggle('on',b.dataset.f===_erFilter);});
+  erRenderStatus();
+  var body=document.getElementById('er-body'),html;
+  if(_erErrKind==='nourl')html='<div class="er-card er-empty"><b>Earnings needs your Cloud Monitor worker.</b><br>It fetches the calendar and sends the evening Telegram message. Add your Worker URL in Settings, then come back.<br><button type="button" class="btn btn-primary btn-sm" onclick="erOpenSettings()">Open Settings</button></div>';
+  else if(_erErrKind==='oldworker')html='<div class="er-card er-empty"><b>Your deployed worker predates the Earnings feature.</b><br>Download the updated worker, paste it over your current one in the Cloudflare dashboard and deploy &mdash; nothing else changes (your KV data and cron stay as they are).<br><button type="button" class="btn btn-primary btn-sm" onclick="cfDownloadWorker()">Download updated worker</button></div>';
+  else html=_erView==='day'?erRenderDay():_erView==='week'?erRenderWeek():erRenderMonth();
+  if(!_erErrKind)html+='<div class="er-foot">Dates and times come from Nasdaq&rsquo;s public earnings calendar and can still move until a company confirms. The evening Telegram message re-checks tomorrow&rsquo;s date from scratch. &#9733; = one of your symbols.</div>';
+  body.innerHTML=html;
+}
+
+function erOpenSettings(){nav('backup',document.querySelector('.nav-item[onclick*="\'backup\'"]'));}
+
+// ── settings UI ─────────────────────────────────────────────────────────
+function erLoadSettingsUi(){
+  var set=function(id,fn){var el=document.getElementById(id);if(el)fn(el);};
+  set('er-use-wl',function(e){e.checked=localStorage.getItem(ER_KEYS.useWl)!=='0';});
+  set('er-custom',function(e){e.value=localStorage.getItem(ER_KEYS.syms)||'';});
+  set('er-mincap',function(e){e.value=String(erMinCap());});
+  set('er-tg-on',function(e){e.checked=localStorage.getItem(ER_KEYS.tgOn)!=='0';});
+  set('er-tg-time',function(e){e.value=erTgTime().replace(/^(\d):/,'0$1:');});
+  set('er-tg-notable',function(e){e.checked=localStorage.getItem(ER_KEYS.tgNotable)!=='0';});
+  set('er-wl-count',function(e){var n=erWlSyms().length;e.textContent=localStorage.getItem(ER_KEYS.useWl)==='0'?'':'('+n+' found)';});
+}
+async function erSaveSettings(){
+  var g=function(id){return document.getElementById(id);};
+  try{
+    localStorage.setItem(ER_KEYS.useWl,g('er-use-wl').checked?'1':'0');
+    localStorage.setItem(ER_KEYS.syms,g('er-custom').value||'');
+    localStorage.setItem(ER_KEYS.cap,g('er-mincap').value);
+    localStorage.setItem(ER_KEYS.tgOn,g('er-tg-on').checked?'1':'0');
+    if(g('er-tg-time').value)localStorage.setItem(ER_KEYS.tgTime,g('er-tg-time').value);
+    localStorage.setItem(ER_KEYS.tgNotable,g('er-tg-notable').checked?'1':'0');
+  }catch(e){}
+  await erRefreshWl();erLoadSettingsUi();erRender();erPushConfigSoon();
+}
+// Pushes settings to the worker (debounced). Skipped when nothing changed since the last successful push.
+function erPushConfigSoon(){clearTimeout(_erPushTimer);_erPushTimer=setTimeout(erPushConfig,1200);}
+async function erPushConfig(){
+  if(!cmHasUrl())return;
+  await erRefreshWl();
+  var sig=JSON.stringify(erWorkerConfig());
+  if(sig===localStorage.getItem(ER_KEYS.sig))return;
+  try{
+    await cmFetch('/config','POST',cmBuildConfig());
+    try{localStorage.setItem(ER_KEYS.sig,sig);}catch(e){}
+    erLoadNotifyStatus();
+  }catch(e){if(e&&e.message&&e.message!=='No URL')toast('Earnings settings not synced to the worker ('+e.message+')','err');}
+}
+async function erLoadNotifyStatus(){
+  var el=document.getElementById('er-tgstate');if(!el)return;
+  if(!cmHasUrl()){el.textContent='Connect Cloud Monitor in Settings to enable the evening alert.';return;}
+  try{
+    var s=await cmFetch('/earnings/status','GET'),bits=[];
+    if(!s.telegram)bits.push('Telegram isn\u2019t set up yet \u2014 add your bot in Price Alerts.');
+    else if(!s.enabled)bits.push('Evening alert is off.');
+    else bits.push('Next: this evening at '+s.sendTime+' ET (Sun\u2013Thu).');
+    if(s.last&&s.last.sent)bits.push('Last sent '+erFmt(s.last.date,{weekday:'short',month:'short',day:'numeric'})+' for '+erFmt(s.last.target,{weekday:'short',month:'short',day:'numeric'})+'.');
+    else if(s.last&&s.last.attempts)bits.push('Last attempt failed ('+s.last.attempts+' tries) \u2014 it retries every 10 min.');
+    el.textContent=bits.join(' ');
+  }catch(e){el.textContent=(e&&e.status===404)?'Update your worker to enable the evening alert.':'';}
+}
+async function erSendTest(){
+  var btn=document.getElementById('er-test-btn');
+  if(!cmHasUrl()){toast('Add your Cloud Monitor Worker URL in Settings first','err');return;}
+  btn.disabled=true;var old=btn.textContent;btn.textContent='Sending\u2026';
+  try{
+    await erRefreshWl();
+    await cmFetch('/config','POST',cmBuildConfig());
+    try{localStorage.setItem(ER_KEYS.sig,JSON.stringify(erWorkerConfig()));}catch(e){}
+    var r=await cmFetch('/earnings/notify','POST',{});
+    toast('Sent '+r.messages+' message'+(r.messages===1?'':'s')+' to Telegram for '+erFmt(r.target,{weekday:'short',month:'short',day:'numeric'}),'ok');
+  }catch(e){
+    toast(e&&e.status===404?'Update your worker first (Download updated worker)':('Couldn\u2019t send: '+((e&&e.message)||'error')),'err');
+  }
+  btn.disabled=false;btn.textContent=old;erLoadNotifyStatus();
+}
+
+// ── page entry ──────────────────────────────────────────────────────────
+async function erInit(){
+  var v=localStorage.getItem(ER_KEYS.view),f=localStorage.getItem(ER_KEYS.filter);
+  if(!_erInited){
+    _erView=(v==='day'||v==='week'||v==='month')?v:'week';
+    _erFilter=(f==='mine'||f==='notable'||f==='all')?f:'notable';
+    _erInited=true;
+  }
+  var Q=erQuarter(erTodayIso());
+  if(!_erDate||_erDate<Q.start||_erDate>Q.end)_erDate=erTodayIso();
+  if(_erView==='day')_erDate=erSnap(_erDate);
+  erLoadSettingsUi();erRender();
+  await erRefreshWl();erLoadSettingsUi();
+  erLoad(false);
+  erPushConfig();erLoadNotifyStatus();
+}
+// Hook into nav() — same pattern as Watchlist / Price Alerts.
+var _erNavOriginal=nav;
+nav=function(id,btn){_erNavOriginal(id,btn);if(id==='earnings')erInit();};
+// Keep the worker's symbol list in step with watchlist edits made anywhere in the app.
+var _erSaveWlOriginal=saveWatchlistsData;
+saveWatchlistsData=async function(data){
+  var r=await _erSaveWlOriginal(data);
+  try{erPushConfigSoon();}catch(e){}
+  return r;
 };
 // ══ Notes (sticky-note Kanban board) ═════════════════════════════════
 // Stored under settings key 'notes-board': {columns:[{id,title,x,y,w,h}], notes:[{id,colId,text,tag,color,createdAt,updatedAt}]}
