@@ -775,7 +775,7 @@ async function sendTelegramDelete(messageId, cfg) {
 // Earnings calendar — free, keyless, no AI. Plain API data + deterministic code.
 // ─────────────────────────────────────────────────────────────────────────────
 // Row shape (compact so a busy earnings week stays small in KV):
-//   { s:'AAPL', n:'Apple Inc.', d:'2026-10-29', t:'bmo'|'amc'|'dmh'|'', c:<market cap USD>|null, e:<EPS estimate>|null, q:'Sep/2026' }
+//   { s:'AAPL', n:'Apple Inc.', d:'2026-10-29', t:'bmo'|'amc'|'dmh'|'', c:<market cap USD>|null, e:<EPS estimate>|null, a:<reported EPS>|null, p:<reported surprise %>|null, q:'Sep/2026' }
 //   t: bmo = before market open, amc = after market close, dmh = during market hours, '' = time not confirmed.
 // Sources, in order: (1) Nasdaq's public earnings calendar feed — no key, has market cap and
 // pre/post-market timing, one request per day; (2) Finnhub /calendar/earnings, only if a Finnhub
@@ -788,6 +788,7 @@ var EARN_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHT
 var EARN_DAY_MS = 86400000;
 var EARN_MAX_SPAN_DAYS = 14;   // GET /earnings range cap: ≤3 weeks → ≤15 day-fetches + a few KV ops, under the free plan's 50 subrequests
 var EARN_WEEK_TTL_SEC = 90 * 86400;
+var EARN_CACHE_V = 2;   // bump when the row shape changes; older cached weeks are refetched once (v2 added a = reported EPS, p = surprise %)
 
 function earnPad(n) { return (n < 10 ? '0' : '') + n; }
 function earnIso(d) { return d.getUTCFullYear() + '-' + earnPad(d.getUTCMonth() + 1) + '-' + earnPad(d.getUTCDate()); }
@@ -857,7 +858,7 @@ async function earnNasdaqDay(iso) {
   for (var i = 0; i < rows.length; i++) {
     var x = rows[i], sym = earnSym(x.symbol);
     if (!sym) continue;
-    out.push({ s: sym, n: x.name || '', d: iso, t: earnNasdaqTime(x.time), c: earnNum(x.marketCap), e: earnNum(x.epsForecast), q: x.fiscalQuarterEnding || '' });
+    out.push({ s: sym, n: x.name || '', d: iso, t: earnNasdaqTime(x.time), c: earnNum(x.marketCap), e: earnNum(x.epsForecast), a: earnNum(x.eps !== undefined ? x.eps : x.epsActual), p: earnNum(x.surprise !== undefined ? x.surprise : x.epsSurprise), q: x.fiscalQuarterEnding || '' });
   }
   return out;
 }
@@ -872,11 +873,16 @@ async function earnFinnhubRange(from, to, key) {
     var x = list[i], sym = earnSym(x.symbol);
     if (!sym || !earnParse(x.date)) continue;
     var h = String(x.hour || '').toLowerCase();
-    out.push({ s: sym, n: '', d: x.date, t: (h === 'bmo' || h === 'amc' || h === 'dmh') ? h : '', c: null, e: earnNum(x.epsEstimate), q: (x.quarter && x.year) ? ('Q' + x.quarter + ' ' + x.year) : '' });
+    out.push({ s: sym, n: '', d: x.date, t: (h === 'bmo' || h === 'amc' || h === 'dmh') ? h : '', c: null, e: earnNum(x.epsEstimate), a: earnNum(x.epsActual), p: null, q: (x.quarter && x.year) ? ('Q' + x.quarter + ' ' + x.year) : '' });
   }
   return out;
 }
 
+// ET weekday ('Mon'…'Sun') and hour (0–23) of a timestamp.
+function earnEtDayHour(ms) {
+  var p = etParts(new Date(ms), { hour: '2-digit', hourCycle: 'h23', weekday: 'short' });
+  return { wd: p.weekday, h: +p.hour };
+}
 // A cached week is "final" once it was fetched after the week ended; before that it expires on a
 // schedule that tightens as the week approaches (24h → 6h → 3h) so near-term dates stay accurate.
 function earnStale(monday, t, now) {
@@ -884,6 +890,18 @@ function earnStale(monday, t, now) {
   if (t >= end) return false;
   var age = now - t;
   if (now >= end) return true;
+  // Week in progress. Nothing polls in the background: a week is only re-fetched when the page asks for it and its copy is
+  // stale, so a short limit costs nothing while the page is closed. Weekdays: 15 min (results land pre-market and after the
+  // close and the feed can lag a little, so any weekday hour may still be catching up). Weekend: no new reports are expected,
+  // so refetch once to catch Friday's late prints (any copy taken before Saturday 06:00 ET) and then keep it.
+  if (now >= start && now < end) {
+    var nowD = earnEtDayHour(now);
+    if (nowD.wd === 'Sat' || nowD.wd === 'Sun') {
+      var cp = earnEtDayHour(t);
+      return !(cp.wd === 'Sun' || (cp.wd === 'Sat' && cp.h >= 6));
+    }
+    return age > 15 * 60000;
+  }
   if (now >= start - EARN_DAY_MS) return age > 3 * 3600000;
   return age > ((start - now) < 14 * EARN_DAY_MS ? 6 : 24) * 3600000;
 }
@@ -909,13 +927,13 @@ async function earnLoadWeek(monday, cfg, force) {
   var raw = await JOURNUP_KV.get(key);
   if (raw) { try { cached = JSON.parse(raw); } catch (e) { cached = null; } }
   if (cached) {
-    var fresh = !earnStale(monday, cached.t, now);
+    var fresh = cached.v === EARN_CACHE_V && !earnStale(monday, cached.t, now);
     // a manual refresh is honoured at most once every 2 minutes per week (protects the upstream feeds)
     if (fresh && !(force && now - cached.t > 120000)) return cached;
   }
   try {
     var w = await earnFetchWeek(monday, cfg);
-    w.t = now;
+    w.t = now; w.v = EARN_CACHE_V;
     await JOURNUP_KV.put(key, JSON.stringify(w), { expirationTtl: EARN_WEEK_TTL_SEC });
     return w;
   } catch (e) {
