@@ -534,6 +534,20 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
 .bc-tf{font-size:9px;font-weight:700;opacity:.65;text-transform:uppercase}
 .add-tf-btn{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:5px;border:1px dashed var(--border2);font-size:10px;color:var(--text3);background:transparent;cursor:pointer;font-family:inherit;transition:all .12s}
 .add-tf-btn:hover{border-color:var(--accent);color:var(--accent)}
+
+/* ── "What led to the trade" chips ── */
+.led-chip-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.led-chip{display:inline-flex;align-items:center;gap:4px;padding:4px 11px;border-radius:999px;border:1px solid var(--border);font-size:11px;font-weight:500;color:var(--text2);background:var(--bg3);cursor:pointer;user-select:none;transition:all .12s;font-family:inherit}
+.led-chip:hover{border-color:var(--accent);color:var(--text)}
+.led-chip.selected{background:rgba(77,127,255,.14);border-color:var(--accent);color:var(--accent);font-weight:600}
+.led-chip.editing{cursor:default;padding:2px 4px 2px 8px;border-style:dashed;background:transparent}
+.led-chip.editing input{background:transparent;border:none;outline:none;color:var(--text);font-size:11px;font-family:inherit;min-width:60px;width:auto;padding:2px 0}
+.led-chip-x{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;border:none;background:none;color:var(--text3);cursor:pointer;font-size:13px;line-height:1;padding:0}
+.led-chip-x:hover{color:var(--red);background:rgba(255,80,80,.12)}
+.led-chip-add{display:inline-flex;gap:5px;align-items:center}
+.led-chip-add input{font-size:11px;padding:3px 9px;border-radius:999px;border:1px dashed var(--border2);background:transparent;color:var(--text);min-width:150px;font-family:inherit}
+.led-chip-tools{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+.led-chip-hint{font-size:10px;color:var(--text3);margin-top:6px;line-height:1.5}
 .tf-input-row{display:flex;gap:5px;align-items:center;margin-top:5px}
 .tf-input-row input{max-width:75px;padding:3px 7px;font-size:11px}
 /* Plan block */
@@ -2948,7 +2962,13 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
             <svg class="ah-toggle" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
           </div>
           <div class="analysis-body open">
-            <div class="frow"><textarea id="led-to-trade">1. </textarea></div>
+            <div class="led-chip-tools">
+              <div class="section-label" style="margin-bottom:0">Select what applies <span style="color:var(--text3);font-weight:400;font-size:10px">(click to toggle)</span></div>
+              <button type="button" class="add-tf-btn" id="led-chip-edit-btn" style="margin-left:auto" onclick="toggleLedChipEdit()">✎ Edit chips</button>
+            </div>
+            <div class="led-chip-row" id="led-chips"></div>
+            <div class="led-chip-hint" id="led-chip-hint" style="display:none">Rename a chip by editing its text, or remove it with ×. Use <code>{dir}</code> (bullish/bearish), <code>{flow}</code> (buying/selling) or <code>{zone}</code> (discount/premium) to auto-switch with Long/Short.</div>
+            <div class="frow" style="margin-top:12px"><label class="flabel">Additional details <span style="color:var(--text3);font-weight:400">(optional)</span></label><textarea id="led-to-trade">1. </textarea></div>
             <!-- HTF screenshots: W / D / 4h + custom -->
             <div class="screenshots-group" style="margin-top:14px">
               <div class="screenshots-group-hdr">
@@ -8330,12 +8350,167 @@ function onPairChange(){
     if(typeof recalcFeesAsync==='function') recalcFeesAsync(entry, qty, durMin);
   }
 }
+
+// ══ "What led to the trade" chips + Analysis auto-fill ══════════════════════
+// Chip definitions live in settings ('ledChipDefs') so they sync like other config and can be
+// edited/added/deleted. A def's text may contain {dir} / {flow} / {zone} tokens which resolve
+// from the Long/Short pick on Trade info (Long = bullish/buying/discount, Short = the opposite).
+var _LED_CHIP_DEFAULTS=[
+  {id:'c1',text:'Swing sweep'},
+  {id:'c2',text:'EQL/H sweep'},
+  {id:'c3',text:'Strong {dir} momentum'},
+  {id:'c4',text:'Strong {flow} pressure'},
+  {id:'c5',text:'{zone} zone'},
+  {id:'c6',text:'Volume profile'}
+];
+var _ledChipDefs=_LED_CHIP_DEFAULTS.map(function(d){return{id:d.id,text:d.text};});
+var _ledChipSel={};        // def id -> true for chips selected on the form being edited
+var _ledChipOrphans=[];    // saved chips whose def was later deleted: [{id,label}] (kept so an edit doesn't silently drop them)
+var _ledChipEdit=false;
+function _ledType(){var el=document.getElementById('f-type-val');return el?el.value:'';}
+function _ledResolve(text){
+  var t=_ledType(),isLong=t==='Long',isShort=t==='Short';
+  var map={
+    dir:isLong?'bullish':isShort?'bearish':'bullish/bearish',
+    flow:isLong?'buying':isShort?'selling':'buying/selling',
+    zone:isLong?'discount':isShort?'premium':'premium/discount'
+  };
+  var out=String(text||'').replace(/\{(dir|flow|zone)\}/gi,function(_,k){return map[k.toLowerCase()];});
+  return out.charAt(0).toUpperCase()+out.slice(1);
+}
+function _ledTextMeaningful(v){return String(v||'').replace(/^\s*\d+\.\s*$/gm,'').trim()!=='';}
+async function loadLedChips(){
+  try{
+    var d=await getSetting('ledChipDefs',null);
+    if(Array.isArray(d)&&d.length&&d.every(function(x){return x&&x.id&&typeof x.text==='string';}))_ledChipDefs=d;
+  }catch(e){}
+  renderLedChips();
+}
+function _saveLedChipDefs(){
+  setSetting('ledChipDefs',_ledChipDefs);
+  if(typeof ghAutoSyncConfig==='function')ghAutoSyncConfig();
+}
+function renderLedChips(){
+  var box=document.getElementById('led-chips');if(!box)return;
+  var html='';
+  if(_ledChipEdit){
+    _ledChipDefs.forEach(function(d){
+      html+='<span class="led-chip editing" data-id="'+escHtml(d.id)+'"><input type="text" value="'+escHtml(d.text)+'" maxlength="60" data-role="rename" size="'+Math.max(8,d.text.length)+'"><button type="button" class="led-chip-x" data-role="del" title="Delete chip">×</button></span>';
+    });
+    html+='<span class="led-chip-add"><input type="text" id="led-chip-new" placeholder="New chip, press Enter" maxlength="60" data-role="new"><button type="button" class="btn btn-sm btn-ghost" data-role="add">Add</button></span>';
+  }else{
+    _ledChipDefs.forEach(function(d){
+      html+='<span class="led-chip'+(_ledChipSel[d.id]?' selected':'')+'" data-id="'+escHtml(d.id)+'" data-role="toggle">'+escHtml(_ledResolve(d.text))+'</span>';
+    });
+    _ledChipOrphans.forEach(function(o){
+      html+='<span class="led-chip selected" data-orphan="'+escHtml(o.id)+'" data-role="orphan" title="Chip no longer in your list — click to remove from this trade">'+escHtml(o.label)+'</span>';
+    });
+  }
+  box.innerHTML=html;
+  var b=document.getElementById('led-chip-edit-btn');if(b)b.textContent=_ledChipEdit?'✓ Done':'✎ Edit chips';
+  var h=document.getElementById('led-chip-hint');if(h)h.style.display=_ledChipEdit?'block':'none';
+}
+function toggleLedChipEdit(){_ledChipEdit=!_ledChipEdit;renderLedChips();}
+function _ledAddChip(){
+  var inp=document.getElementById('led-chip-new');if(!inp)return;
+  var v=inp.value.trim();if(!v)return;
+  _ledChipDefs.push({id:'c'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),text:v});
+  _saveLedChipDefs();renderLedChips();
+  var n=document.getElementById('led-chip-new');if(n)n.focus();
+}
+if(!window._ledChipListenersRegistered){
+  window._ledChipListenersRegistered=true;
+  document.addEventListener('click',function(e){
+    var box=document.getElementById('led-chips');if(!box||!box.contains(e.target))return;
+    var el=e.target.closest('[data-role]');if(!el)return;
+    var role=el.getAttribute('data-role');
+    var host=el.closest('[data-id]');var id=host?host.getAttribute('data-id'):null;
+    if(role==='toggle'){if(_ledChipSel[id])delete _ledChipSel[id];else _ledChipSel[id]=true;renderLedChips();}
+    else if(role==='orphan'){var oid=el.getAttribute('data-orphan');_ledChipOrphans=_ledChipOrphans.filter(function(o){return o.id!==oid;});renderLedChips();}
+    else if(role==='del'){_ledChipDefs=_ledChipDefs.filter(function(d){return d.id!==id;});delete _ledChipSel[id];_saveLedChipDefs();renderLedChips();}
+    else if(role==='add'){_ledAddChip();}
+  });
+  document.addEventListener('change',function(e){
+    var el=e.target;if(!el||el.getAttribute('data-role')!=='rename')return;
+    var host=el.closest('[data-id]');if(!host)return;
+    var id=host.getAttribute('data-id'),v=el.value.trim();
+    var d=_ledChipDefs.find(function(x){return x.id===id;});if(!d)return;
+    if(!v){el.value=d.text;return;}   // empty rename = ignore (use × to delete)
+    d.text=v;_saveLedChipDefs();
+  });
+  document.addEventListener('keydown',function(e){
+    var el=e.target;if(!el||e.key!=='Enter')return;
+    var role=el.getAttribute&&el.getAttribute('data-role');
+    if(role==='new'){e.preventDefault();_ledAddChip();}
+    else if(role==='rename'){e.preventDefault();el.blur();}
+  });
+}
+function _getLedChipsForSave(){
+  var out=[];
+  _ledChipDefs.forEach(function(d){if(_ledChipSel[d.id])out.push({id:d.id,label:_ledResolve(d.text)});});
+  _ledChipOrphans.forEach(function(o){out.push({id:o.id,label:o.label});});
+  return out;
+}
+function _restoreLedChips(saved){
+  _ledChipSel={};_ledChipOrphans=[];
+  (Array.isArray(saved)?saved:[]).forEach(function(c){
+    if(!c)return;
+    if(_ledChipDefs.some(function(d){return d.id===c.id;}))_ledChipSel[c.id]=true;
+    else if(c.label)_ledChipOrphans.push({id:c.id||('o'+_ledChipOrphans.length),label:c.label});
+  });
+  renderLedChips();
+}
+function _ledChipsDetailHtml(saved){
+  if(!Array.isArray(saved)||!saved.length)return'';
+  return'<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px">'+saved.map(function(c){
+    return'<span style="display:inline-block;padding:3px 10px;border-radius:999px;border:1px solid var(--accent);background:rgba(77,127,255,.12);color:var(--accent);font-size:11px;font-weight:600">'+escHtml(c.label)+'</span>';
+  }).join('')+'</div>';
+}
+function _ledChipsPlain(t){return Array.isArray(t.ledChips)&&t.ledChips.length?t.ledChips.map(function(c){return c.label;}).join(', '):'';}
+
+// ── Analysis auto-fill: Setup description + Trade plan "then" follow Trade info picks ──
+// LTF Entry is stored as "HTF → MTF → LTF". Entry method "Instant" = a limit entry.
+function _parseLtfTriple(v){
+  var p=String(v||'').split(/\s*→\s*/);
+  return p.length===3&&p[0]&&p[1]&&p[2]?{htf:p[0],mtf:p[1],ltf:p[2]}:null;
+}
+function _buildSetupNotes(existing){
+  var type=_ledType();
+  var method=(document.getElementById('f-method-val')||{}).value||'';
+  var tf=_parseLtfTriple((document.getElementById('f-ltf-val')||{}).value);
+  var isLong=type==='Long';
+  var range=tf?tf.htf:'',tp=(tf&&type)?(tf.htf+' '+(isLong?'high':'low')):(tf?tf.htf:''),idea='';
+  if(tf&&type&&method){
+    var how=method==='Confirmation'?(tf.ltf+' MSS'):'limit';
+    idea=tf.mtf+' '+(isLong?'demand':'supply')+' zone touch with a '+how+'. Expecting a '+(isLong?'bullish':'bearish')+' reaction towards the '+tf.htf+' '+(isLong?'high':'low')+'.';
+  }
+  // Keep whatever the user typed from line 4 ("Other info") onward.
+  var m=/(^|\n)(4\.[^\n]*[\s\S]*)$/.exec(existing||'');
+  var tail=m?m[2]:'4. Other info: ';
+  return '1. Range: '+range+'\n2. Idea: '+idea+'\n3. TP: '+tp+'\n'+tail;
+}
+function _buildPlanThen(){
+  var type=_ledType();
+  var tf=_parseLtfTriple((document.getElementById('f-ltf-val')||{}).value);
+  if(!tf||!type)return '';
+  var isLong=type==='Long';
+  return 'trade a '+(isLong?'long':'short')+' towards the '+tf.htf+' '+(isLong?'high':'low');
+}
+function syncAnalysisAutofill(){
+  var sn=document.getElementById('setup-notes');
+  if(sn){sn.value=_buildSetupNotes(sn.value);sn.dispatchEvent(new Event('input',{bubbles:true}));}
+  var pt=document.getElementById('plan-if-then');
+  if(pt){pt.value=_buildPlanThen();pt.dispatchEvent(new Event('input',{bubbles:true}));}
+  renderLedChips();
+}
 // ══ Option pills ══════════════════════════════════
 function pickOpt(pill,hiddenId){
   var grp=pill.closest('.opt-group');
   if(grp)grp.querySelectorAll('.opt-pill').forEach(function(p){p.classList.remove('selected')});
   pill.classList.add('selected');
   var hidden=document.getElementById(hiddenId);if(hidden)hidden.value=pill.dataset.val;
+  // Trade info changes re-populate the Analysis tab (setup description, plan 'then', chip labels)
+  if(hiddenId==='f-type-val'||hiddenId==='f-method-val'||hiddenId==='f-ltf-val')syncAnalysisAutofill();
 }
 // Like pickOpt, but clicking an already-selected pill again clears the selection instead of
 // leaving it stuck. Used for fields that are optional/conditionally-required (e.g. Exit criteria),
@@ -9959,6 +10134,7 @@ function switchTab(idx,btn){
   document.querySelectorAll('.form-step').forEach(function(s){s.classList.remove('active')});
   document.querySelectorAll('.form-tab').forEach(function(t){t.classList.remove('active')});
   document.getElementById('tab-'+idx).classList.add('active');
+  if(idx===2&&typeof renderLedChips==='function')renderLedChips(); // refresh Long/Short-dependent chip labels
   if(btn)btn.classList.add('active');
   else{var t=document.querySelector('.form-tab:nth-child('+(idx+1)+')');if(t)t.classList.add('active');}
 }
@@ -11522,7 +11698,7 @@ async function saveTrade(){
   var setupNotes=document.getElementById('setup-notes').value.trim();
   if(!setupNotes){toast('Setup description is required (Analysis tab)','err');switchTab(2,null);return;}
   var ledToTrade=document.getElementById('led-to-trade').value.trim();
-  if(!ledToTrade){toast('"What led to the trade" is required (Analysis tab)','err');switchTab(2,null);return;}
+  if(!_getLedChipsForSave().length&&!_ledTextMeaningful(ledToTrade)){toast('"What led to the trade" is required — pick at least one chip or add details (Analysis tab)','err');switchTab(2,null);return;}
   var planIf=document.getElementById('plan-if').value.trim();
   if(!planIf){toast('Trade plan "if" is required (Analysis tab)','err');switchTab(2,null);return;}
   var planIfThen=document.getElementById('plan-if-then').value.trim();
@@ -11656,6 +11832,7 @@ async function saveTrade(){
     biasNarrative:JSON.parse(JSON.stringify(biasState.narrative||{})),
     setupNotes:document.getElementById('setup-notes').value,
     ledToTrade:document.getElementById('led-to-trade').value,
+    ledChips:_getLedChipsForSave(),
     issuesNotes:document.getElementById('issues-notes').value,
     postAnalysis:document.getElementById('post-analysis').value,
     news:document.getElementById('f-news').value,
@@ -11773,6 +11950,7 @@ async function clearForm(skipCancelEdit){
   document.getElementById('trail-box').classList.remove('visible');
   document.getElementById('tp-change-box').classList.remove('visible');
   setChecklist_state(null);setBiasFromData(null);
+  _ledChipSel={};_ledChipOrphans=[];_ledChipEdit=false;renderLedChips();
   // Remove custom TF zones added this session
   document.querySelectorAll('[data-custom-zone]').forEach(function(el){el.remove();});
   // Also put default zones back in their canonical order in case a previous edit reordered them
@@ -11866,7 +12044,7 @@ async function editTrade(id){
   setOptPill('opt-exit-a',trade.tpExitA||'');s('tp-exit-a-val',trade.tpExitA||'');
   s('tp-rr-a',trade.tpRrA);
   s('setup-notes',trade.setupNotes);
-  s('led-to-trade',trade.ledToTrade);s('issues-notes',trade.issuesNotes);
+  s('led-to-trade',trade.ledToTrade);_restoreLedChips(trade.ledChips);s('issues-notes',trade.issuesNotes);
   s('post-analysis',trade.postAnalysis);s('f-news',trade.news);
   // If this trade already has post-journal or news content, expand those sections by default
   // instead of leaving them collapsed (they're collapsed-by-default for new/empty trades).
@@ -13744,7 +13922,7 @@ async function openDetail(id,opts){
     +(trade.narrativeNotes?'<div class="detail-section-title">Narrative</div><div style="font-size:12px;color:var(--text2);white-space:pre-wrap;line-height:1.6">'+escHtml(trade.narrativeNotes)+'</div>':'')
     +(trade.setupNotes?'<div class="detail-section-title">Setup</div><div style="font-size:12px;color:var(--text2);white-space:pre-wrap;line-height:1.6">'+linkifyTradeRefs(escHtml(trade.setupNotes),_numToId)+'</div>':'')
     +planHtml
-    +(trade.ledToTrade?'<div class="detail-section-title">What led to the trade</div><div style="font-size:12px;color:var(--text2);white-space:pre-wrap;line-height:1.6">'+linkifyTradeRefs(escHtml(trade.ledToTrade),_numToId)+'</div>':'')
+    +(((trade.ledChips&&trade.ledChips.length)||_ledTextMeaningful(trade.ledToTrade))?'<div class="detail-section-title">What led to the trade</div>'+_ledChipsDetailHtml(trade.ledChips)+(_ledTextMeaningful(trade.ledToTrade)?'<div style="font-size:12px;color:var(--text2);white-space:pre-wrap;line-height:1.6">'+linkifyTradeRefs(escHtml(trade.ledToTrade),_numToId)+'</div>':''):'')
     +(trade.skipped&&trade.whySkipped?'<div class="detail-section-title" style="color:var(--amber)">Why skipped</div><div style="font-size:12px;color:var(--text2);white-space:pre-wrap;line-height:1.6">'+linkifyTradeRefs(escHtml(trade.whySkipped),_numToId)+'</div>':'')
     +(trade.issuesNotes&&trade.issuesNotes!='1. '?'<div class="detail-section-title">Issues</div><div style="font-size:12px;color:var(--text2);white-space:pre-wrap;line-height:1.6">'+linkifyTradeRefs(escHtml(trade.issuesNotes),_numToId)+'</div>':'')
     +((trade.postAnalysis&&trade.postAnalysis!='1. ')?'<div class="detail-section-title">Post-journal</div><div class="js-pre">'+linkifyTradeRefs(escHtml(trade.postAnalysis),_numToId)+'</div>':'')
@@ -16432,7 +16610,7 @@ async function refreshUI(){
   // renderHistory()/renderDashboard() below score every trade's setup rating straight from
   // these in-memory caches (see computeSetupScoreInfo), not from a fresh read.
   await Promise.all([loadSetupRatingsCache(),loadClAllItemsCache()]);
-  await Promise.all([renderDashboard(),updateSidebarStats(),populateSessionSelects(),renderHistory(),populatePairSelect(),populateStrategySelect(),populateErrorTypeSelect(),populateEmotionPills(),loadShortcutsConfig(),loadBreakSettings(),loadTrackerSettings().then(renderTracker)]);
+  await Promise.all([renderDashboard(),updateSidebarStats(),populateSessionSelects(),renderHistory(),populatePairSelect(),populateStrategySelect(),populateErrorTypeSelect(),populateEmotionPills(),loadShortcutsConfig(),loadBreakSettings(),loadLedChips(),loadTrackerSettings().then(renderTracker)]);
   // Watchlists live in the same generic 'settings' store as everything else refreshUI()
   // covers, so a pull/restore/merge that changed them needs the page re-rendered too if open.
   if(_currentPage==='watchlist'&&typeof wlInit==='function')wlInit();
@@ -19338,6 +19516,7 @@ async function calcLogTrade(){
   // Trade direction and skipped state
   setOptPill('opt-type',tradeType);
   document.getElementById('f-type-val').value=tradeType;
+  renderLedChips();
   var skippedCb=document.getElementById('f-skipped');
   if(skippedCb){skippedCb.checked=calcIsSkipped;onSkippedChange();}
   // Note: calculator partial TPs are intentionally NOT carried over to Log Trade's partial
@@ -19396,6 +19575,7 @@ function captureLogFormSnapshot(){
   // In-memory state that lives outside the DOM
   snap._biasState  = JSON.parse(JSON.stringify(biasState));
   snap._tfState    = JSON.parse(JSON.stringify(tfState));
+  snap._ledChips   = {sel:JSON.parse(JSON.stringify(_ledChipSel)),orphans:JSON.parse(JSON.stringify(_ledChipOrphans))};
   snap._partialTPs = JSON.parse(JSON.stringify(_partialTPs));
   snap._manualFees = _collectManualFees();
   return snap;
@@ -19473,6 +19653,7 @@ function restoreLogFormSnapshot(snap){
     });
   }
   if(snap._partialTPs){ _partialTPs=JSON.parse(JSON.stringify(snap._partialTPs)); renderPartialTPs(); }
+  if(snap._ledChips){ _ledChipSel=snap._ledChips.sel||{}; _ledChipOrphans=snap._ledChips.orphans||[]; renderLedChips(); }
   if(typeof recalc==='function')recalc();
 }
 // Fully reset the Position Size Calculator to its default state (called on page nav / after leaving the guided flow)
@@ -23711,6 +23892,7 @@ function aiBuilderPrompt(m,sessionInfo,depth){
   m.trades.forEach(function(t,i){
     var techParts=[];
     if(t.setupNotes&&t.setupNotes.trim()&&!t.setupNotes.trim().startsWith('1. Trading within'))techParts.push('setup: '+t.setupNotes.trim().slice(0,120));
+    if(_ledChipsPlain(t))techParts.push('led to trade (chips): '+_ledChipsPlain(t).slice(0,120));
     if(t.ledToTrade&&t.ledToTrade.trim()&&t.ledToTrade.trim()!=='1. ')techParts.push('led to trade: '+t.ledToTrade.trim().slice(0,120));
     if(t.narrativeNotes&&t.narrativeNotes.trim())techParts.push('narrative: '+t.narrativeNotes.trim().slice(0,80));
     if(t.tpCriteria&&t.tpCriteria.trim())techParts.push('TP criteria: '+t.tpCriteria.trim().slice(0,80));
@@ -23749,6 +23931,7 @@ function aiBuilderPrompt(m,sessionInfo,depth){
       }
       lines.push(row);
       if(t.setupNotes&&t.setupNotes.trim()&&!t.setupNotes.trim().startsWith('1. Trading within'))lines.push('  Setup: '+t.setupNotes.trim().slice(0,200));
+      if(_ledChipsPlain(t))lines.push('  Led to trade (chips): '+_ledChipsPlain(t).slice(0,200));
       if(t.ledToTrade&&t.ledToTrade.trim()&&t.ledToTrade.trim()!=='1. ')lines.push('  Led to trade: '+t.ledToTrade.trim().slice(0,200));
       if(t.narrativeNotes&&t.narrativeNotes.trim())lines.push('  Narrative: '+t.narrativeNotes.trim().slice(0,150));
       if(t.tpCriteria&&t.tpCriteria.trim())lines.push('  TP criteria: '+t.tpCriteria.trim().slice(0,100));
