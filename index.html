@@ -2971,7 +2971,7 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
             </div>
             <div class="led-chip-row" id="led-chips"></div>
             <div class="led-chip-hint" id="led-chip-hint" style="display:none">Rename a chip by editing its text, or remove it with ×. Use <code>{dir}</code> (bullish/bearish), <code>{flow}</code> (buying/selling) or <code>{zone}</code> (discount/premium) to auto-switch with Long/Short.</div>
-            <div class="frow" style="margin-top:12px"><label class="flabel">Additional details <span style="color:var(--text3);font-weight:400">(optional)</span></label><textarea id="led-to-trade">1. </textarea></div>
+            <div class="frow" style="margin-top:12px"><label class="flabel">Additional details <span style="color:var(--text3);font-weight:400">(optional)</span></label><textarea id="led-to-trade" rows="2" style="min-height:0">1. </textarea></div>
             <!-- HTF screenshots: W / D / 4h + custom -->
             <div class="screenshots-group" style="margin-top:14px">
               <div class="screenshots-group-hdr">
@@ -5506,6 +5506,44 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
       #page-earnings .er-name{color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
       #page-earnings .er-cap,#page-earnings .er-eps{font-family:'DM Mono',monospace;font-size:11px;color:var(--text3);text-align:right;white-space:nowrap;}
       #page-earnings .er-row.er-mine .er-sym{color:var(--amber);}
+      /* Reported results: EPS actual vs estimate. rs-beat = green, rs-miss = red, rs-line / rs-rep = neutral. */
+      #page-earnings .er-row.er-rep{grid-template-columns:78px 14px minmax(0,1fr) 70px 84px 78px 122px;}
+      #page-earnings .er-row.rs-beat{background:rgba(52,201,122,.07);box-shadow:inset 3px 0 0 var(--green);}
+      #page-earnings .er-row.rs-miss{background:rgba(232,85,85,.07);box-shadow:inset 3px 0 0 var(--red);}
+      #page-earnings .er-row.rs-line,#page-earnings .er-row.rs-rep{box-shadow:inset 3px 0 0 var(--border2);}
+      #page-earnings .er-row.rs-beat:hover{background:rgba(52,201,122,.13);}
+      #page-earnings .er-row.rs-miss:hover{background:rgba(232,85,85,.13);}
+      #page-earnings .er-act{font-family:'DM Mono',monospace;font-size:11px;font-weight:700;text-align:right;white-space:nowrap;color:var(--text3);}
+      #page-earnings .er-act.rs-beat{color:var(--green);}
+      #page-earnings .er-act.rs-miss{color:var(--red);}
+      #page-earnings .er-act.rs-line,#page-earnings .er-act.rs-rep{color:var(--text);}
+      #page-earnings .er-res{justify-self:end;display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:4px;border:1px solid transparent;font-family:'DM Mono',monospace;font-size:10px;font-weight:700;letter-spacing:.03em;white-space:nowrap;}
+      #page-earnings .er-res.rs-beat{background:rgba(52,201,122,.14);color:var(--green);border-color:rgba(52,201,122,.35);}
+      #page-earnings .er-res.rs-miss{background:rgba(232,85,85,.14);color:var(--red);border-color:rgba(232,85,85,.35);}
+      #page-earnings .er-res.rs-line,#page-earnings .er-res.rs-rep{background:rgba(107,115,138,.14);color:var(--text2);border-color:rgba(107,115,138,.3);}
+      #page-earnings .er-res.er-wait{background:none;border-color:transparent;color:var(--text3);font-weight:500;}
+      #page-earnings .er-sum{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:12px;}
+      #page-earnings .er-sbox{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 4px;border-radius:var(--radius);border:1px solid var(--border);background:var(--bg3);}
+      #page-earnings .er-sbox b{font-family:'DM Mono',monospace;font-size:15px;color:var(--text);}
+      #page-earnings .er-sbox span{font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);}
+      #page-earnings .er-sbox.rs-beat{background:rgba(52,201,122,.08);border-color:rgba(52,201,122,.4);}
+      #page-earnings .er-sbox.rs-beat b,#page-earnings .er-sbox.rs-beat span{color:var(--green);}
+      #page-earnings .er-sbox.rs-miss{background:rgba(232,85,85,.08);border-color:rgba(232,85,85,.4);}
+      #page-earnings .er-sbox.rs-miss b,#page-earnings .er-sbox.rs-miss span{color:var(--red);}
+      #page-earnings .er-tally{display:flex;flex-wrap:wrap;gap:4px;margin:0 0 8px;}
+      #page-earnings .er-cell .er-tally{margin:4px 0 0;}
+      #page-earnings .er-tally span{font-family:'DM Mono',monospace;font-size:10px;font-weight:700;padding:1px 6px;border-radius:3px;}
+      #page-earnings .er-tally .rs-beat{background:rgba(52,201,122,.14);color:var(--green);}
+      #page-earnings .er-tally .rs-miss{background:rgba(232,85,85,.14);color:var(--red);}
+      #page-earnings .er-tally .rs-line{background:rgba(107,115,138,.14);color:var(--text2);}
+      #page-earnings .er-mini.rs-beat,#page-earnings .er-mini.rs-miss,#page-earnings .er-mini.rs-line,#page-earnings .er-mini.rs-rep{padding-left:6px;border-radius:3px;}
+      #page-earnings .er-mini.rs-beat{background:rgba(52,201,122,.07);box-shadow:inset 2px 0 0 var(--green);}
+      #page-earnings .er-mini.rs-miss{background:rgba(232,85,85,.07);box-shadow:inset 2px 0 0 var(--red);}
+      #page-earnings .er-mini.rs-line,#page-earnings .er-mini.rs-rep{box-shadow:inset 2px 0 0 var(--border2);}
+      #page-earnings .er-mres{margin-left:auto;font-family:'DM Mono',monospace;font-size:10px;font-weight:700;white-space:nowrap;color:var(--text2);}
+      #page-earnings .er-mres.rs-beat{color:var(--green);}
+      #page-earnings .er-mres.rs-miss{color:var(--red);}
+      #page-earnings .er-col.er-past.er-has,#page-earnings .er-cell.er-past.er-has{opacity:1;}
       #page-earnings .er-more{display:block;width:100%;margin-top:6px;padding:6px;border:1px dashed var(--border2);border-radius:var(--radius);background:none;color:var(--text3);font-family:'DM Sans',sans-serif;font-size:11px;font-weight:600;cursor:pointer;}
       #page-earnings .er-more:hover{color:var(--accent);border-color:var(--accent);}
       #page-earnings .er-week{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;align-items:start;}
@@ -5554,6 +5592,8 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
         #page-earnings .er-week{grid-template-columns:1fr;}
         #page-earnings .er-row{grid-template-columns:64px 12px minmax(0,1fr) 62px;}
         #page-earnings .er-row .er-eps{display:none;}
+        #page-earnings .er-row.er-rep{grid-template-columns:64px 12px minmax(0,1fr) 58px 104px;}
+        #page-earnings .er-row.er-rep .er-cap{display:none;}
         #page-earnings .er-search{width:100%;order:9;}
         #page-earnings .er-spacer{display:none;}
       }
@@ -8628,7 +8668,8 @@ function _ledChipsDetailHtml(saved){
 function _ledChipsPlain(t){return Array.isArray(t.ledChips)&&t.ledChips.length?t.ledChips.map(function(c){return c.label;}).join(', '):'';}
 
 // ── Analysis auto-fill: Setup description + Trade plan "then" follow Trade info picks ──
-// LTF Entry is stored as "HTF → MTF → LTF". Entry method "Instant" = a limit entry.
+// LTF Entry is stored as "HTF → MTF → LTF". Entry method "Instant" = a limit order entry.
+// TP placement "Swing H/L" prefills the TP line with the HTF high/low; "Zone" leaves it blank.
 function _parseLtfTriple(v){
   var p=String(v||'').split(/\s*→\s*/);
   return p.length===3&&p[0]&&p[1]&&p[2]?{htf:p[0],mtf:p[1],ltf:p[2]}:null;
@@ -8636,11 +8677,13 @@ function _parseLtfTriple(v){
 function _buildSetupNotes(existing){
   var type=_ledType();
   var method=(document.getElementById('f-method-val')||{}).value||'';
+  var tpPlace=(document.getElementById('tp-tpplace-val')||{}).value||'';
   var tf=_parseLtfTriple((document.getElementById('f-ltf-val')||{}).value);
   var isLong=type==='Long';
-  var range=tf?tf.htf:'',tp=(tf&&type)?(tf.htf+' '+(isLong?'high':'low')):(tf?tf.htf:''),idea='';
+  // TP line: only prefilled when TP placement is Swing H/L (-> HTF high/low). Zone (or not picked yet) stays blank.
+  var range=tf?tf.htf:'',tp=(tf&&type&&tpPlace==='Swing H/L')?(tf.htf+' '+(isLong?'high':'low')):'',idea='';
   if(tf&&type&&method){
-    var how=method==='Confirmation'?(tf.ltf+' MSS'):'limit';
+    var how=method==='Confirmation'?(tf.ltf+' MSS'):'limit order';
     idea=tf.mtf+' '+(isLong?'demand':'supply')+' zone touch with a '+how+'. Expecting a '+(isLong?'bullish':'bearish')+' reaction towards the '+tf.htf+' '+(isLong?'high':'low')+'.';
   }
   // Keep whatever the user typed from line 4 ("Other info") onward.
@@ -8669,7 +8712,7 @@ function pickOpt(pill,hiddenId){
   pill.classList.add('selected');
   var hidden=document.getElementById(hiddenId);if(hidden)hidden.value=pill.dataset.val;
   // Trade info changes re-populate the Analysis tab (setup description, plan 'then', chip labels)
-  if(hiddenId==='f-type-val'||hiddenId==='f-method-val'||hiddenId==='f-ltf-val')syncAnalysisAutofill();
+  if(hiddenId==='f-type-val'||hiddenId==='f-method-val'||hiddenId==='f-ltf-val'||hiddenId==='tp-tpplace-val')syncAnalysisAutofill();
 }
 // Like pickOpt, but clicking an already-selected pill again clears the selection instead of
 // leaving it stuck. Used for fields that are optional/conditionally-required (e.g. Exit criteria),
@@ -28828,7 +28871,7 @@ async function sendTelegramDelete(messageId, cfg) {
 // Earnings calendar — free, keyless, no AI. Plain API data + deterministic code.
 // ─────────────────────────────────────────────────────────────────────────────
 // Row shape (compact so a busy earnings week stays small in KV):
-//   { s:'AAPL', n:'Apple Inc.', d:'2026-10-29', t:'bmo'|'amc'|'dmh'|'', c:<market cap USD>|null, e:<EPS estimate>|null, q:'Sep/2026' }
+//   { s:'AAPL', n:'Apple Inc.', d:'2026-10-29', t:'bmo'|'amc'|'dmh'|'', c:<market cap USD>|null, e:<EPS estimate>|null, a:<reported EPS>|null, p:<reported surprise %>|null, q:'Sep/2026' }
 //   t: bmo = before market open, amc = after market close, dmh = during market hours, '' = time not confirmed.
 // Sources, in order: (1) Nasdaq's public earnings calendar feed — no key, has market cap and
 // pre/post-market timing, one request per day; (2) Finnhub /calendar/earnings, only if a Finnhub
@@ -28841,6 +28884,7 @@ var EARN_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHT
 var EARN_DAY_MS = 86400000;
 var EARN_MAX_SPAN_DAYS = 14;   // GET /earnings range cap: ≤3 weeks → ≤15 day-fetches + a few KV ops, under the free plan's 50 subrequests
 var EARN_WEEK_TTL_SEC = 90 * 86400;
+var EARN_CACHE_V = 2;   // bump when the row shape changes; older cached weeks are refetched once (v2 added a = reported EPS, p = surprise %)
 
 function earnPad(n) { return (n < 10 ? '0' : '') + n; }
 function earnIso(d) { return d.getUTCFullYear() + '-' + earnPad(d.getUTCMonth() + 1) + '-' + earnPad(d.getUTCDate()); }
@@ -28910,7 +28954,7 @@ async function earnNasdaqDay(iso) {
   for (var i = 0; i < rows.length; i++) {
     var x = rows[i], sym = earnSym(x.symbol);
     if (!sym) continue;
-    out.push({ s: sym, n: x.name || '', d: iso, t: earnNasdaqTime(x.time), c: earnNum(x.marketCap), e: earnNum(x.epsForecast), q: x.fiscalQuarterEnding || '' });
+    out.push({ s: sym, n: x.name || '', d: iso, t: earnNasdaqTime(x.time), c: earnNum(x.marketCap), e: earnNum(x.epsForecast), a: earnNum(x.eps !== undefined ? x.eps : x.epsActual), p: earnNum(x.surprise !== undefined ? x.surprise : x.epsSurprise), q: x.fiscalQuarterEnding || '' });
   }
   return out;
 }
@@ -28925,11 +28969,16 @@ async function earnFinnhubRange(from, to, key) {
     var x = list[i], sym = earnSym(x.symbol);
     if (!sym || !earnParse(x.date)) continue;
     var h = String(x.hour || '').toLowerCase();
-    out.push({ s: sym, n: '', d: x.date, t: (h === 'bmo' || h === 'amc' || h === 'dmh') ? h : '', c: null, e: earnNum(x.epsEstimate), q: (x.quarter && x.year) ? ('Q' + x.quarter + ' ' + x.year) : '' });
+    out.push({ s: sym, n: '', d: x.date, t: (h === 'bmo' || h === 'amc' || h === 'dmh') ? h : '', c: null, e: earnNum(x.epsEstimate), a: earnNum(x.epsActual), p: null, q: (x.quarter && x.year) ? ('Q' + x.quarter + ' ' + x.year) : '' });
   }
   return out;
 }
 
+// ET weekday ('Mon'…'Sun') and hour (0–23) of a timestamp.
+function earnEtDayHour(ms) {
+  var p = etParts(new Date(ms), { hour: '2-digit', hourCycle: 'h23', weekday: 'short' });
+  return { wd: p.weekday, h: +p.hour };
+}
 // A cached week is "final" once it was fetched after the week ended; before that it expires on a
 // schedule that tightens as the week approaches (24h → 6h → 3h) so near-term dates stay accurate.
 function earnStale(monday, t, now) {
@@ -28937,6 +28986,18 @@ function earnStale(monday, t, now) {
   if (t >= end) return false;
   var age = now - t;
   if (now >= end) return true;
+  // Week in progress. Nothing polls in the background: a week is only re-fetched when the page asks for it and its copy is
+  // stale, so a short limit costs nothing while the page is closed. Weekdays: 15 min (results land pre-market and after the
+  // close and the feed can lag a little, so any weekday hour may still be catching up). Weekend: no new reports are expected,
+  // so refetch once to catch Friday's late prints (any copy taken before Saturday 06:00 ET) and then keep it.
+  if (now >= start && now < end) {
+    var nowD = earnEtDayHour(now);
+    if (nowD.wd === 'Sat' || nowD.wd === 'Sun') {
+      var cp = earnEtDayHour(t);
+      return !(cp.wd === 'Sun' || (cp.wd === 'Sat' && cp.h >= 6));
+    }
+    return age > 15 * 60000;
+  }
   if (now >= start - EARN_DAY_MS) return age > 3 * 3600000;
   return age > ((start - now) < 14 * EARN_DAY_MS ? 6 : 24) * 3600000;
 }
@@ -28962,13 +29023,13 @@ async function earnLoadWeek(monday, cfg, force) {
   var raw = await JOURNUP_KV.get(key);
   if (raw) { try { cached = JSON.parse(raw); } catch (e) { cached = null; } }
   if (cached) {
-    var fresh = !earnStale(monday, cached.t, now);
+    var fresh = cached.v === EARN_CACHE_V && !earnStale(monday, cached.t, now);
     // a manual refresh is honoured at most once every 2 minutes per week (protects the upstream feeds)
     if (fresh && !(force && now - cached.t > 120000)) return cached;
   }
   try {
     var w = await earnFetchWeek(monday, cfg);
-    w.t = now;
+    w.t = now; w.v = EARN_CACHE_V;
     await JOURNUP_KV.put(key, JSON.stringify(w), { expirationTtl: EARN_WEEK_TTL_SEC });
     return w;
   } catch (e) {
@@ -29904,7 +29965,8 @@ nav = function(id, btn){
 // Data comes from the Cloud Monitor worker (GET /earnings): Nasdaq's public earnings feed, with
 // Finnhub as an optional fallback. No AI — grouping, sorting and filtering below are plain code.
 // Rows: {s symbol, n name, d date, t 'bmo'|'amc'|'dmh'|'' (before open / after close / intraday /
-// not confirmed), c market cap USD|null, e EPS estimate|null, q fiscal quarter}.
+// not confirmed), c market cap USD|null, e EPS estimate|null, a reported EPS|null, p reported surprise %|null,
+// q fiscal quarter}. a/p only exist once a company has reported (that's what drives the Beat / Miss display).
 // The page browses the CURRENT calendar quarter only. The evening Telegram digest is sent by the
 // worker's cron; this page only stores its settings and pushes them via cmBuildConfig()/erWorkerConfig().
 var ER_KEYS = {syms:'tj-earn-symbols', useWl:'tj-earn-use-wl', cap:'tj-earn-mincap', tgOn:'tj-earn-tg-on', tgTime:'tj-earn-tg-time',
@@ -30001,7 +30063,7 @@ function erAgo(ms){
 // ── data ────────────────────────────────────────────────────────────────
 function erEnsureWeek(mon,force){
   var c=_erWeeks[mon];
-  if(!force&&c&&Date.now()-c.at<600000)return Promise.resolve(c);
+  if(!force&&c&&Date.now()-c.at<120000)return Promise.resolve(c);
   if(_erInflight[mon])return _erInflight[mon];
   var p=cmFetch('/earnings?from='+mon+'&to='+erAdd(mon,6)+(force?'&force=1':''),'GET').then(function(res){
     var w={rows:res.rows||[],src:res.src||[],updated:res.updated||null,stale:!!res.stale,errors:res.errors||[],at:Date.now()};
@@ -30076,13 +30138,64 @@ function erSetFilter(f){_erFilter=f;try{localStorage.setItem(ER_KEYS.filter,f);}
 function erOnSearch(v){_erSearch=(v||'').trim();erRender();}
 function erShowAllToggle(key){_erShowAll[key]=true;erRender();}
 
-function erRowHtml(r,mine){
-  var m=!!mine[r.s];
-  return '<div class="er-row'+(m?' er-mine':'')+'"><span class="er-sym">'+escHtml(r.s)+'</span>'+
+// ── reported results: EPS actual vs estimate ────────────────────────────
+// k: 'beat' | 'miss' | 'line' (matches the estimate to the cent) | 'rep' (reported, nothing to compare with)
+// null = no result yet. Beat/miss is always computed from actual vs estimate; the feed's own surprise %
+// is only a fallback when one of those two numbers is missing.
+var ER_RES_LABEL = {beat:'Beat',miss:'Miss',line:'In line',rep:'Reported'};
+function erResult(r){
+  if(r.a==null&&r.p==null)return null;
+  if(r.a!=null&&r.e!=null){
+    var diff=r.a-r.e,k=Math.abs(diff)<0.005?'line':(diff>0?'beat':'miss');
+    var pct=r.e!==0?diff/Math.abs(r.e)*100:(r.p!=null?r.p:null);
+    return {k:k,pct:k==='line'?0:pct,diff:diff};
+  }
+  if(r.p!=null)return {k:r.p>0?'beat':(r.p<0?'miss':'line'),pct:r.p,diff:null};
+  return {k:'rep',pct:null,diff:null};
+}
+function erPct(p){
+  if(p==null)return '';
+  var a=Math.abs(p),t=a>=1000?'1000+':(a>=100?String(Math.round(a)):a.toFixed(1));
+  return (p>0?'+':(p<0?'-':''))+t+'%';
+}
+function erResTitle(r,res){
+  if(!res)return '';
+  var t=r.a!=null?'Actual '+erEps(r.a):'Reported';
+  if(r.e!=null)t+=' vs est '+erEps(r.e);
+  if(res.diff!=null&&res.k!=='line')t+=' ('+(res.diff>0?'+':'-')+'$'+Math.abs(res.diff).toFixed(2)+')';
+  return t;
+}
+function erTally(rows,today){
+  var t={beat:0,miss:0,line:0,rep:0,n:0};
+  rows.forEach(function(r){if(r.d>today)return;var x=erResult(r);if(!x)return;t[x.k]++;t.n++;});
+  return t;
+}
+function erTallyHtml(t){
+  if(!t.n)return '';
+  return '<div class="er-tally">'+(t.beat?'<span class="rs-beat">&#9650; '+t.beat+'</span>':'')+(t.miss?'<span class="rs-miss">&#9660; '+t.miss+'</span>':'')+(t.line?'<span class="rs-line">= '+t.line+'</span>':'')+'</div>';
+}
+function erSummaryHtml(rows,today){
+  var t=erTally(rows,today);
+  if(!t.n)return '';
+  var dec=t.beat+t.miss+t.line,rate=dec?Math.round(t.beat/dec*100)+'%':'&mdash;';
+  function box(cls,n,l){return '<div class="er-sbox'+(cls?' '+cls:'')+'"><b>'+n+'</b><span>'+l+'</span></div>';}
+  return '<div class="er-sum">'+box('',t.n,'Reported')+box('rs-beat',t.beat,'Beat')+box('rs-miss',t.miss,'Missed')+box('',t.line,'In line')+box('',rate,'Beat rate')+'</div>';
+}
+function erRowHtml(r,mine,today){
+  var m=!!mine[r.s],rep=r.d<=today,res=rep?erResult(r):null;
+  var head='<span class="er-sym">'+escHtml(r.s)+'</span>'+
     (m?'<span class="er-star" title="In your symbols">&#9733;</span>':'<span></span>')+
     '<span class="er-name" title="'+escHtml(r.n||'')+'">'+escHtml(r.n||'')+'</span>'+
     '<span class="er-cap">'+erCap(r.c)+'</span>'+
-    '<span class="er-eps">'+(r.e!=null?'est '+erEps(r.e):'')+'</span></div>';
+    '<span class="er-eps">'+(r.e!=null?'est '+erEps(r.e):'')+'</span>';
+  if(!rep)return '<div class="er-row'+(m?' er-mine':'')+'">'+head+'</div>';
+  // Day is today or earlier: add Actual + Beat/Miss columns (rows with no result yet show a muted placeholder)
+  var k=res?' rs-'+res.k:'';
+  var pill=res
+    ?'<span class="er-res'+k+'" title="'+escHtml(erResTitle(r,res))+'">'+ER_RES_LABEL[res.k]+(res.pct!=null&&res.k!=='line'?' '+erPct(res.pct):'')+'</span>'
+    :'<span class="er-res er-wait">'+(r.d===today?'Awaiting':'No data')+'</span>';
+  return '<div class="er-row er-rep'+(m?' er-mine':'')+k+'">'+head+
+    '<span class="er-act'+k+'">'+(r.a!=null?erEps(r.a):'&mdash;')+'</span>'+pill+'</div>';
 }
 function erEmptyHint(){
   if(_erSearch)return 'No match for &ldquo;'+escHtml(_erSearch)+'&rdquo; on this day.';
@@ -30105,10 +30218,10 @@ function erRenderDay(){
   else body=erByTime(rows,mine).map(function(x){
     var key=iso+'|'+x.g[0],lim=60,list=(_erShowAll[key]||x.items.length<=lim)?x.items:x.items.slice(0,lim);
     return '<div class="er-grp"><div class="er-gh"><span class="badge '+x.g[2]+'">'+x.g[3]+'</span>'+x.g[1]+'<span class="er-n">'+x.items.length+'</span></div>'+
-      list.map(function(r){return erRowHtml(r,mine);}).join('')+
+      list.map(function(r){return erRowHtml(r,mine,today);}).join('')+
       (list.length<x.items.length?'<button type="button" class="er-more" onclick="erShowAllToggle(\''+key+'\')">Show all '+x.items.length+'</button>':'')+'</div>';
   }).join('');
-  return '<div class="er-strip">'+strip+'</div><div class="er-card">'+body+'</div>';
+  return '<div class="er-strip">'+strip+'</div>'+(rows&&rows.length?erSummaryHtml(rows,today):'')+'<div class="er-card">'+body+'</div>';
 }
 function erRenderWeek(){
   var mon=erMon(_erDate),mine=erMySet(),today=erTodayIso(),cols='';
@@ -30119,10 +30232,14 @@ function erRenderWeek(){
     else inner=erByTime(rows,mine).map(function(x){
       var lim=8,list=x.items.slice(0,lim);
       return '<div class="er-grp"><div class="er-gh"><span class="badge '+x.g[2]+'">'+x.g[3]+'</span><span class="er-n" style="margin-left:auto">'+x.items.length+'</span></div>'+
-        list.map(function(r){return '<div class="er-mini"><span class="er-sym" style="'+(mine[r.s]?'color:var(--amber)':'')+'">'+escHtml(r.s)+'</span>'+(mine[r.s]?'<span class="er-star">&#9733;</span>':'')+'<span class="er-cap">'+erCap(r.c)+'</span></div>';}).join('')+
+        list.map(function(r){
+          var res=r.d<=today?erResult(r):null;
+          var tail=res?'<span class="er-mres rs-'+res.k+'" title="'+escHtml(erResTitle(r,res))+'">'+(res.k==='beat'?'&#9650; ':(res.k==='miss'?'&#9660; ':''))+(res.k==='line'?'In line':(res.pct!=null?erPct(res.pct).replace(/^[+-]/,''):'Rep.'))+'</span>':'<span class="er-cap">'+erCap(r.c)+'</span>';
+          return '<div class="er-mini'+(res?' rs-'+res.k:'')+'"><span class="er-sym" style="'+(mine[r.s]?'color:var(--amber)':'')+'">'+escHtml(r.s)+'</span>'+(mine[r.s]?'<span class="er-star">&#9733;</span>':'')+tail+'</div>';}).join('')+
         (x.items.length>lim?'<button type="button" class="er-more" onclick="erGoDay(\''+d+'\')">+'+(x.items.length-lim)+' more</button>':'')+'</div>';
     }).join('');
-    cols+='<div class="er-col'+(d===today?' er-today':'')+(d<today?' er-past':'')+'"><div class="er-ch" onclick="erGoDay(\''+d+'\')"><strong>'+ER_DAYS[i]+'</strong><span>'+erFmt(d,{month:'short',day:'numeric'})+'</span><em>'+(rows===null?'':rows.length)+'</em></div>'+inner+'</div>';
+    var tl=rows&&rows.length?erTally(rows,today):null;
+    cols+='<div class="er-col'+(d===today?' er-today':'')+(d<today?' er-past':'')+(tl&&tl.n?' er-has':'')+'"><div class="er-ch" onclick="erGoDay(\''+d+'\')"><strong>'+ER_DAYS[i]+'</strong><span>'+erFmt(d,{month:'short',day:'numeric'})+'</span><em>'+(rows===null?'':rows.length)+'</em></div>'+(tl?erTallyHtml(tl):'')+inner+'</div>';
   }
   return '<div class="er-week">'+cols+'</div>';
 }
@@ -30133,13 +30250,14 @@ function erRenderMonth(){
     for(var i=0;i<5;i++){
       var d=erAdd(mon,i);
       if(d<b.first||d>b.last){html+='<div class="er-cell er-off"></div>';continue;}
-      var rows=erRowsOn(d,mine),inner='';
+      var rows=erRowsOn(d,mine),inner='',hasRes=false;
       if(rows===null)inner='<div class="er-ct">'+(_erWeekErr[mon]?'<u>—</u>':'<u>…</u>')+'</div>';
       else if(rows.length){
         var top=erSort(rows,mine).slice(0,3).map(function(r){return mine[r.s]?'<i>'+escHtml(r.s)+'</i>':escHtml(r.s);}).join(' ');
         inner='<div class="er-ct">'+top+(rows.length>3?' <u>+'+(rows.length-3)+'</u>':'')+'</div>';
+        var tl=erTally(rows,today);if(tl.n){inner+=erTallyHtml(tl);hasRes=true;}
       }
-      html+='<div class="er-cell'+(d===today?' er-today':'')+(d<today?' er-past':'')+'" onclick="erGoDay(\''+d+'\')"><div class="er-cd">'+erParse(d).getDate()+'<span class="er-cnt">'+(rows&&rows.length?rows.length:'')+'</span></div>'+inner+'</div>';
+      html+='<div class="er-cell'+(d===today?' er-today':'')+(d<today?' er-past':'')+(hasRes?' er-has':'')+'" onclick="erGoDay(\''+d+'\')"><div class="er-cd">'+erParse(d).getDate()+'<span class="er-cnt">'+(rows&&rows.length?rows.length:'')+'</span></div>'+inner+'</div>';
     }
   }
   return html+'</div>';
@@ -30177,7 +30295,7 @@ function erRender(){
   if(_erErrKind==='nourl')html='<div class="er-card er-empty"><b>Earnings needs your Cloud Monitor worker.</b><br>It fetches the calendar and sends the evening Telegram message. Add your Worker URL in Settings, then come back.<br><button type="button" class="btn btn-primary btn-sm" onclick="erOpenSettings()">Open Settings</button></div>';
   else if(_erErrKind==='oldworker')html='<div class="er-card er-empty"><b>Your deployed worker predates the Earnings feature.</b><br>Download the updated worker, paste it over your current one in the Cloudflare dashboard and deploy &mdash; nothing else changes (your KV data and cron stay as they are).<br><button type="button" class="btn btn-primary btn-sm" onclick="cfDownloadWorker()">Download updated worker</button></div>';
   else html=_erView==='day'?erRenderDay():_erView==='week'?erRenderWeek():erRenderMonth();
-  if(!_erErrKind)html+='<div class="er-foot">Dates and times come from Nasdaq&rsquo;s public earnings calendar and can still move until a company confirms. The evening Telegram message re-checks tomorrow&rsquo;s date from scratch. &#9733; = one of your symbols.</div>';
+  if(!_erErrKind)html+='<div class="er-foot">Dates and times come from Nasdaq&rsquo;s public earnings calendar and can still move until a company confirms. The evening Telegram message re-checks tomorrow&rsquo;s date from scratch. &#9733; = one of your symbols. For companies that have reported, Beat / Miss compares the actual EPS with the consensus estimate (within a cent = In line).</div>';
   body.innerHTML=html;
 }
 
