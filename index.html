@@ -6029,6 +6029,7 @@ function fxSubmit(){
   }
   fxSave(list);
   fxRender();
+  ghAutoSyncFx();
 }
 function fxEdit(id){
   var row=fxLoad().find(function(r){return r.id===id;});
@@ -6053,9 +6054,11 @@ function fxCancelEdit(){
 function fxDelete(id){
   if(!confirm('Delete this conversion?'))return;
   if(_fxEditingId===id)fxCancelEdit();
+  ghvNoteDel('fx',id);
   fxSave(fxLoad().filter(function(r){return r.id!==id;}));
   toast('Conversion deleted','ok');
   fxRender();
+  ghAutoSyncFx();
 }
 function fxRender(){
   if(!document.getElementById('fx-date').value)document.getElementById('fx-date').value=new Date().toISOString().slice(0,10);
@@ -7060,10 +7063,10 @@ function openDB(){
 // deliberately bypass the cache and always hit IDB directly (used by code paths
 // that need a guaranteed-fresh read right after a write, e.g. cascading updates
 // in updateStrategy/saveChecklistEditor below).
-function dbPut(store,obj){invalidateCache(store);return new Promise(function(res,rej){var tx=db.transaction(store,'readwrite');var r=tx.objectStore(store).put(obj);r.onsuccess=function(){res(r.result)};r.onerror=function(){rej(r.error)};});}
+function dbPut(store,obj){if(typeof ghvNotePut==='function')ghvNotePut(store,obj);invalidateCache(store);return new Promise(function(res,rej){var tx=db.transaction(store,'readwrite');var r=tx.objectStore(store).put(obj);r.onsuccess=function(){res(r.result)};r.onerror=function(){rej(r.error)};});}
 function dbGetAll(store){return new Promise(function(res,rej){var tx=db.transaction(store,'readonly');var r=tx.objectStore(store).getAll();r.onsuccess=function(){res(r.result)};r.onerror=function(){rej(r.error)};});}
-function dbDelete(store,id){invalidateCache(store);return new Promise(function(res,rej){var tx=db.transaction(store,'readwrite');var r=tx.objectStore(store).delete(id);r.onsuccess=function(){res()};r.onerror=function(){rej(r.error)};});}
-function dbClear(store){invalidateCache(store);return new Promise(function(res,rej){var tx=db.transaction(store,'readwrite');var r=tx.objectStore(store).clear();r.onsuccess=function(){res()};r.onerror=function(){rej(r.error)};});}
+function dbDelete(store,id){if(typeof ghvNoteDel==='function')ghvNoteDel(store,id);invalidateCache(store);return new Promise(function(res,rej){var tx=db.transaction(store,'readwrite');var r=tx.objectStore(store).delete(id);r.onsuccess=function(){res()};r.onerror=function(){rej(r.error)};});}
+function dbClear(store){invalidateCache(store);return(typeof ghvNoteClear==='function'?ghvNoteClear(store):Promise.resolve()).then(function(){return new Promise(function(res,rej){var tx=db.transaction(store,'readwrite');var r=tx.objectStore(store).clear();r.onsuccess=function(){res()};r.onerror=function(){rej(r.error)};});});}
 function dbGet(store,id){return new Promise(function(res,rej){var tx=db.transaction(store,'readonly');var r=tx.objectStore(store).get(id);r.onsuccess=function(){res(r.result)};r.onerror=function(){rej(r.error)};});}
 // ══ In-memory read cache ══════════════════════════
 // Caches the two hot stores (trades, sessions) so multiple render functions
@@ -18039,13 +18042,13 @@ openDB().then(async function(){
   // erasing the change the user just saw rendered. ghPushConfigFile is called directly (not via
   // the normal debounced ghAutoSyncConfig) specifically so it can be awaited here.
   if(_clOptionalJustSeeded&&_cfg.user&&_cfg.repo&&_cfg.token){
-    try{await ghPushConfigFile(_cfg);}catch(e){console.warn('Post-migration config push failed:',e.message);}
+    try{await ghPushConfigFile(_cfg,true);}catch(e){console.warn('Post-migration config push failed:',e.message);}
   }
   // Same protection for the Fear/Impatient emotion-tags migration. emotionTags is a settings
   // key, so it's config — same push as the checklist above. Skipped when that push already
   // ran this boot, since one tj_config.json push carries every settings key.
   if(_emoTagsJustMigrated&&!_clOptionalJustSeeded&&_cfg.user&&_cfg.repo&&_cfg.token){
-    try{await ghPushConfigFile(_cfg);}catch(e){console.warn('Post-migration config push failed:',e.message);}
+    try{await ghPushConfigFile(_cfg,true);}catch(e){console.warn('Post-migration config push failed:',e.message);}
   }
   if(_cfg.user&&_cfg.repo&&_cfg.token)ghAutoPullOnSetup();
 });
@@ -20228,6 +20231,7 @@ function ghIsConfigSetting(id){
 var GH_BKP_CONFIG_FILE='bkp/config_backup.json'; // single config backup (always overwritten)
 var GH_ALERTS_FILE='tjalert.json';         // live alerts (always overwritten)
 var GH_BKP_ALERTS_FILE='bkp/alerts_backup.json'; // single alerts backup (written by manual AND scheduled auto backup)
+var GH_FX_FILE='tj_fx.json'; // live USD/CAD file (version-token synced); bkp/fx_backup.json is now only a backup copy
 var GH_BKP_FX_FILE='bkp/fx_backup.json';   // single FX (USD/CAD conversions) backup — manual backup only, mirrors config backup
 var GH_WATCHLIST_FILE='tj_watchlist.json'; // live watchlist (always overwritten)
 var GH_BKP_WATCHLIST_FILE='bkp/watchlist_backup.json'; // single watchlist backup — manual backup only, mirrors config backup
@@ -20283,55 +20287,10 @@ async function ghGetFileSHAByPath(cfg,path){
 // _ghPushOnce's retry-once-on-409 pattern: a conflicting concurrent write gets one fresh-SHA
 // retry (rebuilding the payload fresh, in case settings changed in between) instead of
 // silently losing the push.
-async function ghPushConfigFile(cfg){
-  var doAttempt=async function(){
-    var payload=await ghBuildConfigPayload();
-    var sha=null;
-    // Compare new payload vs existing file — skip push if only exportedAt differs
-    try{
-      var existingResp=await fetch('https://api.github.com/repos/'+cfg.user+'/'+cfg.repo+'/contents/'+GH_CONFIG_FILE,{
-        headers:{'Authorization':'token '+cfg.token,'Accept':'application/vnd.github.v3+json'}
-      });
-      if(existingResp.ok){
-        var existingFile=await existingResp.json();
-        sha=existingFile.sha||null;
-        var existingText=decodeURIComponent(escape(atob(existingFile.content.replace(/\n/g,''))));
-        var existingData=JSON.parse(existingText);
-        // Strip exportedAt from both before comparing
-        var newCopy=Object.assign({},payload);delete newCopy.exportedAt;
-        var oldCopy=Object.assign({},existingData);delete oldCopy.exportedAt;
-        if(JSON.stringify(newCopy)===JSON.stringify(oldCopy))return'skip'; // no real change — skip push
-      }
-    }catch(e){ sha=await ghGetFileSHAByPath(cfg,GH_CONFIG_FILE); }
-    // Stamp exportedAt at the moment we actually push (real change confirmed above)
-    payload.exportedAt=new Date().toISOString();
-    var content=utf8ToBase64(JSON.stringify(payload,null,2));
-    var body={message:'TJ config — '+new Date().toISOString().slice(0,16).replace('T',' '),content:content};
-    if(sha)body.sha=sha;
-    var resp=await fetch('https://api.github.com/repos/'+cfg.user+'/'+cfg.repo+'/contents/'+GH_CONFIG_FILE,{
-      method:'PUT',
-      headers:{'Authorization':'token '+cfg.token,'Accept':'application/vnd.github.v3+json','Content-Type':'application/json'},
-      body:JSON.stringify(body)
-    });
-    return resp;
-  };
-  try{
-    var result=await doAttempt();
-    if(result==='skip')return true;
-    // 409 = the file's SHA moved between our GET and our PUT (e.g. a debounced auto-sync
-    // landed first — very possible right after adding/renaming/removing a setting and then
-    // immediately triggering a manual push). Retry once with a freshly-rebuilt payload and SHA.
-    if(!result.ok&&result.status===409){
-      result=await doAttempt();
-      if(result==='skip')return true;
-    }
-    if(!result.ok){
-      var err=await result.json().catch(function(){return{};});
-      console.warn('Config file push failed: HTTP '+result.status+' '+(err.message||''));
-      return false;
-    }
-    return true;
-  }catch(e){console.warn('Config file push error:',e.message);return false;}
+async function ghPushConfigFile(cfg,preferLocal){
+  var r=await ghvRun(cfg,'config',{push:true,notify:true,preferLocal:!!preferLocal});
+  if(!r.ok)console.warn('Config file push failed: '+r.msg);
+  return r.ok;
 }
 async function ghApplyConfigData(data){
   // Accepts both config shapes: v3+ (generic `settings` array — every key the app has) and
@@ -20458,27 +20417,16 @@ async function ghMergeConfigData(data){
   }
   return added;
 }
-// Silently syncs the FX Tracker's current USD/CAD conversions to bkp/fx_backup.json —
-// the single file that holds FX data on GitHub (there's no separate "live" FX file the
-// way tj_data.json/tj_config.json exist for trades/config, so this one file IS the actual
-// current data, not a historical snapshot). Called after a local JSON import restores FX
+// Silently syncs the FX Tracker's USD/CAD conversions to the live tj_fx.json (version-token merge, like
+// tj_data.json/tj_config.json). bkp/fx_backup.json is only a backup copy written by ghSnapshot(); it is
+// read once to seed tj_fx.json the first time. Called after a local JSON import restores FX
 // conversions, so restoring keeps GitHub in sync too. No-ops silently if not configured —
 // same as ghAutoSync().
 async function ghPushFxLive(){
   var cfg=ghGetConfig();
   if(!cfg.user||!cfg.repo||!cfg.token)return;
-  try{
-    var fxPayload={version:1,exportedAt:new Date().toISOString(),conversions:fxLoad()};
-    var fxContent=utf8ToBase64(JSON.stringify(fxPayload,null,2));
-    var fxSha=await ghGetFileSHAByPath(cfg,GH_BKP_FX_FILE);
-    var fxBody={message:'TJ FX sync — '+new Date().toISOString().slice(0,16).replace('T',' '),content:fxContent};
-    if(fxSha)fxBody.sha=fxSha;
-    await fetch('https://api.github.com/repos/'+cfg.user+'/'+cfg.repo+'/contents/'+GH_BKP_FX_FILE,{
-      method:'PUT',
-      headers:{'Authorization':'token '+cfg.token,'Accept':'application/vnd.github.v3+json','Content-Type':'application/json'},
-      body:JSON.stringify(fxBody)
-    });
-  }catch(e){console.warn('FX sync error:',e.message);}
+  var r=await ghvRun(cfg,'fx',{push:true,force:true,notify:true});
+  if(!r.ok)console.warn('FX sync error:',r.msg);
 }
 // Silently syncs Watchlists to the live tj_watchlist.json file — mirrors ghPushConfigFile()
 // (live tj_config.json). bkp/watchlist_backup.json is a separate, distinct file that is
@@ -20490,35 +20438,8 @@ async function ghPushFxLive(){
 async function ghPushWatchlistLive(){
   var cfg=ghGetConfig();
   if(!cfg.user||!cfg.repo||!cfg.token)return;
-  try{
-    var wlPayload=await ghBuildWatchlistPayload();
-    // Compare new payload vs existing file — skip push if only exportedAt differs
-    // (same no-op guard ghPushConfigFile() uses for tj_config.json)
-    var wlSha=null;
-    try{
-      var existingResp=await fetch('https://api.github.com/repos/'+cfg.user+'/'+cfg.repo+'/contents/'+GH_WATCHLIST_FILE,{
-        headers:{'Authorization':'token '+cfg.token,'Accept':'application/vnd.github.v3+json'}
-      });
-      if(existingResp.ok){
-        var existingFile=await existingResp.json();
-        wlSha=existingFile.sha||null;
-        var existingText=decodeURIComponent(escape(atob(existingFile.content.replace(/\n/g,''))));
-        var existingData=JSON.parse(existingText);
-        var newCopy=Object.assign({},wlPayload);delete newCopy.exportedAt;
-        var oldCopy=Object.assign({},existingData);delete oldCopy.exportedAt;
-        if(JSON.stringify(newCopy)===JSON.stringify(oldCopy))return; // no real change — skip push
-      }
-    }catch(e){ wlSha=await ghGetFileSHAByPath(cfg,GH_WATCHLIST_FILE); }
-    wlPayload.exportedAt=new Date().toISOString();
-    var wlContent=utf8ToBase64(JSON.stringify(wlPayload,null,2));
-    var wlBody={message:'TJ watchlist — '+new Date().toISOString().slice(0,16).replace('T',' '),content:wlContent};
-    if(wlSha)wlBody.sha=wlSha;
-    await fetch('https://api.github.com/repos/'+cfg.user+'/'+cfg.repo+'/contents/'+GH_WATCHLIST_FILE,{
-      method:'PUT',
-      headers:{'Authorization':'token '+cfg.token,'Accept':'application/vnd.github.v3+json','Content-Type':'application/json'},
-      body:JSON.stringify(wlBody)
-    });
-  }catch(e){console.warn('Watchlist sync error:',e.message);}
+  var r=await ghvRun(cfg,'wl',{push:true,notify:true});
+  if(!r.ok)console.warn('Watchlist sync error:',r.msg);
 }
 // ── Debounce utility for GitHub sync calls ────────────────────
 // Coalesces rapid repeated calls with the same key into a single
@@ -20566,36 +20487,8 @@ async function ghBuildNotesPayload(){
 async function ghPushNotesLive(){
   var cfg=ghGetConfig();
   if(!cfg.user||!cfg.repo||!cfg.token)return;
-  try{
-    var payload=await ghBuildNotesPayload();
-    // Compare new payload vs existing file — skip push if only exportedAt differs
-    // (same no-op guard ghPushWatchlistLive() uses for tj_watchlist.json)
-    var sha=null;
-    try{
-      var existingResp=await fetch('https://api.github.com/repos/'+cfg.user+'/'+cfg.repo+'/contents/'+GH_NOTES_FILE,{
-        headers:{'Authorization':'token '+cfg.token,'Accept':'application/vnd.github.v3+json'}
-      });
-      if(existingResp.ok){
-        var existingFile=await existingResp.json();
-        sha=existingFile.sha||null;
-        var existingText=decodeURIComponent(escape(atob(existingFile.content.replace(/\n/g,''))));
-        var existingData=JSON.parse(existingText);
-        // Worker unreachable: keep the alerts already in GitHub rather than write a possibly-stale list
-        if(freshAlerts===null) payload.alerts=Array.isArray(existingData)?existingData:(existingData.alerts||[]);
-        var newCopy=Object.assign({},payload);delete newCopy.exportedAt;
-        var oldCopy=Object.assign({},existingData);delete oldCopy.exportedAt;
-        if(JSON.stringify(newCopy)===JSON.stringify(oldCopy))return; // no real change — skip push
-      }
-    }catch(e){ sha=await ghGetFileSHAByPath(cfg,GH_NOTES_FILE); }
-    var content=utf8ToBase64(JSON.stringify(payload,null,2));
-    var body={message:'TJ notes — '+new Date().toISOString().slice(0,16).replace('T',' '),content:content};
-    if(sha)body.sha=sha;
-    await fetch('https://api.github.com/repos/'+cfg.user+'/'+cfg.repo+'/contents/'+GH_NOTES_FILE,{
-      method:'PUT',
-      headers:{'Authorization':'token '+cfg.token,'Accept':'application/vnd.github.v3+json','Content-Type':'application/json'},
-      body:JSON.stringify(body)
-    });
-  }catch(e){console.warn('Notes sync error:',e.message);}
+  var r=await ghvRun(cfg,'notes',{push:true,notify:true});
+  if(!r.ok)console.warn('Notes sync error:',r.msg);
 }
 // Silently push the live tj_notes.json after any note/column add/edit/delete/move —
 // debounced, same pattern as ghAutoSyncWatchlist().
@@ -20707,6 +20600,395 @@ async function ghPullAlertsFile(cfg, fromBoot){
     if(typeof paProviderBadgeRefresh === 'function') paProviderBadgeRefresh();
   }catch(e){console.warn('Alerts pull error:',e.message);}
 }
+// ═══════════════════════════════════════════════════════════════════════════════════════
+// VERSION-TOKEN SYNC — a stale device can never overwrite newer data on GitHub.
+// Same idea as the Price Alerts token (cm*), applied to every GitHub-synced file
+// (tj_data.json trades/images/sessions, tj_config.json, FX, watchlists, notes).
+//   Token = the file's GitHub blob SHA as THIS device last saw it  (localStorage tj-gh-tok:<path>)
+//   Base  = per-record content hashes of the file at that token    (localStorage tj-gh-base:<path>)
+// Every push first fetches the file. Token matches → this device is current, push as is.
+// Token differs (another device wrote) → 3-way merge of base / this device / GitHub: records
+// only the other device touched are taken, records only this device touched are kept, and
+// nothing is deleted unless the device that deleted it was up to date. The PUT then carries
+// the SHA that was merged, so GitHub itself rejects (409) a write that raced us and we redo.
+// NEW DATA TYPE? Add an adapter to ghvAdapters() (local/parse/apply/build) and a ghvRun call.
+// ═══════════════════════════════════════════════════════════════════════════════════════
+var GHV_TOK='tj-gh-tok:',GHV_BASE='tj-gh-base:';
+// DELETES: only a delete made through the UI (dbDelete/dbClear/fxDelete) is ever sent to GitHub. Each one is logged here
+// as a tombstone {key:time}. A record that is merely MISSING locally is never treated as deleted - it is re-downloaded
+// (GitHub is the source of truth). Tombstones are dropped once GitHub has the deletion (or the record came back).
+var GHV_PFX={trades:'t:',images:'i:',sessions:'s:',fx:'f:'};
+var _ghvApplying=false,_ghvT=null,_ghvTDirty=false,_ghvTTimer=null;
+function ghvTombs(){if(!_ghvT){try{_ghvT=JSON.parse(localStorage.getItem('tj-gh-del')||'{}')||{};}catch(e){_ghvT={};}}return _ghvT;}
+function ghvTombSave(){_ghvTDirty=false;try{localStorage.setItem('tj-gh-del',JSON.stringify(ghvTombs()));}catch(e){}}
+function ghvNoteDel(store,id){
+  if(_ghvApplying)return;
+  var p=GHV_PFX[store];if(!p||id==null)return;
+  ghvTombs()[p+id]=Date.now();ghvTombSave();
+}
+function ghvNotePut(store,rec){ // saved/restored again → no longer a delete
+  var p=GHV_PFX[store];if(!p||!rec||rec.id==null)return;
+  var t=ghvTombs(),k=p+rec.id;
+  if(k in t){delete t[k];_ghvTDirty=true;if(!_ghvTTimer)_ghvTTimer=setTimeout(function(){_ghvTTimer=null;if(_ghvTDirty)ghvTombSave();},400);}
+}
+async function ghvNoteClear(store){
+  var p=GHV_PFX[store];if(!p||_ghvApplying)return;
+  try{var rows=await dbGetAll(store),t=ghvTombs(),now=Date.now();rows.forEach(function(r){if(r&&r.id!=null)t[p+r.id]=now;});ghvTombSave();}catch(e){}
+}
+function ghvPrune(ad,merged,remRecs,pushed){
+  var t=ghvTombs(),ch=false;
+  Object.keys(t).forEach(function(k){
+    if(!ad.tombPrefixes||!ad.tombPrefixes.some(function(p){return k.indexOf(p)===0;}))return;
+    if((k in merged)||pushed||!(k in remRecs)){delete t[k];ch=true;}
+  });
+  if(ch)ghvTombSave();
+}
+function ghvTok(p){try{return localStorage.getItem(GHV_TOK+p)||'';}catch(e){return'';}}
+function ghvBase(p){try{var s=localStorage.getItem(GHV_BASE+p);return s?JSON.parse(s):null;}catch(e){return null;}}
+function ghvStamp(p,sha,map){
+  try{
+    if(!sha){localStorage.removeItem(GHV_TOK+p);return;}
+    localStorage.setItem(GHV_BASE+p,JSON.stringify(map));localStorage.setItem(GHV_TOK+p,sha);
+  }catch(e){try{localStorage.removeItem(GHV_TOK+p);localStorage.removeItem(GHV_BASE+p);}catch(e2){}} // storage full → forget both; next sync does a safe full merge
+}
+function ghvStable(o){
+  if(o===undefined)return'null';
+  if(o&&typeof o.toJSON==='function')o=o.toJSON();
+  if(o===null||typeof o!=='object')return JSON.stringify(o)||'null';
+  if(Array.isArray(o))return'['+o.map(ghvStable).join(',')+']';
+  return'{'+Object.keys(o).filter(function(k){return o[k]!==undefined&&typeof o[k]!=='function';}).sort().map(function(k){return JSON.stringify(k)+':'+ghvStable(o[k]);}).join(',')+'}';
+}
+var _ghvHc=new WeakMap();
+function ghvHash(o){
+  var isO=o&&typeof o==='object';
+  if(isO&&_ghvHc.has(o))return _ghvHc.get(o);
+  var s=ghvStable(o),h1=0xdeadbeef,h2=0x41c6ce57;
+  for(var i=0;i<s.length;i++){var c=s.charCodeAt(i);h1=Math.imul(h1^c,2654435761);h2=Math.imul(h2^c,1597334677);}
+  h1=Math.imul(h1^(h1>>>16),2246822507)^Math.imul(h2^(h2>>>13),3266489909);
+  h2=Math.imul(h2^(h2>>>16),2246822507)^Math.imul(h1^(h1>>>13),3266489909);
+  var h=(4294967296*(2097151&h2)+(h1>>>0)).toString(36)+'.'+s.length.toString(36);
+  if(isO)_ghvHc.set(o,h);
+  return h;
+}
+function ghvMap(recs){var m={};Object.keys(recs).forEach(function(k){m[k]=ghvHash(recs[k]);});return m;}
+function ghvSame(a,b){var ka=Object.keys(a);if(ka.length!==Object.keys(b).length)return false;for(var i=0;i<ka.length;i++){if(a[ka[i]]!==b[ka[i]])return false;}return true;}
+function ghvCount(map,prefix){return Object.keys(map).filter(function(k){return k.indexOf(prefix)===0;}).length;}
+// List union by id (this device's order first, then remote-only items); same id → newer updatedAt, else this device's.
+function ghvUnion(la,ra){
+  la=Array.isArray(la)?la:[];ra=Array.isArray(ra)?ra:[];
+  var out=la.slice(),idx={};
+  la.forEach(function(x,i){if(x&&x.id!=null)idx[x.id]=i;});
+  ra.forEach(function(x){
+    if(x&&x.id!=null){
+      if(x.id in idx){var i=idx[x.id];if((x.updatedAt||0)>(out[i].updatedAt||0))out[i]=x;}
+      else{idx[x.id]=out.length;out.push(x);}
+    }else if(!la.some(function(y){return ghvStable(y)===ghvStable(x);}))out.push(x);
+  });
+  return out;
+}
+// 3-way merge of record maps. base = {key:hash} at the last sync (null = unknown), L = this device, R = GitHub.
+function ghvMerge3(base,L,R,ad,tomb,preferLocal){
+  var merged={},put={},del=[],lost=[],keys={};
+  Object.keys(L).forEach(function(k){keys[k]=1;});Object.keys(R).forEach(function(k){keys[k]=1;});
+  Object.keys(keys).forEach(function(k){
+    var hasL=(k in L),hasR=(k in R),l=L[k],r=R[k];
+    var lh=hasL?ghvHash(l):null,rh=hasR?ghvHash(r):null,b=(base&&(k in base))?base[k]:undefined;
+    var pick;
+    if(hasL&&hasR){
+      if(lh===rh)pick='L';
+      else if(!base)pick=preferLocal?'L':(ad.resolve?'X':'R');   // no history yet: the shared (GitHub) copy wins, docs are unioned
+      else if(lh===b)pick='R';                  // only the other device changed it
+      else if(rh===b)pick='L';                  // only this device changed it
+      else pick='X';                            // both changed
+    }else if(hasL){
+      if(!base||b===undefined)pick='L';         // new on this device
+      else if(lh===b&&!ad.keepLocal)pick='D';   // other device deleted it and we never touched it
+      else pick='L';                            // we edited it (edit beats delete)
+    }else{
+      if(tomb&&tomb[k]){                        // only when YOU deleted it through the UI
+        if(base&&b!==undefined&&rh!==b)pick='R'; // ...but the other device edited it meanwhile → keep theirs
+        else pick='G';                          // delete it on GitHub too
+      }else pick='R';                           // just missing here → download it (GitHub is the source of truth)
+    }
+    if(pick==='L')merged[k]=l;
+    else if(pick==='R'){merged[k]=r;if(!hasL||lh!==rh)put[k]=r;}
+    else if(pick==='X'){var m=ad.resolve?ad.resolve(l,r):l;merged[k]=m;if(ghvHash(m)!==lh)put[k]=m;}
+    else if(pick==='D'){del.push(k);}
+    else if(pick==='G'){lost.push(k);}
+  });
+  return{merged:merged,put:put,del:del,lost:lost};
+}
+function ghvImg(r){return(r&&r.cloudUrl)?{id:r.id,cloudUrl:r.cloudUrl,name:r.name,zone:r.zone}:r;} // same slimming ghBuildPayload() does
+function ghvAdapters(){
+  var storeOf={t:'trades',i:'images',s:'sessions'};
+  return{
+    data:{path:GH_FILE,label:'data',tombPrefixes:['t:','i:','s:'],
+      local:async function(){
+        var recs={};
+        (await dbGetAll('trades')).forEach(function(r){if(r&&r.id!=null)recs['t:'+r.id]=r;});
+        (await dbGetAll('images')).forEach(function(r){if(r&&r.id!=null)recs['i:'+r.id]=ghvImg(r);});
+        (await dbGetAll('sessions')).forEach(function(r){if(r&&r.id!=null)recs['s:'+r.id]=r;});
+        return recs;
+      },
+      parse:function(o){
+        var recs={},t=Array.isArray(o)?o:(o.trades||[]);
+        t.forEach(function(r){if(r&&r.id!=null)recs['t:'+r.id]=r;});
+        (o.images||[]).forEach(function(r){if(r&&r.id!=null)recs['i:'+r.id]=r;});
+        (o.sessions||[]).forEach(function(r){if(r&&r.id!=null)recs['s:'+r.id]=r;});
+        return recs;
+      },
+      apply:async function(plan,local){
+        var ov={},sess={};
+        _ghvApplying=true; // our own merge deletes are not user deletes
+        try{
+        for(var k in plan.put){
+          var kind=k.charAt(0),rec=plan.put[k];
+          if(kind==='t'){var c=JSON.parse(JSON.stringify(rec));recomputeTradeFields(c);await dbPut('trades',c);ov[k]=c;if(c.sessionId)sess[c.sessionId]=1;}
+          else await dbPut(storeOf[kind],rec);
+        }
+        for(var i=0;i<plan.del.length;i++){
+          var d=plan.del[i],old=local[d];
+          if(!old)continue;
+          if(d.charAt(0)==='t'&&old.sessionId)sess[old.sessionId]=1;
+          await dbDelete(storeOf[d.charAt(0)],old.id);
+        }
+        }finally{_ghvApplying=false;}
+        var sids=Object.keys(sess);
+        if(sids.length){try{await rebalanceSession(sids);}catch(e){}} // keep session equity consistent with the merged trades
+        return ov;
+      },
+      build:function(m){
+        var t=[],im=[],s=[];
+        Object.keys(m).forEach(function(k){var c=k.charAt(0);if(c==='t')t.push(m[k]);else if(c==='i')im.push(m[k]);else if(c==='s')s.push(m[k]);});
+        return{version:6,exportedAt:new Date().toISOString(),trades:t,images:im,sessions:s,localData:{}};
+      }
+    },
+    config:{path:GH_CONFIG_FILE,label:'config',keepLocal:true,
+      local:async function(){
+        var p=await ghBuildConfigPayload(),recs={};
+        (p.settings||[]).forEach(function(s){if(s&&s.id)recs['k:'+s.id]=s;});
+        recs['x:ai']=p.aiConfig;recs['x:cld']=p.cloudinaryConfig;
+        return recs;
+      },
+      parse:function(o){
+        var recs={};
+        if(Array.isArray(o.settings))o.settings.forEach(function(s){if(s&&s.id&&ghIsConfigSetting(s.id))recs['k:'+s.id]=s;});
+        if(o.aiConfig)recs['x:ai']=o.aiConfig;
+        if(o.cloudinaryConfig)recs['x:cld']=o.cloudinaryConfig;
+        return recs;
+      },
+      apply:async function(plan){
+        var d={settings:[]};
+        Object.keys(plan.put).forEach(function(k){if(k.charAt(0)==='k')d.settings.push(plan.put[k]);});
+        if(plan.put['x:ai'])d.aiConfig=plan.put['x:ai'];
+        if(plan.put['x:cld'])d.cloudinaryConfig=plan.put['x:cld'];
+        await ghApplyConfigData(d);
+      },
+      build:function(m){
+        var s=[];Object.keys(m).forEach(function(k){if(k.charAt(0)==='k')s.push(m[k]);});
+        return{version:3,exportedAt:new Date().toISOString(),settings:s,aiConfig:m['x:ai']||{},cloudinaryConfig:m['x:cld']||{}};
+      }
+    },
+    fx:{path:GH_FX_FILE,seedPath:GH_BKP_FX_FILE,label:'FX',tombPrefixes:['f:'],
+      local:async function(){var r={};fxLoad().forEach(function(c){if(c)r[c.id!=null?'f:'+c.id:'f:~'+ghvHash(c)]=c;});return r;},
+      parse:function(o){var r={};(Array.isArray(o)?o:(o.conversions||[])).forEach(function(c){if(c)r[c.id!=null?'f:'+c.id:'f:~'+ghvHash(c)]=c;});return r;},
+      apply:async function(plan){
+        fxSave(Object.keys(plan.merged).map(function(k){return plan.merged[k];}));
+        if(_currentPage==='fx-tracker'&&typeof fxRender==='function')fxRender();
+      },
+      build:function(m){return{version:1,exportedAt:new Date().toISOString(),conversions:Object.keys(m).map(function(k){return m[k];})};}
+    },
+    wl:{path:GH_WATCHLIST_FILE,label:'watchlist',
+      local:async function(){var d={watchlists:await getWatchlists(),categories:await getWlCategories()};return{doc:JSON.parse(JSON.stringify(d))};}, // clone: never share live objects with the merge
+      parse:function(o){return Array.isArray(o)?{doc:{watchlists:o,categories:[]}}:{doc:{watchlists:o.watchlists||[],categories:o.categories||[]}};},
+      resolve:function(l,r){return{watchlists:ghvUnion(l.watchlists,r.watchlists),categories:ghvUnion(l.categories,r.categories)};},
+      apply:async function(plan){
+        var d=plan.merged.doc;
+        await saveWatchlistsData(d.watchlists);await saveWlCategories(d.categories);
+        if(_currentPage==='watchlist'&&typeof wlInit==='function')wlInit();
+      },
+      build:function(m){return{version:1,exportedAt:new Date().toISOString(),watchlists:m.doc.watchlists,categories:m.doc.categories};}
+    },
+    notes:{path:GH_NOTES_FILE,label:'notes',
+      local:async function(){return{doc:JSON.parse(JSON.stringify(await getNotesBoard()))};}, // clone: the UI mutates the board object in place
+      parse:function(o){return(o&&o.board)?{doc:o.board}:{};},
+      resolve:function(l,r){var o=Object.assign({},r,l);o.columns=ghvUnion(l.columns,r.columns);o.notes=ghvUnion(l.notes,r.notes);return o;},
+      apply:async function(plan){
+        await saveNotesBoard(plan.merged.doc);
+        if(_currentPage==='notes'&&typeof notesRender==='function')notesRender();
+      },
+      build:function(m){return{version:1,exportedAt:new Date().toISOString(),board:m.doc};}
+    }
+  };
+}
+// Fetch a file's current SHA + text. null = file doesn't exist yet; throws if it can't be read
+// (we never push over a file we couldn't read).
+async function ghvFetch(cfg,path){
+  var resp=await fetch('https://api.github.com/repos/'+cfg.user+'/'+cfg.repo+'/contents/'+path+'?t='+Date.now(),{
+    headers:{'Authorization':'token '+cfg.token,'Accept':'application/vnd.github.v3+json'}
+  });
+  if(resp.status===404)return null;
+  if(!resp.ok)throw new Error('GitHub HTTP '+resp.status+' reading '+path);
+  var d=await resp.json(),text=null;
+  if(d.content&&d.content.trim()){try{text=decodeURIComponent(escape(atob(d.content.replace(/\n/g,''))));}catch(e){}}
+  if(text==null){text=await ghFetchFileContent(cfg,path);if(text==null)throw new Error('could not read '+path+' from GitHub');}
+  return{sha:d.sha,text:text};
+}
+async function ghvPut(cfg,path,msg,obj,sha){
+  var body={message:msg,content:utf8ToBase64(JSON.stringify(obj,null,2))};
+  if(sha)body.sha=sha;
+  var resp=await fetch('https://api.github.com/repos/'+cfg.user+'/'+cfg.repo+'/contents/'+path,{
+    method:'PUT',
+    headers:{'Authorization':'token '+cfg.token,'Accept':'application/vnd.github.v3+json','Content-Type':'application/json'},
+    body:JSON.stringify(body)
+  });
+  if(resp.ok){
+    var j=await resp.json().catch(function(){return{};});
+    var ns=j.content&&j.content.sha;
+    if(!ns)ns=await ghGetFileSHAByPath(cfg,path);
+    return{ok:true,sha:ns};
+  }
+  var e=await resp.json().catch(function(){return{};});
+  return{ok:false,status:resp.status,msg:e.message||''};
+}
+// o: {push, force (push even if unchanged), notify, preferLocal (no sync history yet: this device's copy wins a conflict — used by boot-time migrations)}
+async function ghvSync(cfg,ad,o){
+  var out={ok:false,changed:false,pending:false,pushed:false,remoteExists:false,seeded:false,msg:'',counts:{trades:0,images:0},stats:{added:0,updated:0,removed:0}};
+  try{
+    for(var attempt=0;attempt<4;attempt++){
+      _ghvHc=new WeakMap(); // hash cache is per attempt: live objects (e.g. the notes board) can change between syncs
+      var rem=await ghvFetch(cfg,ad.path);
+      var srcText=rem?rem.text:null,seeded=false;
+      // First run of a new live file (tj_fx.json): seed from the old backup file so no rows are lost.
+      if(!rem&&ad.seedPath){var sd=await ghvFetch(cfg,ad.seedPath);if(sd){srcText=sd.text;seeded=true;}}
+      var remRecs=srcText!=null?ad.parse(srcText.trim()?JSON.parse(srcText):{}):{};
+      out.seeded=seeded;
+      var local=await ad.local();
+      var base=ghvBase(ad.path);
+      var merged=local;
+      out.remoteExists=!!rem;
+      // Skip the merge only when this device is already at GitHub's version AND has nothing unpushed.
+      var upToDate=!!(rem&&base&&rem.sha===ghvTok(ad.path)&&ghvSame(ghvMap(local),base));
+      if((rem||seeded)&&!upToDate){
+        var plan=ghvMerge3(base,local,remRecs,ad,ghvTombs(),!!o.preferLocal);
+        merged=plan.merged;
+        if(Object.keys(plan.put).length||plan.del.length){
+          var ov=await ad.apply(plan,local);
+          if(ov)Object.keys(ov).forEach(function(k){merged[k]=ov[k];});
+          out.changed=true;
+          Object.keys(plan.put).forEach(function(k){if(k.indexOf('t:')===0){if(k in local)out.stats.updated++;else out.stats.added++;}});
+          plan.del.forEach(function(k){if(k.indexOf('t:')===0)out.stats.removed++;});
+        }
+      }
+      var remMap=rem?ghvMap(remRecs):{};
+      if(rem)ghvStamp(ad.path,rem.sha,remMap); // this device has now seen (and merged) this version
+      var mrgMap=ghvMap(merged);
+      ghvPrune(ad,merged,remRecs,false);
+      var pending=!rem||!ghvSame(remMap,mrgMap);
+      out.pending=pending;out.counts={trades:ghvCount(mrgMap,'t:'),images:ghvCount(mrgMap,'i:')};
+      if(!o.push||(!pending&&!o.force)){out.ok=true;return out;}
+      var res;
+      try{res=await ghvPut(cfg,ad.path,'TJ '+ad.label+' — '+new Date().toISOString().slice(0,16).replace('T',' '),ad.build(merged),rem?rem.sha:'');}
+      catch(pe){
+        // The write may have landed even though the reply never reached us — check before assuming it didn't,
+        // otherwise this device would later mistake its own pushed records for unpushed ones.
+        var chk=null;try{chk=await ghvFetch(cfg,ad.path);}catch(e2){}
+        if(chk&&chk.text.trim()&&ghvSame(ghvMap(ad.parse(JSON.parse(chk.text))),mrgMap))res={ok:true,sha:chk.sha};
+        else throw pe;
+      }
+      if(res.ok){ghvStamp(ad.path,res.sha,mrgMap);ghvPrune(ad,merged,remRecs,true);out.ok=true;out.pushed=true;out.pending=false;return out;}
+      if(res.status===409||res.status===422)continue; // GitHub moved while we were merging — redo against the new version
+      out.msg='HTTP '+res.status+(res.msg?' — '+res.msg:'');return out;
+    }
+    out.msg='GitHub kept changing while syncing — try again';return out;
+  }catch(e){out.msg=e.message||String(e);return out;}
+}
+// One sync at a time per file (so a boot pull and a save can't interleave), never throws.
+var _ghvQ={};
+function ghvRun(cfg,name,o){
+  o=Object.assign({},o||{});
+  var ad=ghvAdapters()[name];
+  var run=function(){return ghvSync(cfg,ad,o);};
+  var p=(_ghvQ[name]||Promise.resolve()).then(run,run).then(function(r){
+    if(r.changed&&o.notify){
+      toast('Newer '+ad.label+' from another device was merged in — nothing was overwritten','ok');
+      if((name==='data'||name==='config')&&_currentPage!=='log'){try{refreshUI();}catch(e){}}
+    }
+    return r;
+  });
+  _ghvQ[name]=p.then(function(){},function(){});
+  return p;
+}
+// Merge-pull every synced file (never deletes unpushed local data). Used on page load and when the app returns to the foreground.
+async function ghvPullAll(cfg,withAlerts){
+  var r={};
+  r.data=await ghvRun(cfg,'data',{push:false});
+  r.config=await ghvRun(cfg,'config',{push:false});
+  if(withAlerts)await ghPullAlertsFile(cfg,true);
+  r.fx=await ghvRun(cfg,'fx',{push:false});
+  r.wl=await ghvRun(cfg,'wl',{push:false});
+  r.notes=await ghvRun(cfg,'notes',{push:false});
+  r.changed=['data','config','fx','wl','notes'].some(function(n){return r[n].changed;});
+  return r;
+}
+// After the manual (destructive) Pull: record the versions just pulled as this device's tokens.
+async function ghvAdoptAll(cfg){
+  var ads=ghvAdapters();
+  for(var n in ads){
+    try{
+      var rem=await ghvFetch(cfg,ads[n].path);
+      if(rem)ghvStamp(ads[n].path,rem.sha,ghvMap(ads[n].parse(rem.text.trim()?JSON.parse(rem.text):{})));
+    }catch(e){console.warn('Token adopt failed for '+n+':',e.message);}
+  }
+}
+// Small non-blocking "Syncing with GitHub…" pill (top centre, ignores taps) so you can tell the screen is still catching up.
+function ghvPill(msg,kind){
+  try{
+    if(!document.body)return;
+    if(!document.getElementById('ghv-pill-css')){
+      var st=document.createElement('style');st.id='ghv-pill-css';
+      st.textContent='@keyframes ghvspin{to{transform:rotate(360deg)}}';
+      document.head.appendChild(st);
+    }
+    var el=document.getElementById('ghv-sync-pill');
+    if(!el){
+      el=document.createElement('div');el.id='ghv-sync-pill';
+      el.style.cssText='position:fixed;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top,0px) + 8px);z-index:99999;display:none;align-items:center;gap:8px;padding:6px 13px;border-radius:16px;font-size:12px;background:var(--bg2);color:var(--text2);border:1px solid var(--border2);box-shadow:0 2px 12px rgba(0,0,0,.3);pointer-events:none;white-space:nowrap;max-width:92vw';
+      document.body.appendChild(el);
+    }
+    var spin=(kind==='warn')?'':'<span style="width:12px;height:12px;border:2px solid var(--border2);border-top-color:var(--accent);border-radius:50%;display:inline-block;animation:ghvspin .8s linear infinite"></span>';
+    el.style.color=(kind==='warn')?'var(--amber)':'var(--text2)';
+    el.innerHTML=spin+'<span></span>';
+    el.lastChild.textContent=msg;
+    el.style.display='flex';
+  }catch(e){}
+}
+function ghvPillHide(){try{var el=document.getElementById('ghv-sync-pill');if(el)el.style.display='none';}catch(e){}}
+function ghvPillFlash(msg,kind,ms){ghvPill(msg,kind);setTimeout(ghvPillHide,ms||4000);}
+async function ghvWithPill(fn,msg,delay){
+  var t=setTimeout(function(){ghvPill(msg);},delay||0);
+  try{return await fn();}finally{clearTimeout(t);ghvPillHide();}
+}
+// Coming back to the app (e.g. a phone tab that sat in the background for days): pick up what other devices wrote.
+var _ghvResumeAt=Date.now();
+document.addEventListener('visibilitychange',function(){
+  if(document.visibilityState!=='visible')return;
+  if(Date.now()-_ghvResumeAt<60000)return;
+  _ghvResumeAt=Date.now();
+  var cfg=ghGetConfig();
+  if(!(cfg.user&&cfg.repo&&cfg.token)||!localStorage.getItem('tj-gh-last-sync'))return;
+  ghvWithPill(function(){return ghvPullAll(cfg,false);},'Syncing with GitHub…',500).then(function(r){
+    if(r.changed){toast('Updated with newer data from another device','ok');if(_currentPage!=='log'){try{refreshUI();}catch(e){}}}
+  }).catch(function(e){console.warn('Resume sync error:',e.message);});
+});
+// FX tracker edits now sync on their own (they never did before — FX only reached GitHub on a manual Push/backup).
+function ghAutoSyncFx(){
+  ghDebounce(function(){
+    var cfg=ghGetConfig();
+    if(!cfg.user||!cfg.repo||!cfg.token)return;
+    ghPushFxLive();
+  }, 'fx', 1500);
+}
 function ghGetConfig(){
   return{
     user:localStorage.getItem('tj-gh-user')||'',
@@ -20782,80 +21064,19 @@ async function ghFetchFileContent(cfg,filePath){
 async function ghAutoPullOnSetup(){
   var cfg=ghGetConfig();
   try{
-    var jsonStr=await ghFetchFileContent(cfg,GH_FILE);
-    if(!jsonStr)return; // no remote file yet — fresh repo, nothing to pull
-    var data=JSON.parse(jsonStr);
-    var importedTrades=Array.isArray(data)?data:(data.trades||[]);
-    // ── True sync: upsert all remote trades, delete any local trade not in remote ──
-    var remoteIds=new Set(importedTrades.map(function(t){return t.id;}));
-    var localTrades=await dbGetAll('trades');
-    var removed=0;
-    for(var lt of localTrades){
-      if(lt.id&&!remoteIds.has(lt.id)){await dbDelete('trades',lt.id);removed++;}
-    }
-    var added=0,updated=0;
-    for(var t of importedTrades){
-      recomputeTradeFields(t);
-      var existing=await dbGet('trades',t.id).catch(function(){return null;});
-      if(!existing){added++;}else{updated++;}
-      await dbPut('trades',t);
-    }
-    // Images: upsert remote
-    for(var img of(data.images||[])){await dbPut('images',img);}
-    // Sessions & settings: upsert
-    for(var sess of(data.sessions||[]))await dbPut('sessions',sess);
-    for(var setting of(data.settings||[])){if(setting.id&&setting.id.indexOf('tracker')===0)continue;await dbPut('settings',setting);}
-    // Restore localStorage prefs
-    if(data.localData){Object.keys(data.localData).forEach(function(k){localStorage.setItem(k,data.localData[k]);});}
-    // Pull config file (checklist, strategies, assets)
-    try{
-      var cfgStr=await ghFetchFileContent(cfg,GH_CONFIG_FILE);
-      if(cfgStr){var cfgData=JSON.parse(cfgStr);await ghApplyConfigData(cfgData);}
-    }catch(ce){console.warn('Config pull error:',ce.message);}
-    // Pull alerts file
-    await ghPullAlertsFile(cfg, true);
-    // Pull FX conversions (USD/CAD Tracker) — mirrors ghPull(), otherwise this device
-    // never sees FX edits made on another device until a manual Pull is run.
-    try{
-      var fxStr=await ghFetchFileContent(cfg,GH_BKP_FX_FILE);
-      if(fxStr){
-        var fxData=JSON.parse(fxStr);
-        var fxRemote=Array.isArray(fxData)?fxData:(fxData.conversions||[]);
-        fxSave(fxRemote);
-        if(_currentPage==='fx-tracker'&&typeof fxRender==='function')fxRender();
-      }
-    }catch(fe){console.warn('FX pull error:',fe.message);}
-    // Pull Watchlists from the live tj_watchlist.json — mirrors ghPull(), otherwise this
-    // device never sees watchlist edits made on another device until a manual Pull is run.
-    try{
-      var wlStr=await ghFetchFileContent(cfg,GH_WATCHLIST_FILE);
-      if(wlStr){
-        var wlData=JSON.parse(wlStr);
-        var wlRemote=Array.isArray(wlData)?wlData:(wlData.watchlists||[]);
-        await saveWatchlistsData(wlRemote);
-        if(!Array.isArray(wlData)&&Array.isArray(wlData.categories))await saveWlCategories(wlData.categories);
-      }
-    }catch(we){console.warn('Watchlist pull error:',we.message);}
-    // Pull Notes board from the live tj_notes.json — same reasoning as the watchlist pull
-    // above: not part of tj_data.json/tj_config.json, so it needs its own step here too,
-    // otherwise this device never sees note edits made on another device.
-    try{
-      var notesStr=await ghFetchFileContent(cfg,GH_NOTES_FILE);
-      if(notesStr){
-        var notesData=JSON.parse(notesStr);
-        if(notesData&&notesData.board)await saveNotesBoard(notesData.board);
-        if(_currentPage==='notes'&&typeof notesRender==='function')notesRender();
-      }
-    }catch(ne){console.warn('Notes pull error:',ne.message);}
-    var now=new Date().toISOString();
-    localStorage.setItem('tj-gh-last-sync',now);
+    // Merge-pull (version tokens): takes what other devices changed, keeps anything this device
+    // hasn't pushed yet. It no longer deletes local trades just because GitHub lacks them.
+    var r=await ghvWithPill(function(){return ghvPullAll(cfg,true);},'Syncing with GitHub…',0);
+    if(!r.data.ok){console.warn('Auto-sync pull error:',r.data.msg);ghvPillFlash('GitHub unreachable — showing the copy saved on this device','warn',5000);return;}
+    localStorage.setItem('tj-gh-last-sync',new Date().toISOString());
     ghRefreshStatus();
-    // Only show toast if something actually changed
-    if(added||updated||removed){
-      var msg='Synced from GitHub: '+added+' added, '+updated+' updated'+(removed?', '+removed+' removed':'');
-      toast(msg,'ok');
-    }
+    var st=r.data.stats;
+    if(st.added||st.updated||st.removed)toast('Synced from GitHub: '+st.added+' added, '+st.updated+' updated'+(st.removed?', '+st.removed+' removed':''),'ok');
     await refreshUI();
+    // Anything this device has that GitHub lacks (e.g. a push that failed earlier) goes up now.
+    // (Only deletes you made in the UI are ever pushed as deletions.)
+    if(r.data.pending&&r.data.remoteExists)ghvRun(cfg,'data',{push:true,notify:true});
+    if(r.fx.pending&&(r.fx.remoteExists||r.fx.seeded))ghvRun(cfg,'fx',{push:true});
   }catch(e){console.warn('Auto-sync pull error:',e.message);}
 }
 // Wipe locally-stored GitHub credentials (username/repo/token) — does not touch the remote repo
@@ -20988,7 +21209,7 @@ async function ghGetFileSHA(cfg){return ghGetFileSHAByPath(cfg,GH_FILE);}
 // NEW DATA TYPE? See the checklist comment above GH_FILE — this (and ghPull()/
 // ghAutoPullOnSetup() below) is spot #3; add a push/pull call for the new live file here.
 async function ghPushManual(){
-  if(!confirm('Push to GitHub? This will overwrite the remote backup with your current local data.'))return;
+  if(!confirm('Push to GitHub? Your local data is merged with anything newer already on GitHub, then pushed.'))return;
   await ghPush(true);
   // Push also syncs everything else that isn't covered by tj_data.json/tj_config.json —
   // FX (USD/CAD conversions) and Price Alerts — so a manual Push truly pushes the whole
@@ -21021,45 +21242,22 @@ async function _ghPushOnce(showToast){
     if(showToast)toast('GitHub not configured — go to Settings to set up','err');
     return;
   }
-  var doAttempt=async function(){
-    var payload=await ghBuildPayload();
-    var content=utf8ToBase64(JSON.stringify(payload,null,2));
-    var sha=await ghGetFileSHA(cfg);
-    var body={message:'TJ data — '+new Date().toISOString().slice(0,16).replace('T',' '),content:content};
-    if(sha)body.sha=sha;
-    var resp=await fetch('https://api.github.com/repos/'+cfg.user+'/'+cfg.repo+'/contents/'+GH_FILE,{
-      method:'PUT',
-      headers:{'Authorization':'token '+cfg.token,'Accept':'application/vnd.github.v3+json','Content-Type':'application/json'},
-      body:JSON.stringify(body)
-    });
-    return{resp:resp,payload:payload};
-  };
   try{
-    var result=await doAttempt();
-    // 409 = the file's SHA moved between our GET and our PUT (e.g. another near-simultaneous
-    // auto-sync landed first). Retry once with a freshly-fetched SHA instead of dropping the
-    // update — this is exactly what used to fail silently.
-    if(!result.resp.ok&&result.resp.status===409){
-      result=await doAttempt();
-    }
-    if(result.resp.ok){
-      var now=new Date().toISOString();
-      localStorage.setItem('tj-gh-last-sync',now);
+    // Version-token sync (see ghvSync): merges anything newer from another device before pushing,
+    // and the PUT carries the merged SHA, so a stale device can no longer overwrite newer trades.
+    var r=await ghvRun(cfg,'data',{push:true,notify:true});
+    if(r.ok){
+      localStorage.setItem('tj-gh-last-sync',new Date().toISOString());
       ghRefreshStatus();
-      // Also push config (settings) on every sync — checked now, since a silent failure here
-      // previously left the "Synced to GitHub" toast claiming full success when it wasn't.
+      // Also push config (settings) on every sync — checked, so a silent failure here can't hide behind a "Synced" toast.
       var configOk=await ghPushConfigFile(cfg);
       if(showToast){
-        if(configOk)toast('Synced to GitHub ('+result.payload.trades.length+' trades, '+result.payload.images.length+' images)','ok');
-        else toast('Trades synced ('+result.payload.trades.length+' trades, '+result.payload.images.length+' images), but config push failed — check console or retry','err');
+        if(configOk)toast('Synced to GitHub ('+r.counts.trades+' trades, '+r.counts.images+' images)','ok');
+        else toast('Trades synced ('+r.counts.trades+' trades, '+r.counts.images+' images), but config push failed — check console or retry','err');
       }
     } else {
-      var err=await result.resp.json().catch(function(){return{};});
-      // Auto-sync stays silent on SUCCESS (to avoid a toast after every trade save), but a
-      // FAILED push must never be silent — otherwise a trade update can drop out of the
-      // GitHub backup with zero indication anything went wrong. Only "not configured" above
-      // stays fully silent (nothing to sync to).
-      toast('GitHub sync failed: '+(err.message||('HTTP '+result.resp.status))+(showToast?'':' — trade is saved locally, not yet backed up to GitHub.'),'err');
+      // A FAILED push must never be silent — otherwise a trade can drop out of the GitHub backup unnoticed.
+      toast('GitHub sync failed: '+(r.msg||'unknown error')+(showToast?'':' — trade is saved locally, not yet backed up to GitHub.'),'err');
     }
   }catch(e){
     toast('GitHub sync error: '+e.message+(showToast?'':' — trade is saved locally, not yet backed up to GitHub.'),'err');
@@ -21109,7 +21307,8 @@ async function ghPull(){
     // Pull FX conversions (USD/CAD Tracker) — the one piece of data not stored in
     // tj_data.json/tj_config.json, so Pull wouldn't otherwise restore it
     try{
-      var fxStr=await ghFetchFileContent(cfg,GH_BKP_FX_FILE);
+      var fxStr=await ghFetchFileContent(cfg,GH_FX_FILE);
+      if(!fxStr)fxStr=await ghFetchFileContent(cfg,GH_BKP_FX_FILE); // before tj_fx.json exists
       if(fxStr){
         var fxData=JSON.parse(fxStr);
         var fxRemote=Array.isArray(fxData)?fxData:(fxData.conversions||[]);
@@ -21140,6 +21339,7 @@ async function ghPull(){
         if(_currentPage==='notes'&&typeof notesRender==='function')notesRender();
       }
     }catch(ne){console.warn('Notes pull error:',ne.message);}
+    await ghvAdoptAll(cfg); // this device is now exactly at GitHub's version — remember it
     var now=new Date().toISOString();
     localStorage.setItem('tj-gh-last-sync',now);
     ghRefreshStatus();
@@ -21167,6 +21367,17 @@ async function ghSnapshot(type,name){
   var cfg=ghGetConfig();
   if(!cfg.user||!cfg.repo||!cfg.token)return false;
   try{
+    // Back up the MERGED state, never a stale copy: merge-pull whatever other devices wrote first
+    // (same version-token logic as page load). A manual/auto backup is skipped if that isn't possible.
+    try{
+      var _pre=await ghvPullAll(cfg,false);
+      var _bad=['data','config','fx','wl','notes'].filter(function(n){return !_pre[n].ok;});
+      if(_bad.length&&(type==='manual'||type==='auto'))throw new Error('could not sync with GitHub first ('+_pre[_bad[0]].msg+') — backup skipped so a stale copy is not saved');
+      if(_pre.changed&&_currentPage!=='log'){try{refreshUI();}catch(e){}}
+    }catch(pe){
+      if(type==='manual'||type==='auto')throw pe;
+      console.warn('Pre-backup sync skipped:',pe.message);
+    }
     var ts=new Date().toISOString().replace(/[:.]/g,'-').slice(0,19);
     var label=name?name.replace(/[^a-zA-Z0-9_-]/g,'-').slice(0,40):'';
     var prefix=type==='session'?'session-snapshot'
@@ -21681,7 +21892,10 @@ async function ghRestoreFxBackup(){
     onCancel:function(){toast('Restore cancelled','ok');},
     onConfirm:function(){
       try{
+        var _keep={};remote.forEach(function(c){if(c&&c.id!=null)_keep[c.id]=1;});
+        fxLoad().forEach(function(c){if(c&&c.id!=null&&!_keep[c.id])ghvNoteDel('fx',c.id);}); // rows a restore drops count as a UI delete
         fxSave(remote);
+        ghAutoSyncFx();
         if(_currentPage==='fx-tracker'&&typeof fxRender==='function')fxRender();
         toast('FX conversions restored ('+remote.length+')','ok');
       }catch(e){toast('Restore error: '+e.message,'err');}
@@ -21750,6 +21964,7 @@ async function ghMergeFxBackup(){
     onConfirm:function(){
       try{
         var added=fxMerge(remote);
+        ghAutoSyncFx();
         if(_currentPage==='fx-tracker'&&typeof fxRender==='function')fxRender();
         toast('FX conversions merged: '+added+' added'+((remote.length-added)>0?', '+(remote.length-added)+' dupe(s) skipped':''),'ok');
       }catch(e){toast('Merge error: '+e.message,'err');}
