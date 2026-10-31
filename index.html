@@ -20618,13 +20618,16 @@ var GHV_TOK='tj-gh-tok:',GHV_BASE='tj-gh-base:';
 // as a tombstone {key:time}. A record that is merely MISSING locally is never treated as deleted - it is re-downloaded
 // (GitHub is the source of truth). Tombstones are dropped once GitHub has the deletion (or the record came back).
 var GHV_PFX={trades:'t:',images:'i:',sessions:'s:',fx:'f:'};
-var _ghvApplying=false,_ghvT=null,_ghvTDirty=false,_ghvTTimer=null;
+var _ghvApplyDel={},_ghvT=null,_ghvTDirty=false,_ghvTTimer=null; // _ghvApplyDel: records the merge itself is deleting (not user deletes)
+var _ghvLast=0;
+function ghvNow(){var n=Date.now();if(n<=_ghvLast)n=_ghvLast+1;_ghvLast=n;return n;} // strictly increasing: a tombstone made during a sync always compares newer than that sync's start
 function ghvTombs(){if(!_ghvT){try{_ghvT=JSON.parse(localStorage.getItem('tj-gh-del')||'{}')||{};}catch(e){_ghvT={};}}return _ghvT;}
 function ghvTombSave(){_ghvTDirty=false;try{localStorage.setItem('tj-gh-del',JSON.stringify(ghvTombs()));}catch(e){}}
 function ghvNoteDel(store,id){
-  if(_ghvApplying)return;
+  var ak=store+':'+id;
+  if(_ghvApplyDel[ak]){delete _ghvApplyDel[ak];return;} // the merge's own delete: never logged as a user delete
   var p=GHV_PFX[store];if(!p||id==null)return;
-  ghvTombs()[p+id]=Date.now();ghvTombSave();
+  ghvTombs()[p+id]=ghvNow();ghvTombSave();
 }
 function ghvNotePut(store,rec){ // saved/restored again → no longer a delete
   var p=GHV_PFX[store];if(!p||!rec||rec.id==null)return;
@@ -20632,12 +20635,23 @@ function ghvNotePut(store,rec){ // saved/restored again → no longer a delete
   if(k in t){delete t[k];_ghvTDirty=true;if(!_ghvTTimer)_ghvTTimer=setTimeout(function(){_ghvTTimer=null;if(_ghvTDirty)ghvTombSave();},400);}
 }
 async function ghvNoteClear(store){
-  var p=GHV_PFX[store];if(!p||_ghvApplying)return;
-  try{var rows=await dbGetAll(store),t=ghvTombs(),now=Date.now();rows.forEach(function(r){if(r&&r.id!=null)t[p+r.id]=now;});ghvTombSave();}catch(e){}
+  var p=GHV_PFX[store];if(!p)return;
+  try{var rows=await dbGetAll(store),t=ghvTombs(),now=ghvNow();rows.forEach(function(r){if(r&&r.id!=null)t[p+r.id]=now;});ghvTombSave();}catch(e){}
 }
-function ghvPrune(ad,merged,remRecs,pushed){
+// If applying a merge fails half-way, remember the records that did land so they aren't later mistaken for new local data.
+async function ghvNotePartial(ad,plan){
+  try{
+    var base=ghvBase(ad.path);if(!base)return;
+    var now=await ad.local();
+    Object.keys(plan.put).forEach(function(k){if((k in now)&&ghvHash(now[k])===ghvHash(plan.put[k]))base[k]=ghvHash(plan.put[k]);});
+    localStorage.setItem(GHV_BASE+ad.path,JSON.stringify(base));
+  }catch(e){}
+}
+function ghvPrune(ad,merged,remRecs,pushed,before){
+  // Only tombstones older than this sync's snapshot: a delete made while the sync was running isn't in it and must survive.
   var t=ghvTombs(),ch=false;
   Object.keys(t).forEach(function(k){
+    if(!(t[k]<before))return;
     if(!ad.tombPrefixes||!ad.tombPrefixes.some(function(p){return k.indexOf(p)===0;}))return;
     if((k in merged)||pushed||!(k in remRecs)){delete t[k];ch=true;}
   });
@@ -20739,8 +20753,6 @@ function ghvAdapters(){
       },
       apply:async function(plan,local){
         var ov={},sess={};
-        _ghvApplying=true; // our own merge deletes are not user deletes
-        try{
         for(var k in plan.put){
           var kind=k.charAt(0),rec=plan.put[k];
           if(kind==='t'){var c=JSON.parse(JSON.stringify(rec));recomputeTradeFields(c);await dbPut('trades',c);ov[k]=c;if(c.sessionId)sess[c.sessionId]=1;}
@@ -20750,9 +20762,10 @@ function ghvAdapters(){
           var d=plan.del[i],old=local[d];
           if(!old)continue;
           if(d.charAt(0)==='t'&&old.sessionId)sess[old.sessionId]=1;
-          await dbDelete(storeOf[d.charAt(0)],old.id);
+          var dk=storeOf[d.charAt(0)]+':'+old.id;
+          _ghvApplyDel[dk]=1;
+          try{await dbDelete(storeOf[d.charAt(0)],old.id);}finally{delete _ghvApplyDel[dk];}
         }
-        }finally{_ghvApplying=false;}
         var sids=Object.keys(sess);
         if(sids.length){try{await rebalanceSession(sids);}catch(e){}} // keep session equity consistent with the merged trades
         return ov;
@@ -20856,6 +20869,7 @@ async function ghvSync(cfg,ad,o){
   var out={ok:false,changed:false,pending:false,pushed:false,remoteExists:false,seeded:false,msg:'',counts:{trades:0,images:0},stats:{added:0,updated:0,removed:0}};
   try{
     for(var attempt=0;attempt<4;attempt++){
+      var syncStart=ghvNow();
       _ghvHc=new WeakMap(); // hash cache is per attempt: live objects (e.g. the notes board) can change between syncs
       var rem=await ghvFetch(cfg,ad.path);
       var srcText=rem?rem.text:null,seeded=false;
@@ -20873,7 +20887,9 @@ async function ghvSync(cfg,ad,o){
         var plan=ghvMerge3(base,local,remRecs,ad,ghvTombs(),!!o.preferLocal);
         merged=plan.merged;
         if(Object.keys(plan.put).length||plan.del.length){
-          var ov=await ad.apply(plan,local);
+          var ov;
+          try{ov=await ad.apply(plan,local);}
+          catch(ae){await ghvNotePartial(ad,plan);throw ae;} // keep what DID get applied from looking like unpushed local data
           if(ov)Object.keys(ov).forEach(function(k){merged[k]=ov[k];});
           out.changed=true;
           Object.keys(plan.put).forEach(function(k){if(k.indexOf('t:')===0){if(k in local)out.stats.updated++;else out.stats.added++;}});
@@ -20883,7 +20899,7 @@ async function ghvSync(cfg,ad,o){
       var remMap=rem?ghvMap(remRecs):{};
       if(rem)ghvStamp(ad.path,rem.sha,remMap); // this device has now seen (and merged) this version
       var mrgMap=ghvMap(merged);
-      ghvPrune(ad,merged,remRecs,false);
+      ghvPrune(ad,merged,remRecs,false,syncStart);
       var pending=!rem||!ghvSame(remMap,mrgMap);
       out.pending=pending;out.counts={trades:ghvCount(mrgMap,'t:'),images:ghvCount(mrgMap,'i:')};
       if(!o.push||(!pending&&!o.force)){out.ok=true;return out;}
@@ -20896,7 +20912,7 @@ async function ghvSync(cfg,ad,o){
         if(chk&&chk.text.trim()&&ghvSame(ghvMap(ad.parse(JSON.parse(chk.text))),mrgMap))res={ok:true,sha:chk.sha};
         else throw pe;
       }
-      if(res.ok){ghvStamp(ad.path,res.sha,mrgMap);ghvPrune(ad,merged,remRecs,true);out.ok=true;out.pushed=true;out.pending=false;return out;}
+      if(res.ok){ghvStamp(ad.path,res.sha,mrgMap);ghvPrune(ad,merged,remRecs,true,syncStart);out.ok=true;out.pushed=true;out.pending=false;return out;}
       if(res.status===409||res.status===422)continue; // GitHub moved while we were merging — redo against the new version
       out.msg='HTTP '+res.status+(res.msg?' — '+res.msg:'');return out;
     }
