@@ -20624,6 +20624,7 @@ function ghvNow(){var n=Date.now();if(n<=_ghvLast)n=_ghvLast+1;_ghvLast=n;return
 function ghvTombs(){if(!_ghvT){try{_ghvT=JSON.parse(localStorage.getItem('tj-gh-del')||'{}')||{};}catch(e){_ghvT={};}}return _ghvT;}
 function ghvTombSave(){_ghvTDirty=false;try{localStorage.setItem('tj-gh-del',JSON.stringify(ghvTombs()));}catch(e){}}
 function ghvNoteDel(store,id){
+  if(_ghvTDirty)ghvTombSave();_ghvT=null; // re-read first: another tab of this site may have logged deletes too
   var ak=store+':'+id;
   if(_ghvApplyDel[ak]){delete _ghvApplyDel[ak];return;} // the merge's own delete: never logged as a user delete
   var p=GHV_PFX[store];if(!p||id==null)return;
@@ -20736,7 +20737,7 @@ function ghvImg(r){return(r&&r.cloudUrl)?{id:r.id,cloudUrl:r.cloudUrl,name:r.nam
 function ghvAdapters(){
   var storeOf={t:'trades',i:'images',s:'sessions'};
   return{
-    data:{path:GH_FILE,label:'data',tombPrefixes:['t:','i:','s:'],
+    data:{path:GH_FILE,label:'data',valid:function(o){return Array.isArray(o)||!!(o&&Array.isArray(o.trades));},tombPrefixes:['t:','i:','s:'],
       local:async function(){
         var recs={};
         (await dbGetAll('trades')).forEach(function(r){if(r&&r.id!=null)recs['t:'+r.id]=r;});
@@ -20767,7 +20768,15 @@ function ghvAdapters(){
           try{await dbDelete(storeOf[d.charAt(0)],old.id);}finally{delete _ghvApplyDel[dk];}
         }
         var sids=Object.keys(sess);
-        if(sids.length){try{await rebalanceSession(sids);}catch(e){}} // keep session equity consistent with the merged trades
+        if(sids.length){
+          try{await rebalanceSession(sids);}catch(e){} // keep session equity consistent with the merged trades
+          // The rebalance rewrites the session and its trades in this device's DB: push THOSE versions, not the pre-rebalance ones,
+          // otherwise GitHub and this device would disagree about the session's equity.
+          try{
+            (await dbGetAll('trades')).forEach(function(t){if(t&&t.id!=null&&t.sessionId&&sess[t.sessionId])ov['t:'+t.id]=t;});
+            (await dbGetAll('sessions')).forEach(function(s){if(s&&s.id!=null&&sess[s.id])ov['s:'+s.id]=s;});
+          }catch(e){}
+        }
         return ov;
       },
       build:function(m){
@@ -20776,7 +20785,7 @@ function ghvAdapters(){
         return{version:6,exportedAt:new Date().toISOString(),trades:t,images:im,sessions:s,localData:{}};
       }
     },
-    config:{path:GH_CONFIG_FILE,label:'config',keepLocal:true,
+    config:{path:GH_CONFIG_FILE,label:'config',keepLocal:true,valid:function(o){return !!(o&&typeof o==='object'&&!Array.isArray(o)&&Object.keys(o).length>0);},
       local:async function(){
         var p=await ghBuildConfigPayload(),recs={};
         (p.settings||[]).forEach(function(s){if(s&&s.id)recs['k:'+s.id]=s;});
@@ -20802,7 +20811,7 @@ function ghvAdapters(){
         return{version:3,exportedAt:new Date().toISOString(),settings:s,aiConfig:m['x:ai']||{},cloudinaryConfig:m['x:cld']||{}};
       }
     },
-    fx:{path:GH_FX_FILE,seedPath:GH_BKP_FX_FILE,label:'FX',tombPrefixes:['f:'],
+    fx:{path:GH_FX_FILE,seedPath:GH_BKP_FX_FILE,label:'FX',valid:function(o){return Array.isArray(o)||!!(o&&Array.isArray(o.conversions));},tombPrefixes:['f:'],
       local:async function(){var r={};fxLoad().forEach(function(c){if(c)r[c.id!=null?'f:'+c.id:'f:~'+ghvHash(c)]=c;});return r;},
       parse:function(o){var r={};(Array.isArray(o)?o:(o.conversions||[])).forEach(function(c){if(c)r[c.id!=null?'f:'+c.id:'f:~'+ghvHash(c)]=c;});return r;},
       apply:async function(plan){
@@ -20811,7 +20820,7 @@ function ghvAdapters(){
       },
       build:function(m){return{version:1,exportedAt:new Date().toISOString(),conversions:Object.keys(m).map(function(k){return m[k];})};}
     },
-    wl:{path:GH_WATCHLIST_FILE,label:'watchlist',
+    wl:{path:GH_WATCHLIST_FILE,label:'watchlist',valid:function(o){return Array.isArray(o)||!!(o&&Array.isArray(o.watchlists));},
       local:async function(){var d={watchlists:await getWatchlists(),categories:await getWlCategories()};return{doc:JSON.parse(JSON.stringify(d))};}, // clone: never share live objects with the merge
       parse:function(o){return Array.isArray(o)?{doc:{watchlists:o,categories:[]}}:{doc:{watchlists:o.watchlists||[],categories:o.categories||[]}};},
       resolve:function(l,r){return{watchlists:ghvUnion(l.watchlists,r.watchlists),categories:ghvUnion(l.categories,r.categories)};},
@@ -20822,7 +20831,7 @@ function ghvAdapters(){
       },
       build:function(m){return{version:1,exportedAt:new Date().toISOString(),watchlists:m.doc.watchlists,categories:m.doc.categories};}
     },
-    notes:{path:GH_NOTES_FILE,label:'notes',
+    notes:{path:GH_NOTES_FILE,label:'notes',valid:function(o){return !!(o&&o.board&&typeof o.board==='object');},
       local:async function(){return{doc:JSON.parse(JSON.stringify(await getNotesBoard()))};}, // clone: the UI mutates the board object in place
       parse:function(o){return(o&&o.board)?{doc:o.board}:{};},
       resolve:function(l,r){var o=Object.assign({},r,l);o.columns=ghvUnion(l.columns,r.columns);o.notes=ghvUnion(l.notes,r.notes);return o;},
@@ -20869,13 +20878,20 @@ async function ghvSync(cfg,ad,o){
   var out={ok:false,changed:false,pending:false,pushed:false,remoteExists:false,seeded:false,msg:'',counts:{trades:0,images:0},stats:{added:0,updated:0,removed:0}};
   try{
     for(var attempt=0;attempt<4;attempt++){
+      if(_ghvTDirty)ghvTombSave();_ghvT=null;
       var syncStart=ghvNow();
       _ghvHc=new WeakMap(); // hash cache is per attempt: live objects (e.g. the notes board) can change between syncs
       var rem=await ghvFetch(cfg,ad.path);
       var srcText=rem?rem.text:null,seeded=false;
       // First run of a new live file (tj_fx.json): seed from the old backup file so no rows are lost.
       if(!rem&&ad.seedPath){var sd=await ghvFetch(cfg,ad.seedPath);if(sd){srcText=sd.text;seeded=true;}}
-      var remRecs=srcText!=null?ad.parse(srcText.trim()?JSON.parse(srcText):{}):{};
+      var remRecs={};
+      if(srcText!=null){
+        // A blank / truncated / wrong-shaped file is never read as "everything was deleted": abort and leave it alone.
+        var robj=null;try{robj=srcText.trim()?JSON.parse(srcText):null;}catch(pe0){}
+        if(!ad.valid(robj))throw new Error('unexpected contents in '+(rem?ad.path:ad.seedPath)+' on GitHub — left untouched');
+        remRecs=ad.parse(robj);
+      }
       out.seeded=seeded;
       var local=await ad.local();
       var base=ghvBase(ad.path);
@@ -20909,7 +20925,8 @@ async function ghvSync(cfg,ad,o){
         // The write may have landed even though the reply never reached us — check before assuming it didn't,
         // otherwise this device would later mistake its own pushed records for unpushed ones.
         var chk=null;try{chk=await ghvFetch(cfg,ad.path);}catch(e2){}
-        if(chk&&chk.text.trim()&&ghvSame(ghvMap(ad.parse(JSON.parse(chk.text))),mrgMap))res={ok:true,sha:chk.sha};
+        var cobj=null;try{cobj=chk&&chk.text.trim()?JSON.parse(chk.text):null;}catch(pe2){}
+        if(cobj&&ad.valid(cobj)&&ghvSame(ghvMap(ad.parse(cobj)),mrgMap))res={ok:true,sha:chk.sha};
         else throw pe;
       }
       if(res.ok){ghvStamp(ad.path,res.sha,mrgMap);ghvPrune(ad,merged,remRecs,true,syncStart);out.ok=true;out.pushed=true;out.pending=false;return out;}
@@ -20953,7 +20970,7 @@ async function ghvAdoptAll(cfg){
   for(var n in ads){
     try{
       var rem=await ghvFetch(cfg,ads[n].path);
-      if(rem)ghvStamp(ads[n].path,rem.sha,ghvMap(ads[n].parse(rem.text.trim()?JSON.parse(rem.text):{})));
+      if(rem){var ao=null;try{ao=rem.text.trim()?JSON.parse(rem.text):null;}catch(pe1){}if(ads[n].valid(ao))ghvStamp(ads[n].path,rem.sha,ghvMap(ads[n].parse(ao)));}
     }catch(e){console.warn('Token adopt failed for '+n+':',e.message);}
   }
 }
@@ -20986,6 +21003,7 @@ async function ghvWithPill(fn,msg,delay){
   try{return await fn();}finally{clearTimeout(t);ghvPillHide();}
 }
 // Coming back to the app (e.g. a phone tab that sat in the background for days): pick up what other devices wrote.
+if(typeof window!=='undefined'&&window.addEventListener)window.addEventListener('storage',function(e){if(e.key==='tj-gh-del'||e.key===null)_ghvT=null;});
 var _ghvResumeAt=Date.now();
 document.addEventListener('visibilitychange',function(){
   if(document.visibilityState!=='visible')return;
