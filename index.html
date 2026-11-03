@@ -20546,7 +20546,7 @@ async function ghPushAlertsFile(cfg){
       }
     }catch(e){ sha=await ghGetFileSHAByPath(cfg,GH_ALERTS_FILE); }
     var content=utf8ToBase64(JSON.stringify(payload,null,2));
-    var body={message:'TJ alerts — '+new Date().toISOString().slice(0,16).replace('T',' '),content:content};
+    var body={message:'TJ alerts — '+new Date().toISOString().slice(0,16).replace('T',' ')+ghvTag(),content:content};
     if(sha)body.sha=sha;
     await fetch('https://api.github.com/repos/'+cfg.user+'/'+cfg.repo+'/contents/'+GH_ALERTS_FILE,{
       method:'PUT',
@@ -20613,6 +20613,29 @@ async function ghPullAlertsFile(cfg, fromBoot){
 // the SHA that was merged, so GitHub itself rejects (409) a write that raced us and we redo.
 // NEW DATA TYPE? Add an adapter to ghvAdapters() (local/parse/apply/build) and a ghvRun call.
 // ═══════════════════════════════════════════════════════════════════════════════════════
+// Device label added to every commit message, e.g. " [Windows · Chrome · #a3f9]" - the #id is a random 4-char code made once per
+// browser, so two browsers on the same OS can still be told apart when working out which device wrote a change.
+var _ghvDev=null;
+function ghvTag(){
+  if(_ghvDev)return _ghvDev;
+  var os='Unknown OS',br='Browser',id='----';
+  try{
+    var ua=(typeof navigator!=='undefined'&&navigator.userAgent)||'',tp=(typeof navigator!=='undefined'&&navigator.maxTouchPoints)||0;
+    if(/iPhone|iPod/.test(ua))os='iPhone';
+    else if(/iPad/.test(ua)||(/Macintosh/.test(ua)&&tp>1))os='iPad';
+    else if(/Android/.test(ua))os='Android';
+    else if(/Windows/.test(ua))os='Windows';
+    else if(/CrOS/.test(ua))os='ChromeOS';
+    else if(/Macintosh|Mac OS X/.test(ua))os='Mac';
+    else if(/Linux/.test(ua))os='Linux';
+    if(/Edg\//.test(ua))br='Edge';else if(/OPR\/|Opera/.test(ua))br='Opera';else if(/Firefox\/|FxiOS/.test(ua))br='Firefox';
+    else if(/CriOS|Chrome\//.test(ua))br='Chrome';else if(/Safari\//.test(ua))br='Safari';
+    id=localStorage.getItem('tj-device-id');
+    if(!id){id=Math.random().toString(36).slice(2,6);localStorage.setItem('tj-device-id',id);}
+  }catch(e){}
+  _ghvDev=' ['+os+' · '+br+' · #'+id+']';
+  return _ghvDev;
+}
 var GHV_TOK='tj-gh-tok:',GHV_BASE='tj-gh-base:';
 // DELETES: only a delete made through the UI (dbDelete/dbClear/fxDelete) is ever sent to GitHub. Each one is logged here
 // as a tombstone {key:time}. A record that is merely MISSING locally is never treated as deleted - it is re-downloaded
@@ -20920,7 +20943,7 @@ async function ghvSync(cfg,ad,o){
       out.pending=pending;out.counts={trades:ghvCount(mrgMap,'t:'),images:ghvCount(mrgMap,'i:')};
       if(!o.push||(!pending&&!o.force)){out.ok=true;return out;}
       var res;
-      try{res=await ghvPut(cfg,ad.path,'TJ '+ad.label+' — '+new Date().toISOString().slice(0,16).replace('T',' '),ad.build(merged),rem?rem.sha:'');}
+      try{res=await ghvPut(cfg,ad.path,'TJ '+ad.label+' — '+new Date().toISOString().slice(0,16).replace('T',' ')+ghvTag()+(out.changed?' (merged newer GitHub data first)':''),ad.build(merged),rem?rem.sha:'');}
       catch(pe){
         // The write may have landed even though the reply never reached us — check before assuming it didn't,
         // otherwise this device would later mistake its own pushed records for unpushed ones.
@@ -21426,7 +21449,7 @@ async function ghSnapshot(type,name){
     var tradesResp=await fetch('https://api.github.com/repos/'+cfg.user+'/'+cfg.repo+'/contents/'+tradesFile,{
       method:'PUT',
       headers:{'Authorization':'token '+cfg.token,'Accept':'application/vnd.github.v3+json','Content-Type':'application/json'},
-      body:JSON.stringify({message:'TJ snapshot ['+prefix+(label?' '+label:'')+'] — '+ts,content:tradesContent})
+      body:JSON.stringify({message:'TJ snapshot ['+prefix+(label?' '+label:'')+'] — '+ts+ghvTag(),content:tradesContent})
     });
     if(!tradesResp.ok){var tradesErr=await tradesResp.json().catch(function(){return{};});throw new Error('Trades push failed: HTTP '+tradesResp.status+' '+(tradesErr.message||''));}
     // Manual + automatic backup: also overwrite the single config backup file
@@ -21434,7 +21457,7 @@ async function ghSnapshot(type,name){
       var cfgPayload=await ghBuildConfigPayload();
       var cfgContent=utf8ToBase64(JSON.stringify(cfgPayload,null,2));
       var cfgSha=await ghGetFileSHAByPath(cfg,GH_BKP_CONFIG_FILE);
-      var cfgBody={message:'TJ config backup — '+ts,content:cfgContent};
+      var cfgBody={message:'TJ config backup — '+ts+ghvTag(),content:cfgContent};
       if(cfgSha)cfgBody.sha=cfgSha;
       var cfgResp=await fetch('https://api.github.com/repos/'+cfg.user+'/'+cfg.repo+'/contents/'+GH_BKP_CONFIG_FILE,{
         method:'PUT',
@@ -21455,7 +21478,7 @@ async function ghSnapshot(type,name){
         }};
         var alertsContent=utf8ToBase64(JSON.stringify(alertsPayload,null,2));
         var alertsBkpSha=await ghGetFileSHAByPath(cfg,GH_BKP_ALERTS_FILE);
-        var alertsBkpBody={message:'TJ alerts backup — '+ts,content:alertsContent};
+        var alertsBkpBody={message:'TJ alerts backup — '+ts+ghvTag(),content:alertsContent};
         if(alertsBkpSha)alertsBkpBody.sha=alertsBkpSha;
         await fetch('https://api.github.com/repos/'+cfg.user+'/'+cfg.repo+'/contents/'+GH_BKP_ALERTS_FILE,{
           method:'PUT',
@@ -21472,7 +21495,7 @@ async function ghSnapshot(type,name){
         var fxPayload={version:1,exportedAt:new Date().toISOString(),conversions:fxLoad()};
         var fxContent=utf8ToBase64(JSON.stringify(fxPayload,null,2));
         var fxSha=await ghGetFileSHAByPath(cfg,GH_BKP_FX_FILE);
-        var fxBody={message:'TJ FX backup — '+ts,content:fxContent};
+        var fxBody={message:'TJ FX backup — '+ts+ghvTag(),content:fxContent};
         if(fxSha)fxBody.sha=fxSha;
         var fxResp=await fetch('https://api.github.com/repos/'+cfg.user+'/'+cfg.repo+'/contents/'+GH_BKP_FX_FILE,{
           method:'PUT',
@@ -21489,7 +21512,7 @@ async function ghSnapshot(type,name){
         var wlPayload=await ghBuildWatchlistPayload();
         var wlContent=utf8ToBase64(JSON.stringify(wlPayload,null,2));
         var wlSha=await ghGetFileSHAByPath(cfg,GH_BKP_WATCHLIST_FILE);
-        var wlBody={message:'TJ watchlist backup — '+ts,content:wlContent};
+        var wlBody={message:'TJ watchlist backup — '+ts+ghvTag(),content:wlContent};
         if(wlSha)wlBody.sha=wlSha;
         var wlResp=await fetch('https://api.github.com/repos/'+cfg.user+'/'+cfg.repo+'/contents/'+GH_BKP_WATCHLIST_FILE,{
           method:'PUT',
@@ -21506,7 +21529,7 @@ async function ghSnapshot(type,name){
         var notesPayload=await ghBuildNotesPayload();
         var notesContent=utf8ToBase64(JSON.stringify(notesPayload,null,2));
         var notesSha=await ghGetFileSHAByPath(cfg,GH_BKP_NOTES_FILE);
-        var notesBody={message:'TJ notes backup — '+ts,content:notesContent};
+        var notesBody={message:'TJ notes backup — '+ts+ghvTag(),content:notesContent};
         if(notesSha)notesBody.sha=notesSha;
         var notesResp=await fetch('https://api.github.com/repos/'+cfg.user+'/'+cfg.repo+'/contents/'+GH_BKP_NOTES_FILE,{
           method:'PUT',
@@ -22514,7 +22537,7 @@ async function ghDeleteSelectedSnapshots(){
       var resp=await fetch('https://api.github.com/repos/'+cfg.user+'/'+cfg.repo+'/contents/'+f.path,{
         method:'DELETE',
         headers:{'Authorization':'token '+cfg.token,'Accept':'application/vnd.github.v3+json','Content-Type':'application/json'},
-        body:JSON.stringify({message:'Remove TJ snapshot',sha:sha})
+        body:JSON.stringify({message:'Remove TJ snapshot'+ghvTag(),sha:sha})
       });
       if(!resp.ok)failed++;
     }catch(e){failed++;}
