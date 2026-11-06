@@ -20636,7 +20636,7 @@ function ghvTag(){
   _ghvDev=' ['+os+' · '+br+' · #'+id+']';
   return _ghvDev;
 }
-var GHV_TOK='tj-gh-tok:',GHV_BASE='tj-gh-base:';
+var GHV_TOK='tj-gh-tok:',GHV_BASE='tj-gh-base:',GHV_RET=180*24*3600*1000; // delete markers kept in the GitHub file for 180 days
 // DELETES: only a delete made through the UI (dbDelete/dbClear/fxDelete) is ever sent to GitHub. Each one is logged here
 // as a tombstone {key:time}. A record that is merely MISSING locally is never treated as deleted - it is re-downloaded
 // (GitHub is the source of truth). Tombstones are dropped once GitHub has the deletion (or the record came back).
@@ -20658,8 +20658,11 @@ function ghvNotePut(store,rec){ // saved/restored again → no longer a delete
   var t=ghvTombs(),k=p+rec.id;
   if(k in t){delete t[k];_ghvTDirty=true;if(!_ghvTTimer)_ghvTTimer=setTimeout(function(){_ghvTTimer=null;if(_ghvTDirty)ghvTombSave();},400);}
 }
+// A deliberate restore (clear + re-add): until the next successful push, records this device re-created beat older delete markers on GitHub.
+function ghvKeepNext(path){try{localStorage.setItem('tj-gh-keep:'+path,'1');}catch(e){}}
 async function ghvNoteClear(store){
   var p=GHV_PFX[store];if(!p)return;
+  if(store==='trades')ghvKeepNext(GH_FILE);
   try{var rows=await dbGetAll(store),t=ghvTombs(),now=ghvNow();rows.forEach(function(r){if(r&&r.id!=null)t[p+r.id]=now;});ghvTombSave();}catch(e){}
 }
 // If applying a merge fails half-way, remember the records that did land so they aren't later mistaken for new local data.
@@ -20667,17 +20670,18 @@ async function ghvNotePartial(ad,plan){
   try{
     var base=ghvBase(ad.path);if(!base)return;
     var now=await ad.local();
-    Object.keys(plan.put).forEach(function(k){if((k in now)&&ghvHash(now[k])===ghvHash(plan.put[k]))base[k]=ghvHash(plan.put[k]);});
+    Object.keys(plan.put).forEach(function(k){if((k in now)&&ghvHashK(ad,k,now[k])===ghvHashK(ad,k,plan.put[k]))base[k]=ghvHashK(ad,k,plan.put[k]);});
     localStorage.setItem(GHV_BASE+ad.path,JSON.stringify(base));
   }catch(e){}
 }
-function ghvPrune(ad,merged,remRecs,pushed,before){
+function ghvSig(t){var m={};Object.keys(t||{}).forEach(function(k){m[k]=1;});return m;} // key set only (timestamps ignored)
+function ghvPrune(ad,merged,remRecs,pushed,before,remTombs){
   // Only tombstones older than this sync's snapshot: a delete made while the sync was running isn't in it and must survive.
   var t=ghvTombs(),ch=false;
   Object.keys(t).forEach(function(k){
     if(!(t[k]<before))return;
     if(!ad.tombPrefixes||!ad.tombPrefixes.some(function(p){return k.indexOf(p)===0;}))return;
-    if((k in merged)||pushed||!(k in remRecs)){delete t[k];ch=true;}
+    if((k in merged)||pushed||!(k in remRecs)||(remTombs&&remTombs[k])){delete t[k];ch=true;}
   });
   if(ch)ghvTombSave();
 }
@@ -20708,7 +20712,18 @@ function ghvHash(o){
   if(isO)_ghvHc.set(o,h);
   return h;
 }
-function ghvMap(recs){var m={};Object.keys(recs).forEach(function(k){m[k]=ghvHash(recs[k]);});return m;}
+// Trades are compared AFTER recomputeTradeFields() on both sides: a pull recalculates the trades it stores (as the original did), and
+// that must never look like an edit - otherwise a fresh device would push rewritten trades, and two devices could trade pushes forever.
+var _ghvHk=new WeakMap();
+function ghvHashK(ad,k,rec){
+  if(ad&&ad.hk&&rec&&typeof rec==='object'){
+    if(_ghvHk.has(rec))return _ghvHk.get(rec);
+    var h;try{h=ad.hk(k,rec);}catch(e){h=ghvHash(rec);}
+    _ghvHk.set(rec,h);return h;
+  }
+  return ghvHash(rec);
+}
+function ghvMap(recs,ad){var m={};Object.keys(recs).forEach(function(k){m[k]=ghvHashK(ad,k,recs[k]);});return m;}
 function ghvSame(a,b){var ka=Object.keys(a);if(ka.length!==Object.keys(b).length)return false;for(var i=0;i<ka.length;i++){if(a[ka[i]]!==b[ka[i]])return false;}return true;}
 function ghvCount(map,prefix){return Object.keys(map).filter(function(k){return k.indexOf(prefix)===0;}).length;}
 // List union by id (this device's order first, then remote-only items); same id → newer updatedAt, else this device's.
@@ -20725,12 +20740,12 @@ function ghvUnion(la,ra){
   return out;
 }
 // 3-way merge of record maps. base = {key:hash} at the last sync (null = unknown), L = this device, R = GitHub.
-function ghvMerge3(base,L,R,ad,tomb,preferLocal){
-  var merged={},put={},del=[],lost=[],keys={};
+function ghvMerge3(base,L,R,ad,tomb,preferLocal,remTombs,keepAll){
+  var merged={},put={},del=[],lost=[],localKeys=[],keys={};
   Object.keys(L).forEach(function(k){keys[k]=1;});Object.keys(R).forEach(function(k){keys[k]=1;});
   Object.keys(keys).forEach(function(k){
     var hasL=(k in L),hasR=(k in R),l=L[k],r=R[k];
-    var lh=hasL?ghvHash(l):null,rh=hasR?ghvHash(r):null,b=(base&&(k in base))?base[k]:undefined;
+    var lh=hasL?ghvHashK(ad,k,l):null,rh=hasR?ghvHashK(ad,k,r):null,b=(base&&(k in base))?base[k]:undefined;
     var pick;
     if(hasL&&hasR){
       if(lh===rh)pick='L';
@@ -20739,28 +20754,33 @@ function ghvMerge3(base,L,R,ad,tomb,preferLocal){
       else if(rh===b)pick='L';                  // only this device changed it
       else pick='X';                            // both changed
     }else if(hasL){
-      if(!base||b===undefined)pick='L';         // new on this device
-      else if(lh===b&&!ad.keepLocal)pick='D';   // other device deleted it and we never touched it
-      else pick='L';                            // we edited it (edit beats delete)
+      // Missing from GitHub is NOT a delete (an old copy of the app or a damaged file can drop records): this device keeps it and
+      // restores it to GitHub. Only an explicit delete marker written by another device's UI delete removes it here.
+      if(remTombs&&remTombs[k]&&!ad.keepLocal&&!keepAll){
+        if(!base)pick='D';                        // no history here: the explicit marker decides
+        else if(b===undefined)pick='L';           // new or re-created on this device since the last sync (e.g. a restore) → keep
+        else if(lh===b)pick='D';                  // this device had it, never touched it, another device deleted it
+        else pick='L';                            // we edited it since (edit beats delete)
+      }else pick='L';
     }else{
       if(tomb&&tomb[k]){                        // only when YOU deleted it through the UI
         if(base&&b!==undefined&&rh!==b)pick='R'; // ...but the other device edited it meanwhile → keep theirs
         else pick='G';                          // delete it on GitHub too
       }else pick='R';                           // just missing here → download it (GitHub is the source of truth)
     }
-    if(pick==='L')merged[k]=l;
+    if(pick==='L'){merged[k]=l;if(!hasR||lh!==rh)localKeys.push(k);} // local-only data or a local change
     else if(pick==='R'){merged[k]=r;if(!hasL||lh!==rh)put[k]=r;}
-    else if(pick==='X'){var m=ad.resolve?ad.resolve(l,r):l;merged[k]=m;if(ghvHash(m)!==lh)put[k]=m;}
+    else if(pick==='X'){var m=ad.resolve?ad.resolve(l,r):l;merged[k]=m;localKeys.push(k);if(ghvHashK(ad,k,m)!==lh)put[k]=m;}
     else if(pick==='D'){del.push(k);}
     else if(pick==='G'){lost.push(k);}
   });
-  return{merged:merged,put:put,del:del,lost:lost};
+  return{merged:merged,put:put,del:del,lost:lost,localKeys:localKeys};
 }
 function ghvImg(r){return(r&&r.cloudUrl)?{id:r.id,cloudUrl:r.cloudUrl,name:r.name,zone:r.zone}:r;} // same slimming ghBuildPayload() does
 function ghvAdapters(){
   var storeOf={t:'trades',i:'images',s:'sessions'};
   return{
-    data:{path:GH_FILE,label:'data',valid:function(o){return Array.isArray(o)||!!(o&&Array.isArray(o.trades));},tombPrefixes:['t:','i:','s:'],
+    data:{path:GH_FILE,label:'data',hk:function(k,rec){if(k.charAt(0)!=='t')return ghvHash(rec);var c=JSON.parse(JSON.stringify(rec));recomputeTradeFields(c);return ghvHash(c);},valid:function(o){return Array.isArray(o)||!!(o&&Array.isArray(o.trades));},tombPrefixes:['t:','i:','s:'],
       local:async function(){
         var recs={};
         (await dbGetAll('trades')).forEach(function(r){if(r&&r.id!=null)recs['t:'+r.id]=r;});
@@ -20779,7 +20799,7 @@ function ghvAdapters(){
         var ov={},sess={};
         for(var k in plan.put){
           var kind=k.charAt(0),rec=plan.put[k];
-          if(kind==='t'){var c=JSON.parse(JSON.stringify(rec));recomputeTradeFields(c);await dbPut('trades',c);ov[k]=c;if(c.sessionId)sess[c.sessionId]=1;}
+          if(kind==='t'){var c=JSON.parse(JSON.stringify(rec));recomputeTradeFields(c);await dbPut('trades',c);if(c.sessionId)sess[c.sessionId]=1;}
           else await dbPut(storeOf[kind],rec);
         }
         for(var i=0;i<plan.del.length;i++){
@@ -20790,22 +20810,28 @@ function ghvAdapters(){
           _ghvApplyDel[dk]=1;
           try{await dbDelete(storeOf[d.charAt(0)],old.id);}finally{delete _ghvApplyDel[dk];}
         }
-        var sids=Object.keys(sess);
+        // Like the original pull, GitHub's session/trade values are taken as they are. The one exception is a session that BOTH
+        // devices changed: each device only knew its own trades when it worked out the equity, so that session is recalculated.
+        var localSess={};
+        (plan.localKeys||[]).forEach(function(k){var r=plan.merged[k];if(!r)return;if(k.charAt(0)==='t'&&r.sessionId)localSess[r.sessionId]=1;else if(k.charAt(0)==='s')localSess[r.id]=1;});
+        var sids=Object.keys(sess).filter(function(id){return localSess[id];});
+        sess=localSess;
         if(sids.length){
           try{await rebalanceSession(sids);}catch(e){} // keep session equity consistent with the merged trades
           // The rebalance rewrites the session and its trades in this device's DB: push THOSE versions, not the pre-rebalance ones,
           // otherwise GitHub and this device would disagree about the session's equity.
           try{
-            (await dbGetAll('trades')).forEach(function(t){if(t&&t.id!=null&&t.sessionId&&sess[t.sessionId])ov['t:'+t.id]=t;});
-            (await dbGetAll('sessions')).forEach(function(s){if(s&&s.id!=null&&sess[s.id])ov['s:'+s.id]=s;});
+            (await dbGetAll('trades')).forEach(function(t){if(t&&t.id!=null&&t.sessionId&&sids.indexOf(t.sessionId)>=0)ov['t:'+t.id]=t;});
+            (await dbGetAll('sessions')).forEach(function(s){if(s&&s.id!=null&&sids.indexOf(s.id)>=0)ov['s:'+s.id]=s;});
           }catch(e){}
         }
-        return ov;
+        return ov; // rebalanced records to PUSH (a plain local recalculation is never pushed - see ghvHashK)
       },
-      build:function(m){
+      parseTombs:function(o){return(o.deleted&&typeof o.deleted==='object')?o.deleted:{};},
+      build:function(m,tm){
         var t=[],im=[],s=[];
         Object.keys(m).forEach(function(k){var c=k.charAt(0);if(c==='t')t.push(m[k]);else if(c==='i')im.push(m[k]);else if(c==='s')s.push(m[k]);});
-        return{version:6,exportedAt:new Date().toISOString(),trades:t,images:im,sessions:s,localData:{}};
+        return{version:6,exportedAt:new Date().toISOString(),trades:t,images:im,sessions:s,localData:{},deleted:tm||{}};
       }
     },
     config:{path:GH_CONFIG_FILE,label:'config',keepLocal:true,valid:function(o){return !!(o&&typeof o==='object'&&!Array.isArray(o)&&Object.keys(o).length>0);},
@@ -20841,7 +20867,8 @@ function ghvAdapters(){
         fxSave(Object.keys(plan.merged).map(function(k){return plan.merged[k];}));
         if(_currentPage==='fx-tracker'&&typeof fxRender==='function')fxRender();
       },
-      build:function(m){return{version:1,exportedAt:new Date().toISOString(),conversions:Object.keys(m).map(function(k){return m[k];})};}
+      parseTombs:function(o){return(o.deleted&&typeof o.deleted==='object')?o.deleted:{};},
+      build:function(m,tm){return{version:1,exportedAt:new Date().toISOString(),conversions:Object.keys(m).map(function(k){return m[k];}),deleted:tm||{}};}
     },
     wl:{path:GH_WATCHLIST_FILE,label:'watchlist',valid:function(o){return Array.isArray(o)||!!(o&&Array.isArray(o.watchlists));},
       local:async function(){var d={watchlists:await getWatchlists(),categories:await getWlCategories()};return{doc:JSON.parse(JSON.stringify(d))};}, // clone: never share live objects with the merge
@@ -20903,17 +20930,19 @@ async function ghvSync(cfg,ad,o){
     for(var attempt=0;attempt<4;attempt++){
       if(_ghvTDirty)ghvTombSave();_ghvT=null;
       var syncStart=ghvNow();
-      _ghvHc=new WeakMap(); // hash cache is per attempt: live objects (e.g. the notes board) can change between syncs
+      var keepAll=false;try{keepAll=!!localStorage.getItem('tj-gh-keep:'+ad.path);}catch(ke){}
+      _ghvHc=new WeakMap();_ghvHk=new WeakMap(); // hash caches is per attempt: live objects (e.g. the notes board) can change between syncs
       var rem=await ghvFetch(cfg,ad.path);
       var srcText=rem?rem.text:null,seeded=false;
       // First run of a new live file (tj_fx.json): seed from the old backup file so no rows are lost.
       if(!rem&&ad.seedPath){var sd=await ghvFetch(cfg,ad.seedPath);if(sd){srcText=sd.text;seeded=true;}}
-      var remRecs={};
+      var remRecs={},remTombs={};
       if(srcText!=null){
         // A blank / truncated / wrong-shaped file is never read as "everything was deleted": abort and leave it alone.
         var robj=null;try{robj=srcText.trim()?JSON.parse(srcText):null;}catch(pe0){}
         if(!ad.valid(robj))throw new Error('unexpected contents in '+(rem?ad.path:ad.seedPath)+' on GitHub — left untouched');
         remRecs=ad.parse(robj);
+        remTombs=(ad.parseTombs&&robj&&!Array.isArray(robj))?ad.parseTombs(robj):{};
       }
       out.seeded=seeded;
       var local=await ad.local();
@@ -20921,9 +20950,9 @@ async function ghvSync(cfg,ad,o){
       var merged=local;
       out.remoteExists=!!rem;
       // Skip the merge only when this device is already at GitHub's version AND has nothing unpushed.
-      var upToDate=!!(rem&&base&&rem.sha===ghvTok(ad.path)&&ghvSame(ghvMap(local),base));
+      var upToDate=!!(rem&&base&&rem.sha===ghvTok(ad.path)&&ghvSame(ghvMap(local,ad),base));
       if((rem||seeded)&&!upToDate){
-        var plan=ghvMerge3(base,local,remRecs,ad,ghvTombs(),!!o.preferLocal);
+        var plan=ghvMerge3(base,local,remRecs,ad,ghvTombs(),!!o.preferLocal,remTombs,keepAll);
         merged=plan.merged;
         if(Object.keys(plan.put).length||plan.del.length){
           var ov;
@@ -20935,24 +20964,32 @@ async function ghvSync(cfg,ad,o){
           plan.del.forEach(function(k){if(k.indexOf('t:')===0)out.stats.removed++;});
         }
       }
-      var remMap=rem?ghvMap(remRecs):{};
+      var remMap=rem?ghvMap(remRecs,ad):{};
       if(rem)ghvStamp(ad.path,rem.sha,remMap); // this device has now seen (and merged) this version
-      var mrgMap=ghvMap(merged);
-      ghvPrune(ad,merged,remRecs,false,syncStart);
-      var pending=!rem||!ghvSame(remMap,mrgMap);
+      var mrgMap=ghvMap(merged,ad);
+      ghvPrune(ad,merged,remRecs,false,syncStart,remTombs);
+      // Delete markers carried in the GitHub file: GitHub's existing ones + this device's pending UI deletes, minus anything alive again, minus expired.
+      var mergedTombs=null,tombChanged=false;
+      if(ad.parseTombs){
+        mergedTombs={};var lim=Date.now()-GHV_RET,lt=ghvTombs();
+        Object.keys(remTombs).forEach(function(k){if(!(k in merged)&&remTombs[k]>lim)mergedTombs[k]=remTombs[k];});
+        Object.keys(lt).forEach(function(k){if(ad.tombPrefixes.some(function(p){return k.indexOf(p)===0;})&&!(k in merged)&&lt[k]>lim&&!(k in mergedTombs))mergedTombs[k]=lt[k];});
+        tombChanged=!ghvSame(ghvSig(mergedTombs),ghvSig(remTombs));
+      }
+      var pending=!rem||!ghvSame(remMap,mrgMap)||tombChanged;
       out.pending=pending;out.counts={trades:ghvCount(mrgMap,'t:'),images:ghvCount(mrgMap,'i:')};
-      if(!o.push||(!pending&&!o.force)){out.ok=true;return out;}
+      if(!o.push||(!pending&&!o.force)){if(o.push){try{localStorage.removeItem('tj-gh-keep:'+ad.path);}catch(ke){}}out.ok=true;return out;}
       var res;
-      try{res=await ghvPut(cfg,ad.path,'TJ '+ad.label+' — '+new Date().toISOString().slice(0,16).replace('T',' ')+ghvTag()+(out.changed?' (merged newer GitHub data first)':''),ad.build(merged),rem?rem.sha:'');}
+      try{res=await ghvPut(cfg,ad.path,'TJ '+ad.label+' — '+new Date().toISOString().slice(0,16).replace('T',' ')+ghvTag()+(out.changed?' (merged newer GitHub data first)':''),ad.build(merged,mergedTombs),rem?rem.sha:'');}
       catch(pe){
         // The write may have landed even though the reply never reached us — check before assuming it didn't,
         // otherwise this device would later mistake its own pushed records for unpushed ones.
         var chk=null;try{chk=await ghvFetch(cfg,ad.path);}catch(e2){}
         var cobj=null;try{cobj=chk&&chk.text.trim()?JSON.parse(chk.text):null;}catch(pe2){}
-        if(cobj&&ad.valid(cobj)&&ghvSame(ghvMap(ad.parse(cobj)),mrgMap))res={ok:true,sha:chk.sha};
+        if(cobj&&ad.valid(cobj)&&ghvSame(ghvMap(ad.parse(cobj),ad),mrgMap))res={ok:true,sha:chk.sha};
         else throw pe;
       }
-      if(res.ok){ghvStamp(ad.path,res.sha,mrgMap);ghvPrune(ad,merged,remRecs,true,syncStart);out.ok=true;out.pushed=true;out.pending=false;return out;}
+      if(res.ok){ghvStamp(ad.path,res.sha,mrgMap);ghvPrune(ad,merged,remRecs,true,syncStart,remTombs);try{localStorage.removeItem('tj-gh-keep:'+ad.path);}catch(ke){}out.ok=true;out.pushed=true;out.pending=false;return out;}
       if(res.status===409||res.status===422)continue; // GitHub moved while we were merging — redo against the new version
       out.msg='HTTP '+res.status+(res.msg?' — '+res.msg:'');return out;
     }
@@ -20993,7 +21030,7 @@ async function ghvAdoptAll(cfg){
   for(var n in ads){
     try{
       var rem=await ghvFetch(cfg,ads[n].path);
-      if(rem){var ao=null;try{ao=rem.text.trim()?JSON.parse(rem.text):null;}catch(pe1){}if(ads[n].valid(ao))ghvStamp(ads[n].path,rem.sha,ghvMap(ads[n].parse(ao)));}
+      if(rem){var ao=null;try{ao=rem.text.trim()?JSON.parse(rem.text):null;}catch(pe1){}if(ads[n].valid(ao))ghvStamp(ads[n].path,rem.sha,ghvMap(ads[n].parse(ao),ads[n]));}
     }catch(e){console.warn('Token adopt failed for '+n+':',e.message);}
   }
 }
@@ -21124,7 +21161,7 @@ async function ghAutoPullOnSetup(){
     // Merge-pull (version tokens): takes what other devices changed, keeps anything this device
     // hasn't pushed yet. It no longer deletes local trades just because GitHub lacks them.
     var r=await ghvWithPill(function(){return ghvPullAll(cfg,true);},'Syncing with GitHub…',0);
-    if(!r.data.ok){console.warn('Auto-sync pull error:',r.data.msg);ghvPillFlash('GitHub unreachable — showing the copy saved on this device','warn',5000);return;}
+    if(!r.data.ok){console.warn('Auto-sync pull error:',r.data.msg);ghvPillFlash('Could not sync with GitHub — showing the copy saved on this device','warn',5000);return;}
     localStorage.setItem('tj-gh-last-sync',new Date().toISOString());
     ghRefreshStatus();
     var st=r.data.stats;
@@ -21949,6 +21986,7 @@ async function ghRestoreFxBackup(){
     onCancel:function(){toast('Restore cancelled','ok');},
     onConfirm:function(){
       try{
+        ghvKeepNext(GH_FX_FILE); // a restore: rows it re-adds beat older delete markers on GitHub
         var _keep={};remote.forEach(function(c){if(c&&c.id!=null)_keep[c.id]=1;});
         fxLoad().forEach(function(c){if(c&&c.id!=null&&!_keep[c.id])ghvNoteDel('fx',c.id);}); // rows a restore drops count as a UI delete
         fxSave(remote);
