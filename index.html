@@ -20636,7 +20636,9 @@ function ghvTag(){
   _ghvDev=' ['+os+' · '+br+' · #'+id+']';
   return _ghvDev;
 }
-var GHV_TOK='tj-gh-tok:',GHV_BASE='tj-gh-base:',GHV_RET=180*24*3600*1000; // delete markers kept in the GitHub file for 180 days
+var GHV_TOK='tj-gh-tok:',GHV_BASE='tj-gh-base:',GHV_RET=180*24*3600*1000,GHV_TOMB_FREE=3000,GHV_TOMB_MAX=30000;
+// Delete markers kept in the GitHub file: they only EXPIRE (after 180 days) once there are more than GHV_TOMB_FREE of them, so one device with
+// a wrong clock can never wipe everybody's markers; above GHV_TOMB_MAX the oldest are dropped.
 // DELETES: only a delete made through the UI (dbDelete/dbClear/fxDelete) is ever sent to GitHub. Each one is logged here
 // as a tombstone {key:time}. A record that is merely MISSING locally is never treated as deleted - it is re-downloaded
 // (GitHub is the source of truth). Tombstones are dropped once GitHub has the deletion (or the record came back).
@@ -20972,8 +20974,11 @@ async function ghvSync(cfg,ad,o){
       var mergedTombs=null,tombChanged=false;
       if(ad.parseTombs){
         mergedTombs={};var lim=Date.now()-GHV_RET,lt=ghvTombs();
-        Object.keys(remTombs).forEach(function(k){if(!(k in merged)&&remTombs[k]>lim)mergedTombs[k]=remTombs[k];});
-        Object.keys(lt).forEach(function(k){if(ad.tombPrefixes.some(function(p){return k.indexOf(p)===0;})&&!(k in merged)&&lt[k]>lim&&!(k in mergedTombs))mergedTombs[k]=lt[k];});
+        var many=(Object.keys(remTombs).length+Object.keys(lt).length)>GHV_TOMB_FREE;
+        Object.keys(remTombs).forEach(function(k){if(!(k in merged)&&(!many||remTombs[k]>lim))mergedTombs[k]=remTombs[k];});
+        Object.keys(lt).forEach(function(k){if(ad.tombPrefixes.some(function(p){return k.indexOf(p)===0;})&&!(k in merged)&&(!many||lt[k]>lim)&&!(k in mergedTombs))mergedTombs[k]=lt[k];});
+        var mk=Object.keys(mergedTombs);
+        if(mk.length>GHV_TOMB_MAX){mk.sort(function(x,y){return mergedTombs[y]-mergedTombs[x];}).slice(GHV_TOMB_MAX).forEach(function(k){delete mergedTombs[k];});}
         tombChanged=!ghvSame(ghvSig(mergedTombs),ghvSig(remTombs));
       }
       var pending=!rem||!ghvSame(remMap,mrgMap)||tombChanged;
