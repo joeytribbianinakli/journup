@@ -1539,6 +1539,15 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
               </select>
             </div>
             <div class="dash-filter-group">
+              <div class="dash-filter-label">Currency</div>
+              <select id="dash-ccy-filter" onchange="syncGlobalFilter('dash-ccy-filter');saveSessionTypeFilterPref('dash-ccy-filter');populateSessionSelects().then(function(){renderDashboard();updateFilterSessionSummary('dash-session-filter','dash-filter-summary','dash-skipped-filter')})">
+              
+                <option value="" selected>All currencies</option>
+                <option value="USD">USD</option>
+                <option value="CAD">CAD</option>
+              </select>
+            </div>
+            <div class="dash-filter-group">
               <div class="dash-filter-label">Session</div>
               <select id="dash-session-filter" onchange="syncGlobalFilter('dash-session-filter');renderDashboard();updateFilterSessionSummary('dash-session-filter','dash-filter-summary','dash-skipped-filter')"><option value="">All sessions</option></select>
             </div>
@@ -1654,6 +1663,15 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
                 <option value="paperlive">Paper Live</option>
                 <option value="backtest" selected>Backtest</option>
                 <option value="demo">Demo</option>
+              </select>
+            </div>
+            <div class="dash-filter-group">
+              <div class="dash-filter-label">Currency</div>
+              <select id="trd-ccy-filter" onchange="syncGlobalFilter('trd-ccy-filter');saveSessionTypeFilterPref('trd-ccy-filter');populateSessionSelects().then(function(){renderTradeAnalytics();updateFilterSessionSummary('trd-session-filter','trd-filter-summary','trd-skipped-filter')})">
+              
+                <option value="" selected>All currencies</option>
+                <option value="USD">USD</option>
+                <option value="CAD">CAD</option>
               </select>
             </div>
             <div class="dash-filter-group">
@@ -2101,6 +2119,15 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
               </select>
             </div>
             <div class="dash-filter-group">
+              <div class="dash-filter-label">Currency</div>
+              <select id="edg-ccy-filter" onchange="syncGlobalFilter('edg-ccy-filter');saveSessionTypeFilterPref('edg-ccy-filter');populateSessionSelects().then(function(){renderEdgeAnalyzer();updateFilterSessionSummary('edg-session-filter','edg-filter-summary','edg-skipped-filter')})">
+              
+                <option value="" selected>All currencies</option>
+                <option value="USD">USD</option>
+                <option value="CAD">CAD</option>
+              </select>
+            </div>
+            <div class="dash-filter-group">
               <div class="dash-filter-label">Session</div>
               <select id="edg-session-filter" onchange="syncGlobalFilter('edg-session-filter');renderEdgeAnalyzer();updateFilterSessionSummary('edg-session-filter','edg-filter-summary','edg-skipped-filter')"><option value="">All sessions</option></select>
             </div>
@@ -2323,6 +2350,15 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
               </select>
             </div>
             <div class="dash-filter-group">
+              <div class="dash-filter-label">Currency</div>
+              <select id="cal-ccy-filter" onchange="syncGlobalFilter('cal-ccy-filter');saveSessionTypeFilterPref('cal-ccy-filter');calPopulateSessionFilter().then(function(){calJumpToMostRecent().then(function(){renderCalendar();updateFilterSessionSummary('cal-session-filter','cal-filter-summary','cal-skipped-filter')})})">
+              
+                <option value="" selected>All currencies</option>
+                <option value="USD">USD</option>
+                <option value="CAD">CAD</option>
+              </select>
+            </div>
+            <div class="dash-filter-group">
               <div class="dash-filter-label">Session</div>
               <select id="cal-session-filter" onchange="syncGlobalFilter('cal-session-filter');calJumpToMostRecent().then(function(){renderCalendar();});updateFilterSessionSummary('cal-session-filter','cal-filter-summary','cal-skipped-filter')"><option value="">All sessions</option></select>
             </div>
@@ -2371,6 +2407,15 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
             <option value="paperlive">Paper Live</option>
             <option value="backtest" selected>Backtest</option>
             <option value="demo">Demo</option>
+          </select>
+        </div>
+        <div class="ai-filter-group">
+          <div class="ai-filter-label">Currency</div>
+          <select id="ai-ccy-filter" style="font-size:11px;padding:5px 8px" onchange="saveSessionTypeFilterPref('ai-ccy-filter');aiPopulateSessionFilter()">
+          
+            <option value="" selected>All currencies</option>
+            <option value="USD">USD</option>
+            <option value="CAD">CAD</option>
           </select>
         </div>
         <div class="ai-filter-group">
@@ -2692,7 +2737,7 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
           <div class="fsec-title">Pricing &amp; sizing</div>
           <!-- Row 1: Balance used | Risk % | Target RR -->
           <div class="frow-inline">
-            <div class="frow"><label class="flabel" style="display:inline-flex;align-items:center">Balance used ($)<span class="th-info" tabindex="0">i<span class="th-info-tip">The number before "/" is the portion actually committed to this trade — carried over from the position size calculator, and locked here since it was already set when you sized this trade there. The number after "/" is your session's full capital and can't be changed here.</span></span></label><div class="bal-split"><div class="bal-split-input-wrap"><span class="bal-split-prefix">$</span><input type="number" id="f-acct" value="5000" readonly style="color:var(--text3);cursor:default" title="Balance committed to this trade — auto-filled from selected session"></div><span class="bal-split-sep">/</span><span id="f-acct-total" class="bal-split-total" title="Session's total capital (fixed)">$5,000</span></div></div>
+            <div class="frow"><label class="flabel" style="display:inline-flex;align-items:center">Balance used (<span id="f-acct-ccy">$</span>)<span class="th-info" tabindex="0">i<span class="th-info-tip">The number before "/" is the portion actually committed to this trade — carried over from the position size calculator, and locked here since it was already set when you sized this trade there. The number after "/" is your session's full capital and can't be changed here.</span></span></label><div class="bal-split"><div class="bal-split-input-wrap"><span class="bal-split-prefix" id="f-acct-prefix">$</span><input type="number" id="f-acct" value="5000" readonly style="color:var(--text3);cursor:default" title="Balance committed to this trade — auto-filled from selected session"></div><span class="bal-split-sep">/</span><span id="f-acct-total" class="bal-split-total" title="Session's total capital (fixed)">$5,000</span></div></div>
             <div class="frow"><label class="flabel">Risk (%) <span style="color:var(--red);margin-left:2px">*</span></label><input type="number" id="f-riskpct" value="1" step="0.1" readonly style="color:var(--text3);cursor:default;background:var(--bg);border-color:var(--border)" title="Carried over from the position size calculator"></div>
             <div class="frow"><label class="flabel">Target RR <span style="color:var(--red);margin-left:2px">*</span></label><input type="number" id="f-trr" step="0.1" placeholder="e.g. 3" readonly style="color:var(--text3);cursor:default;background:var(--bg);border-color:var(--border)" title="Carried over from the position size calculator"></div>
           </div>
@@ -3260,6 +3305,15 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
               </select>
             </div>
             <div class="hist-filter-group">
+              <div class="hist-filter-label">Currency</div>
+              <select id="flt-ccy" onchange="syncGlobalFilter('flt-ccy');saveSessionTypeFilterPref('flt-ccy');populateSessionSelects().then(function(){renderHistory();updateHistChips();updateFilterSessionSummary('flt-session','hist-filter-summary','flt-skipped')})">
+              
+                <option value="" selected>All currencies</option>
+                <option value="USD">USD</option>
+                <option value="CAD">CAD</option>
+              </select>
+            </div>
+            <div class="hist-filter-group">
               <div class="hist-filter-label">Session</div>
               <select id="flt-session" onchange="syncGlobalFilter('flt-session');saveHistFilterPref('flt-session');renderHistory();updateHistChips();updateFilterSessionSummary('flt-session','hist-filter-summary','flt-skipped')"><option value="">All sessions</option></select>
             </div>
@@ -3318,6 +3372,15 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
                 <option value="paperlive">Paper Live</option>
                 <option value="backtest" selected>Backtest</option>
                 <option value="demo">Demo</option>
+              </select>
+            </div>
+            <div class="frow" style="min-width:140px;margin-bottom:0">
+              <label class="flabel">Currency</label>
+              <select id="mc-ccy-filter" style="font-size:12px" onchange="saveSessionTypeFilterPref('mc-ccy-filter');populateSessionSelects()">
+              
+                <option value="" selected>All currencies</option>
+                <option value="USD">USD</option>
+                <option value="CAD">CAD</option>
               </select>
             </div>
             <div class="frow" style="min-width:160px;margin-bottom:0">
@@ -4889,18 +4952,26 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
           <div class="calc-row2">
             <div class="calc-field">
               <label for="calc-balance" style="display:flex;align-items:center;justify-content:space-between">
-                <span style="display:inline-flex;align-items:center">Balance ($) Used<span class="th-info" tabindex="0">i<span class="th-info-tip">Defaults to your session's total capital, but you don't have to risk all of it on one trade. If you're only committing part of your capital to this trade (e.g. $200 out of a $1,000 account, keeping the rest free for other trades), edit this field to that amount — position sizing below will be based on whatever balance you enter here.</span></span></span>
+                <span style="display:inline-flex;align-items:center">Balance (<span class="calc-ccy">$</span>) Used<span class="th-info" tabindex="0">i<span class="th-info-tip">Defaults to your session's total capital, but you don't have to risk all of it on one trade. If you're only committing part of your capital to this trade (e.g. $200 out of a $1,000 account, keeping the rest free for other trades), edit this field to that amount — position sizing below will be based on whatever balance you enter here.</span></span></span>
                 <button type="button" id="calc-set-default-btn" onclick="calcSetDefaultCapital(event)" title="Save as default capital" style="display:none;font-size:9px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:4px;border:1px solid var(--border2);background:var(--bg3);color:var(--text3);cursor:pointer;font-family:inherit;transition:all .12s" onmouseover="this.style.color='var(--accent)';this.style.borderColor='var(--accent)'" onmouseout="this.style.color='var(--text3)';this.style.borderColor='var(--border2)'">Set default</button>
               </label>
               <div class="bal-split">
                 <div class="bal-split-input-wrap">
-                  <span class="bal-split-prefix">$</span>
+                  <span class="bal-split-prefix" id="calc-bal-prefix">$</span>
                   <input type="number" id="calc-balance" min="1" oninput="calcValidateBalance();calcCalc()">
                 </div>
                 <span class="bal-split-sep">/</span>
                 <span id="calc-balance-total" class="bal-split-total" title="Session's total capital (fixed)">$5,000</span>
               </div>
               <div id="calc-balance-err" style="display:none;font-size:10px;font-weight:600;color:var(--red);margin-top:4px;line-height:1.4"></div>
+              <div id="calc-ccy-row" style="display:flex;align-items:center;gap:8px;margin-top:8px">
+                <select id="calc-ccy" onchange="calcOnCcyChange()" title="Account currency (locked to the session's currency when a session is selected)" style="width:84px;flex:none;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-size:12px;padding:6px 8px"><option value="USD">USD</option><option value="CAD">CAD</option></select>
+                <div id="calc-fx-wrap" style="display:none;align-items:center;gap:6px;flex:1;min-width:0">
+                  <span style="font-size:10px;color:var(--text3);white-space:nowrap">USD/CAD</span>
+                  <input type="number" id="calc-fxrate" step="any" min="0" placeholder="1.4000" oninput="calcCalc()" style="flex:1;min-width:0">
+                </div>
+              </div>
+              <div id="calc-fx-hint" style="display:none;font-size:10px;color:var(--text3);margin-top:4px;line-height:1.4">Pip value, risk and notional are converted from USD to CAD at this rate (CAD per 1 USD). It defaults to the live rate &mdash; edit it to the historical rate when backtesting.</div>
             </div>
             <div class="calc-field">
               <label>Risk Per Trade (%)</label>
@@ -4951,7 +5022,7 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
           <div id="calc-margin-extra" style="display:none;margin-bottom:10px">
             <div class="calc-row2">
               <div class="calc-field">
-                <label for="calc-margin-amt">Margin amount ($) <span style="color:var(--text3);font-size:10px">(optional)</span></label>
+                <label for="calc-margin-amt">Margin amount (<span class="calc-ccy">$</span>) <span style="color:var(--text3);font-size:10px">(optional)</span></label>
                 <input type="number" id="calc-margin-amt" min="0" step="any" placeholder="max your broker lends" oninput="calcMarginInputsChanged()">
               </div>
               <div class="calc-field">
@@ -5017,7 +5088,7 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
           <!-- Risk section -->
           <div class="calc-section-box risk-section">
             <div class="calc-section-title r">✕ Stop Loss / Risk</div>
-            <div class="calc-srow"><span class="calc-sl2">Amount ($)</span><span class="calc-sv r" id="calc-out-risk-usd">—</span></div>
+            <div class="calc-srow"><span class="calc-sl2">Amount (<span class="calc-ccy">$</span>)</span><span class="calc-sv r" id="calc-out-risk-usd">—</span></div>
             <div class="calc-srow"><span class="calc-sl2">Account Risk %</span><span class="calc-sv r" id="calc-out-risk-pct">—</span></div>
             <div class="calc-srow" style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(232,85,85,.12);">
               <span class="calc-sl2">Risk Level</span>
@@ -5034,7 +5105,7 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
           <!-- TP Section -->
           <div class="calc-section-box tp-section" id="calc-tp-section" style="display:none">
             <div class="calc-section-title g">✓ Take Profit</div>
-            <div class="calc-srow"><span class="calc-sl2">Profit ($)</span><span class="calc-sv g" id="calc-out-tp-usd">—</span></div>
+            <div class="calc-srow"><span class="calc-sl2">Profit (<span class="calc-ccy">$</span>)</span><span class="calc-sv g" id="calc-out-tp-usd">—</span></div>
             <div class="calc-srow"><span class="calc-sl2">Account Gain %</span><span class="calc-sv g" id="calc-out-tp-pct">—</span></div>
             <div class="calc-srow" style="border-top:1px solid rgba(52,201,122,.12);margin-top:6px;padding-top:6px;">
               <span class="calc-sl2" id="calc-tp-dist-label">TP distance (pips)</span>
@@ -5045,13 +5116,13 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
           <!-- Margin Section -->
           <div class="calc-section-box margin-section-box" id="calc-margin-section">
             <div class="calc-section-title a">Margin</div>
-            <div class="calc-srow"><span class="calc-sl2">Required ($)</span><span class="calc-sv a" id="calc-out-margin">—</span></div>
+            <div class="calc-srow"><span class="calc-sl2">Required (<span class="calc-ccy">$</span>)</span><span class="calc-sv a" id="calc-out-margin">—</span></div>
             <div class="calc-srow"><span class="calc-sl2">Used (%)</span><span class="calc-sv a" id="calc-out-margin-pct">—</span></div>
           </div>
           <!-- Margin loan (borrowed amount + interest cost) — only shown when margin is ON and the position exceeds the balance -->
           <div class="calc-section-box margin-section-box" id="calc-borrow-section" style="display:none">
             <div class="calc-section-title a">Margin loan</div>
-            <div class="calc-srow"><span class="calc-sl2">Borrowed ($)</span><span class="calc-sv a" id="calc-out-borrowed">—</span></div>
+            <div class="calc-srow"><span class="calc-sl2">Borrowed (<span class="calc-ccy">$</span>)</span><span class="calc-sv a" id="calc-out-borrowed">—</span></div>
             <div class="calc-srow" id="calc-int-row-day" style="display:none"><span class="calc-sl2">Interest / day</span><span class="calc-sv r" id="calc-out-int-day">—</span></div>
             <div class="calc-srow" id="calc-int-row-yr" style="display:none"><span class="calc-sl2">Interest / year</span><span class="calc-sv r" id="calc-out-int-yr">—</span></div>
           </div>
@@ -6291,17 +6362,20 @@ document.addEventListener('DOMContentLoaded',function(){
             <input type="hidden" id="sm-type-val" value="live">
             <div id="sm-type-lock-hint" style="display:none;font-size:10px;color:var(--purple);margin-top:6px;line-height:1.4">✦ Locked to Demo — this session was created with the demo generator, so it must stay categorized as Demo.</div>
           </div>
-          <div class="frow" style="margin-bottom:12px"><label class="flabel">Session name <span style="color:var(--text3);font-weight:400">(auto-generated)</span></label><input type="text" id="sm-name" placeholder="Auto-filled from type &amp; dates — edit to override" oninput="sessionNameDirty=true"><div style="font-size:10px;color:var(--text3);margin-top:5px;line-height:1.4">Automatically built from the session number, type, and date range — updates as you change the type or dates above, e.g. <span class="mono" style="font-size:10px">[3] [Live] Jul 16 - Present [2026]</span>. Type your own and it's saved exactly as typed — nothing is added, and it stops auto-updating.</div></div>
+          <div class="frow" style="margin-bottom:12px"><label class="flabel">Session name <span style="color:var(--text3);font-weight:400">(auto-generated)</span></label><input type="text" id="sm-name" placeholder="Auto-filled from type &amp; dates — edit to override" oninput="sessionNameDirty=true"><div style="font-size:10px;color:var(--text3);margin-top:5px;line-height:1.4">Automatically built from the session number, type, date range and currency — updates as you change them above, e.g. <span class="mono" style="font-size:10px">[3] [Live] Jul 16 - Present [2026] [USD]</span>. Type your own and it's saved exactly as typed — nothing is added, and it stops auto-updating.</div></div>
           <div class="frow-inline" style="margin-bottom:12px">
             <div class="frow"><label class="flabel">Start date</label><input type="date" id="sm-start" min="1000-01-01" max="9999-12-31" onchange="refreshSessionAutoDateRange()"></div>
             <div class="frow"><label class="flabel">End date</label><input type="date" id="sm-end" min="1000-01-01" max="9999-12-31" onchange="refreshSessionAutoDateRange()"></div>
           </div>
           <div class="frow" style="margin-bottom:16px">
-            <label class="flabel">Starting equity ($) <span style="color:var(--text3);font-weight:400">— auto-updates after each trade</span></label>
-            <input type="number" id="sm-equity" value="5000" step="any" placeholder="e.g. 5000" oninput="this.value=this.value.replace(/[^0-9.]/g,'')">
+            <label class="flabel">Starting equity (<span id="sm-ccy-sym">$</span>) <span style="color:var(--text3);font-weight:400">— auto-updates after each trade</span></label>
+            <div style="display:flex;gap:8px;align-items:stretch">
+              <input type="number" id="sm-equity" value="5000" step="any" placeholder="e.g. 5000" oninput="this.value=this.value.replace(/[^0-9.]/g,'')" style="flex:1;min-width:0">
+              <select id="sm-ccy" onchange="onSessionCcyChange()" title="Account currency — position sizing and P/L are converted into this currency" style="width:92px;flex:none"><option value="USD">USD</option><option value="CAD">CAD</option></select>
+            </div>
             <div id="sm-equity-lock-note" style="display:none;align-items:center;gap:6px;margin-top:5px;padding:5px 8px;background:rgba(232,160,48,.07);border:1px solid rgba(232,160,48,.22);border-radius:4px">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-              <span style="font-size:10px;color:var(--amber);line-height:1.4">Starting equity is locked — this session already has trades. Delete all trades first to change it.</span>
+              <span style="font-size:10px;color:var(--amber);line-height:1.4">Starting equity and currency are locked — this session already has trades. Delete all trades first to change it.</span>
             </div>
           </div>
           <div class="frow" style="margin-bottom:16px">
@@ -8809,6 +8883,7 @@ function getSessionTypeFilterVal(id){var el=document.getElementById(id);return e
 // so a filter that's never been touched doesn't get force-blanked everywhere.
 var GLOBAL_FILTER_GROUPS={
   sessiontype:['dash-sessiontype-filter','trd-sessiontype-filter','edg-sessiontype-filter','cal-sessiontype-filter','flt-sessiontype'],
+  ccy:['dash-ccy-filter','trd-ccy-filter','edg-ccy-filter','cal-ccy-filter','flt-ccy'],
   session:['dash-session-filter','trd-session-filter','edg-session-filter','cal-session-filter','flt-session'],
   assettype:['dash-asset-type-filter','flt-asset-type'],
   pair:['dash-pair-filter','trd-pair-filter','edg-pair-filter','flt-pair'],
@@ -8918,10 +8993,15 @@ function restoreHistFilterPrefs(){
 // Set of session ids matching the given "session type" filter's current value, or null when
 // the filter is "All types" (no restriction). Used to keep "All sessions" honoring the type
 // filter instead of showing every type once no specific session is picked.
+// Each page's Currency filter is paired with its Session type filter, so every consumer of
+// this function (dashboard, analytics, history, calendar, Monte Carlo ...) honors both at once.
+var CCY_FILTER_FOR={'dash-sessiontype-filter': 'dash-ccy-filter', 'trd-sessiontype-filter': 'trd-ccy-filter', 'edg-sessiontype-filter': 'edg-ccy-filter', 'cal-sessiontype-filter': 'cal-ccy-filter', 'flt-sessiontype': 'flt-ccy', 'ai-sessiontype-filter': 'ai-ccy-filter', 'mc-sessiontype-filter': 'mc-ccy-filter'};
+function getCcyFilterVal(typeFilterId){var el=document.getElementById(CCY_FILTER_FOR[typeFilterId]||'');return el?el.value:'';}
+function sessionMatchesCcy(s,typeFilterId){var c=getCcyFilterVal(typeFilterId);return !c||sessionCcyOf(s)===c;}
 function sessionIdsMatchingType(sessions,typeFilterId){
-  var t=getSessionTypeFilterVal(typeFilterId);
-  if(!t)return null;
-  return new Set(sessions.filter(function(s){return sessionTypeOf(s)===t;}).map(function(s){return s.id;}));
+  var t=getSessionTypeFilterVal(typeFilterId),c=getCcyFilterVal(typeFilterId);
+  if(!t&&!c)return null;
+  return new Set(sessions.filter(function(s){return (!t||sessionTypeOf(s)===t)&&(!c||sessionCcyOf(s)===c);}).map(function(s){return s.id;}));
 }
 // Matches a bare "[Type] " prefix — kept around to recognize/migrate legacy names that were
 // saved before the "[N] [Type] name [Year]" auto-name format existed.
@@ -8935,7 +9015,23 @@ function setSessionTypePillUI(type){
   var hidden=document.getElementById('sm-type-val');
   if(hidden)hidden.value=type;
 }
-// ── Session name auto-format: "[number] [Type] Month Day - Month Day/Present [Year]" ────
+// ── Account currency ───────────────────────────────────────────────────
+// Every session has an account currency (USD or CAD). Sessions saved before this existed
+// have no `currency` field and are USD. Position sizing, risk and P/L are all expressed in it.
+function sessionCcyOf(s){return(s&&s.currency)==='CAD'?'CAD':'USD';}
+function ccySym(c){return c==='CAD'?'C$':'$';}
+function getSmCcy(){var el=document.getElementById('sm-ccy');return el&&el.value==='CAD'?'CAD':'USD';}
+function onSessionCcyChange(){
+  var sym=document.getElementById('sm-ccy-sym');if(sym)sym.textContent=ccySym(getSmCcy());
+  refreshSessionAutoDateRange();
+}
+// CAD per 1 USD — the live rate the FX tracker already fetches/caches (null if never fetched).
+function acctFxRate(){
+  var r=(typeof _fxRate==='number'&&_fxRate>0)?_fxRate:null;
+  if(!r){try{var c=fxLoadRateCache();if(c&&c.rate>0)r=c.rate;}catch(e){}}
+  return r;
+}
+// ── Session name auto-format: "[number] [Type] Month Day - Month Day/Present [Year] [CCY]" ────
 // This format only ever applies to an untouched, still-auto-generated name. The moment the
 // user types anything in the field, it's free text from then on — saved exactly as typed,
 // with no [number]/[Type]/[Year] added, and immune to type-pill or date changes for the
@@ -8955,16 +9051,20 @@ function parseSessionName(name){
     for(var k in SESSION_TYPE_META){if(SESSION_TYPE_META[k].label.toLowerCase()===lbl){type=k;break;}}
     s=s.slice(typeMatch[0].length);
   }
+  var ccyMatch=s.match(/\s*\[(USD|CAD)\]\s*$/);
+  var ccy=ccyMatch?ccyMatch[1]:null;
+  if(ccyMatch)s=s.slice(0,s.length-ccyMatch[0].length);
   var yearMatch=s.match(/\s*\[(\d{4})\]\s*$/);
   var year=yearMatch?yearMatch[1]:null;
   if(yearMatch)s=s.slice(0,s.length-yearMatch[0].length);
-  return{num:num,type:type,core:s.trim(),year:year};
+  return{num:num,type:type,core:s.trim(),year:year,ccy:ccy};
 }
-function composeSessionName(num,type,core,year){
+function composeSessionName(num,type,core,year,ccy){
   var meta=SESSION_TYPE_META[type]||SESSION_TYPE_META.live;
   var bits=['['+num+']','['+meta.label+']'];
   if(core)bits.push(core);
   bits.push('['+year+']');
+  if(ccy)bits.push('['+ccy+']');
   return bits.join(' ');
 }
 // Formats a "YYYY-MM-DD" date-input value as "Mon D" (e.g. "Jul 16"), parsed as a local
@@ -9014,7 +9114,7 @@ async function applySessionTypePrefix(type){
   var core=sessionDateRangeLabel(startVal,endVal);
   var allSessions=await dbGetAllCached('sessions');
   var nextNum=nextSessionNumberForType(allSessions,type,editingSessionId);
-  nameInput.value=composeSessionName(nextNum,type,core,year);
+  nameInput.value=composeSessionName(nextNum,type,core,year,getSmCcy());
 }
 // Rebuilds just the date-range segment of the name field in place — used when the Start/End
 // date inputs change. Deliberately does NOT touch the number (so tweaking a date never
@@ -9030,7 +9130,7 @@ function refreshSessionAutoDateRange(){
   var startVal=(document.getElementById('sm-start')||{}).value;
   var endVal=(document.getElementById('sm-end')||{}).value;
   var dateLabel=sessionDateRangeLabel(startVal,endVal);
-  nameInput.value=composeSessionName(parsed.num,type,dateLabel,year);
+  nameInput.value=composeSessionName(parsed.num,type,dateLabel,year,getSmCcy());
 }
 // Interactive selection (pill click, or programmatic new-session default) — updates the pill
 // UI AND rewrites the name field's number/type/year to match. Returns the async rewrite's
@@ -9067,7 +9167,7 @@ async function ensureSessionNamePrefix(name,type,startVal,endVal){
     num=nextSessionNumberForType(allSessions,type,editingSessionId);
   }
   var core=sessionDateRangeLabel(startVal,endVal);
-  return composeSessionName(num,type,core,year);
+  return composeSessionName(num,type,core,year,getSmCcy());
 }
 // ── Retro panel toggle ─────────────────────────────────────────────────
 function _syncRetroButtonLabel(){
@@ -9128,6 +9228,9 @@ async function openNewSessionModal(){
   // session left it locked) — selectSessionType() also (re)builds the auto-name above and
   // hides the demo options panel since the type is no longer Demo.
   lockSessionTypePills(false);
+  var _lc='USD';try{_lc=localStorage.getItem('tj-last-session-ccy')==='CAD'?'CAD':'USD';}catch(e){}
+  var _ccyN=document.getElementById('sm-ccy');if(_ccyN){_ccyN.value=_lc;_ccyN.disabled=false;_ccyN.style.opacity='';}
+  var _symN=document.getElementById('sm-ccy-sym');if(_symN)_symN.textContent=ccySym(_lc);
   await selectSessionType('live');
   document.getElementById('sm-equity').value='5000';
   var drElN=document.getElementById('sm-default-risk');
@@ -9171,6 +9274,8 @@ function openEditSessionModal(sess,hasTrades){
   document.getElementById('sm-start').value=sess.startDate||'';
   document.getElementById('sm-end').value=sess.endDate||'';
   document.getElementById('sm-equity').value=sess.startingEquity||5000;
+  var _ccyE=document.getElementById('sm-ccy');if(_ccyE){_ccyE.value=sessionCcyOf(sess);_ccyE.disabled=!!hasTrades;_ccyE.style.opacity=hasTrades?'.6':'';}
+  var _symE=document.getElementById('sm-ccy-sym');if(_symE)_symE.textContent=ccySym(sessionCcyOf(sess));
   var drEl=document.getElementById('sm-default-risk');
   if(drEl)drEl.value=sess.defaultRisk!=null?sess.defaultRisk:1;
   // Lock equity field if session already has trades
@@ -9766,13 +9871,15 @@ async function saveSession(){
   var startingEquity=parseFloat(document.getElementById('sm-equity').value)||5000;
   var defaultRisk=parseFloat(document.getElementById('sm-default-risk').value)||1;
   var archived=document.getElementById('sm-archived').checked;
+  var currency=getSmCcy();
   var existing=editingSessionId?sessions.find(function(s){return s.id===editingSessionId;}):null;
   // Block equity change if session has trades
-  if(existing&&existing.startingEquity!==startingEquity){
+  if(existing&&(existing.startingEquity!==startingEquity||sessionCcyOf(existing)!==currency)){
     var allTrades=await dbGetAll('trades');
     var sessHasTrades=allTrades.some(function(t){return t.sessionId===editingSessionId;});
-    if(sessHasTrades){toast('Starting equity cannot be changed once trades exist','err');return;}
+    if(sessHasTrades){toast('Starting equity and currency cannot be changed once trades exist','err');return;}
   }
+  try{localStorage.setItem('tj-last-session-ccy',currency);}catch(e){}
   // Check if demo session requested: only for new sessions with Session type = Demo (the
   // Demo type doubles as the demo-data generator — see updateDemoSectionVisibility).
   var selectedSessionType=(document.getElementById('sm-type-val')||{}).value||'live';
@@ -9815,6 +9922,7 @@ async function saveSession(){
     id:editingSessionId||(Date.now().toString(36)+Math.random().toString(36).slice(2)),
     name,type:sessionType,startDate,endDate,
     startingEquity:startingEquity,
+    currency:currency,
     defaultRisk:defaultRisk,
     currentEquity:(function(){
       if(!existing)return startingEquity;
@@ -9914,7 +10022,7 @@ function logStartFullFlow(){
 // hand-off) while the badge always shows the session's actual full capital.
 function _setAcctTotalDisplay(total){
   var el=document.getElementById('f-acct-total');
-  if(el)el.textContent='$'+(parseFloat(total)||0).toLocaleString(undefined,{maximumFractionDigits:2});
+  if(el)el.textContent=ccySym(_acctCtx.ccy)+(parseFloat(total)||0).toLocaleString(undefined,{maximumFractionDigits:2});
 }
 function _applyAcctValue(acctEl,equity){
   if(!acctEl)return;
@@ -9928,6 +10036,7 @@ async function onSessionChange(){
   var sessions=await dbGetAll('sessions');
   var sess=sessions.find(function(s){return s.id===sesId;});
   if(sess){
+    setAcctCtxFromSession(sess);
     // When editing an existing trade, don't overwrite f-acct with currentEquity.
     // editTrade() already set f-acct to the equity *before* that trade was entered
     // (currentEquity minus the trade's own P/L). Overwriting it here (from the async
@@ -10014,7 +10123,7 @@ async function renderSessionsList(){
     var count=trades.filter(function(t){return t.sessionId===s.id}).length;
     var dateStr=s.startDate+(s.endDate?' → '+s.endDate:'');
     var netEq=netEquityMap[s.id]!==undefined?netEquityMap[s.id]:(s.currentEquity||s.startingEquity);
-    var equityStr=s.startingEquity?(' · Equity: $'+netEq.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+' (start: $'+s.startingEquity.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+')'):'';
+    var equityStr=s.startingEquity?(' · Equity: '+ccySym(sessionCcyOf(s))+netEq.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+' (start: '+ccySym(sessionCcyOf(s))+s.startingEquity.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+')'):'';
     var active=isSessionActive(s);
     var activeBadge=active&&!s.archived?'<span class="sess-badge sess-badge-active">● Active</span>':'';
     var archivedBadge=s.archived?'<span class="sess-badge sess-badge-archived">Archived</span>':'';
@@ -10063,7 +10172,7 @@ async function populateSessionSelects(restoreSessionId){
   // select *before* it's read below to decide which sessions belong in each page's Session
   // dropdown — otherwise a page that hasn't caught up yet would filter against its own stale
   // value and end up with a session list that doesn't match the type shown in the dropdown.
-  applyGlobalFilterGroup('sessiontype');
+  applyGlobalFilterGroup('sessiontype');applyGlobalFilterGroup('ccy');
   var sessions=await dbGetAllCached('sessions');
   sessions.sort(function(a,b){return new Date(b.startDate)-new Date(a.startDate)});
   // Non-archived sessions only for trade form / filters
@@ -10123,7 +10232,7 @@ async function populateSessionSelects(restoreSessionId){
   var dashF=document.getElementById('dash-session-filter');
   var dv=dashF.value;
   var dashTypeVal=getSessionTypeFilterVal('dash-sessiontype-filter');
-  var dashFilterSessionsTyped=dashFilterSessions.filter(function(s){return !dashTypeVal||sessionTypeOf(s)===dashTypeVal;});
+  var dashFilterSessionsTyped=dashFilterSessions.filter(function(s){return (!dashTypeVal||sessionTypeOf(s)===dashTypeVal)&&sessionMatchesCcy(s,'dash-sessiontype-filter');});
   var dashDefaultSessionTyped=(dashDefaultSession&&dashFilterSessionsTyped.find(function(s){return s.id===dashDefaultSession.id;}))?dashDefaultSession:(dashFilterSessionsTyped[0]||null);
   // Record the auto-default so badge doesn't count it as an active filter
   _defaultDashSessionId=dashDefaultSessionTyped?dashDefaultSessionTyped.id:'';
@@ -10137,7 +10246,7 @@ async function populateSessionSelects(restoreSessionId){
   if(calF2){
     var cv=calF2.value;
     var calTypeVal=getSessionTypeFilterVal('cal-sessiontype-filter');
-    var calFilterSessionsTyped=dashFilterSessions.filter(function(s){return !calTypeVal||sessionTypeOf(s)===calTypeVal;});
+    var calFilterSessionsTyped=dashFilterSessions.filter(function(s){return (!calTypeVal||sessionTypeOf(s)===calTypeVal)&&sessionMatchesCcy(s,'cal-sessiontype-filter');});
     var calDefaultSessionTyped=(dashDefaultSession&&calFilterSessionsTyped.find(function(s){return s.id===dashDefaultSession.id;}))?dashDefaultSession:(calFilterSessionsTyped[0]||null);
     calF2.innerHTML='<option value="">All sessions</option>'+calFilterSessionsTyped.map(function(s){return'<option value="'+s.id+'">'+escHtml(s.name)+'</option>'}).join('');
     if(cv&&calFilterSessionsTyped.find(function(s){return s.id===cv;})){calF2.value=cv;}
@@ -10149,7 +10258,7 @@ async function populateSessionSelects(restoreSessionId){
   if(trdF){
     var tv=trdF.value;
     var trdTypeVal=getSessionTypeFilterVal('trd-sessiontype-filter');
-    var trdFilterSessionsTyped=dashFilterSessions.filter(function(s){return !trdTypeVal||sessionTypeOf(s)===trdTypeVal;});
+    var trdFilterSessionsTyped=dashFilterSessions.filter(function(s){return (!trdTypeVal||sessionTypeOf(s)===trdTypeVal)&&sessionMatchesCcy(s,'trd-sessiontype-filter');});
     var trdDefaultSessionTyped=(dashDefaultSession&&trdFilterSessionsTyped.find(function(s){return s.id===dashDefaultSession.id;}))?dashDefaultSession:(trdFilterSessionsTyped[0]||null);
     _defaultTrdSessionId=trdDefaultSessionTyped?trdDefaultSessionTyped.id:'';
     trdF.innerHTML='<option value="">All sessions</option>'+trdFilterSessionsTyped.map(function(s){return'<option value="'+s.id+'">'+escHtml(s.name)+'</option>'}).join('');
@@ -10162,7 +10271,7 @@ async function populateSessionSelects(restoreSessionId){
   if(edgF){
     var ev=edgF.value;
     var edgTypeVal=getSessionTypeFilterVal('edg-sessiontype-filter');
-    var edgFilterSessionsTyped=dashFilterSessions.filter(function(s){return !edgTypeVal||sessionTypeOf(s)===edgTypeVal;});
+    var edgFilterSessionsTyped=dashFilterSessions.filter(function(s){return (!edgTypeVal||sessionTypeOf(s)===edgTypeVal)&&sessionMatchesCcy(s,'edg-sessiontype-filter');});
     var edgDefaultSessionTyped=(dashDefaultSession&&edgFilterSessionsTyped.find(function(s){return s.id===dashDefaultSession.id;}))?dashDefaultSession:(edgFilterSessionsTyped[0]||null);
     _defaultEdgSessionId=edgDefaultSessionTyped?edgDefaultSessionTyped.id:'';
     edgF.innerHTML='<option value="">All sessions</option>'+edgFilterSessionsTyped.map(function(s){return'<option value="'+s.id+'">'+escHtml(s.name)+'</option>'}).join('');
@@ -10180,7 +10289,7 @@ async function populateSessionSelects(restoreSessionId){
       ?(histDemoSessions[0]||null)
       :defaultFilterSession;
     var histTypeVal=getSessionTypeFilterVal('flt-sessiontype');
-    var histSessionsTyped=histDemoSessions.filter(function(s){return !histTypeVal||sessionTypeOf(s)===histTypeVal;});
+    var histSessionsTyped=histDemoSessions.filter(function(s){return (!histTypeVal||sessionTypeOf(s)===histTypeVal)&&sessionMatchesCcy(s,'flt-sessiontype');});
     var histDefaultSessionTyped=(histDefaultSession&&histSessionsTyped.find(function(s){return s.id===histDefaultSession.id;}))?histDefaultSession:(histSessionsTyped[0]||null);
     // Record the auto-default so chips don't appear for it
     _defaultHistSessionId=histDefaultSessionTyped?histDefaultSessionTyped.id:'';
@@ -10197,7 +10306,7 @@ async function populateSessionSelects(restoreSessionId){
       ? activeSessions.filter(function(s){return !!s.isDemo;})
       : filterSessions;
     var mcTypeVal=getSessionTypeFilterVal('mc-sessiontype-filter');
-    var mcSessionsTyped=mcSessions.filter(function(s){return !mcTypeVal||sessionTypeOf(s)===mcTypeVal;});
+    var mcSessionsTyped=mcSessions.filter(function(s){return (!mcTypeVal||sessionTypeOf(s)===mcTypeVal)&&sessionMatchesCcy(s,'mc-sessiontype-filter');});
     var mcDefault=demoOn?(mcSessions[0]||null):defaultFilterSession;
     var mcDefaultTyped=(mcDefault&&mcSessionsTyped.find(function(s){return s.id===mcDefault.id;}))?mcDefault:(mcSessionsTyped[0]||null);
     mcF.innerHTML='<option value="">All sessions</option>'+mcSessionsTyped.map(function(s){return'<option value="'+s.id+'">'+escHtml(s.name)+'</option>'}).join('');
@@ -10210,7 +10319,7 @@ async function populateSessionSelects(restoreSessionId){
   if(cbF){var cbv=cbF.value;cbF.innerHTML='<option value="">— select session —</option>'+activeSessions.filter(function(s){return !s.isDemo;}).map(function(s){return'<option value="'+s.id+'">'+escHtml(s.name)+'</option>'}).join('');cbF.value=cbv;}
   // Re-assert any globally-synced "Session type" / "Session" filter value across every page's
   // selects now that their option lists have just been rebuilt above.
-  applyGlobalFilterGroup('sessiontype');
+  applyGlobalFilterGroup('sessiontype');applyGlobalFilterGroup('ccy');
   applyGlobalFilterGroup('session');
   // Keep the collapsed filter headers' session summary text in sync with the selects above.
   updateFilterSessionSummary('dash-session-filter','dash-filter-summary','dash-skipped-filter');
@@ -11307,15 +11416,54 @@ function clearPartialTPs(){
 // is why the calculator's Risk/Reward preview was correct while saved trades were not.
 // We use `entry` (not exit) as the conversion rate so a trade's realized P/L reconciles
 // with the Risk/Reward preview shown before the trade was taken.
-function quoteConvFactor(pair, entry){
-  if(!pair||typeof pair!=='string'||!entry)return 1;
-  var slashIdx=pair.indexOf('/');
-  if(slashIdx===-1)return 1; // not a "XXX/YYY" style symbol (stock ticker, index, etc.) — already USD
-  var quoteCcy=pair.slice(slashIdx+1).trim().toUpperCase();
-  return quoteCcy==='USD'?1:entry;
+// ── Account-currency context ────────────────────────────────────────────
+// {ccy:'USD'|'CAD', rate: CAD per 1 USD (1 when the account is USD)}. Set from the selected
+// session (onSessionChange) or from a saved trade (editTrade). A saved trade stores its own
+// `ccy` + `fxRate`, so its P/L stays reproducible and never drifts with the live rate.
+var _acctCtx={ccy:'USD',rate:1};
+function ctxFromTrade(t){return(t&&t.ccy==='CAD'&&t.fxRate>0)?{ccy:'CAD',rate:t.fxRate}:{ccy:'USD',rate:1};}
+// Divisor that turns an amount in the pair's QUOTE currency into the ACCOUNT currency.
+//   quote = account currency        -> 1   (USD/CAD on a CAD account)
+//   quote = USD                     -> 1/rate (1 on a USD account)
+//   other quote (JPY, CHF, ...)     -> entry/rate (treated as a USD-base pair, as before)
+function quoteConvFactor(pair, entry, ctx){
+  ctx=ctx||_acctCtx;
+  var quoteCcy='USD';
+  if(pair&&typeof pair==='string'&&pair.indexOf('/')!==-1)quoteCcy=pair.slice(pair.indexOf('/')+1).trim().toUpperCase();
+  var rate=(ctx.ccy==='CAD'&&ctx.rate>0)?ctx.rate:1;
+  if(quoteCcy===ctx.ccy)return 1;
+  if(quoteCcy==='USD'||!entry)return 1/rate;
+  return entry/rate;
 }
-function toAccountPL(rawPL, pair, entry){
-  return rawPL/quoteConvFactor(pair, entry);
+function toAccountPL(rawPL, pair, entry, t){
+  return rawPL/quoteConvFactor(pair, entry, t?ctxFromTrade(t):null);
+}
+// Points _acctCtx at a session. Reuses the rate the calculator sized with (so the logged
+// trade matches the sizing), else the live/cached USD/CAD rate. While editing a saved trade
+// the trade's own rate is kept.
+function setAcctCtxFromSession(sess){
+  var ccy=sessionCcyOf(sess);
+  if(ccy==='USD'){_acctCtx={ccy:'USD',rate:1};}
+  else if(editingId&&_acctCtx.ccy==='CAD'&&_acctCtx.rate>0){/* keep the trade's stored rate */}
+  else{
+    var lc=window._lastCalcFx;
+    var r=(lc&&lc.ccy==='CAD'&&lc.rate>0)?lc.rate:acctFxRate();
+    _acctCtx={ccy:'CAD',rate:r||1};
+    if(!r&&typeof fxDoFetch==='function'){try{fxDoFetch();}catch(e){}}
+  }
+  updateLogCcyUI();
+}
+async function _ensureAcctCtx(sessionId){
+  if(!sessionId)return;
+  var sessions=await dbGetAll('sessions');
+  var sess=sessions.find(function(x){return x.id===sessionId;});
+  if(sess&&sessionCcyOf(sess)!==_acctCtx.ccy)setAcctCtxFromSession(sess);
+}
+function updateLogCcyUI(){
+  var S=ccySym(_acctCtx.ccy);
+  var a=document.getElementById('f-acct-ccy');if(a)a.textContent=S;
+  var b=document.getElementById('f-acct-prefix');if(b)b.textContent=S;
+  var c=document.getElementById('f-acct-total');if(c&&/^[^0-9]*[0-9]/.test(c.textContent))c.textContent=c.textContent.replace(/^[^0-9]+/,S);
 }
 // Compute blended P/L when partials exist.
 // Returns {pl, plPct, arr, winLoss, effectiveExitPrice} or null if insufficient data.
@@ -11799,6 +11947,7 @@ async function saveTrade(){
   var pair=document.getElementById('f-pair').value;
   if(!pair){toast('Please select a pair','err');switchTab(0,null);return;}
   var sessionId=document.getElementById('f-session').value;
+  await _ensureAcctCtx(sessionId);
   if(!sessionId){toast('Please select a session','err');switchTab(0,null);return;}
   // ── Mandatory field checks ──
   // Tab 0 (Trade info)
@@ -12021,6 +12170,7 @@ async function saveTrade(){
     ltf:document.getElementById('f-ltf-val').value,rating:document.getElementById('f-rating').value,
     errors:(document.getElementById('f-error-val').value||'').split(',').filter(Boolean),
     acct,riskpct,riskDollar:parseFloat(riskDollar.toFixed(2)),
+    ccy:_acctCtx.ccy,fxRate:_acctCtx.ccy==='CAD'?_acctCtx.rate:null,
     entryPrice:entry,stopLoss:sl,exitPrice:exit,qty:actualQty,
     targetRR:trr,actualRR:(arr!=null)?parseFloat(arr.toFixed(3)):null,
     plDollar:parseFloat(pl.toFixed(2)),plPct:parseFloat(plPct.toFixed(4)),
@@ -12185,6 +12335,7 @@ async function clearForm(skipCancelEdit){
 async function editTrade(id){
   var trade=await dbGet('trades',id);if(!trade)return;
   editingId=id;
+  _acctCtx=ctxFromTrade(trade);updateLogCcyUI();
   // Editing an existing trade is always a permitted way into this form.
   _logFormUnlocked=true;
   await clearForm(true,trade.num||'');
@@ -12574,7 +12725,7 @@ function enrichSkippedPL(trades){
         var remDiff=isLong?(exit-entry):(entry-exit);
         totalPL+=remDiff*remainderQty;
       }
-      totalPL=toAccountPL(totalPL,t.pair,entry);
+      totalPL=toAccountPL(totalPL,t.pair,entry,t);
       plDollar=parseFloat(totalPL.toFixed(2));
       plPct=acct?parseFloat(((plDollar/acct)*100).toFixed(4)):0;
       winLoss=plDollar>0?1:(plDollar<0?0:0.5);
@@ -12602,7 +12753,7 @@ function enrichSkippedPL(trades){
     } else {
       if(!exit)return t; // no exit price and no partials — leave as-is
       var priceDiff=isLong?(exit-entry):(entry-exit);
-      plDollar=parseFloat(toAccountPL(priceDiff*qty,t.pair,entry).toFixed(2));
+      plDollar=parseFloat(toAccountPL(priceDiff*qty,t.pair,entry,t).toFixed(2));
       plPct=acct?parseFloat(((plDollar/acct)*100).toFixed(4)):0;
       actualRR=(slDist&&priceDiff!==0)?parseFloat((priceDiff/slDist).toFixed(3)):null;
       winLoss=plDollar>0?1:(plDollar<0?0:0.5);
@@ -13603,7 +13754,7 @@ async function _renderHistoryImpl(){
   // Reset to page 1 only when the filter/sort inputs actually changed — NOT when
   // histGoToPage() re-renders for pagination, and NOT when a trade edit/add/delete
   // triggers a re-render with the same filters (so the user stays on their page).
-  var filterSig=JSON.stringify([fp,ft,fs,fr,fses,getSessionTypeFilterVal('flt-sessiontype'),fat,fskip,fsrch,_histSort.key,_histSort.dir,histDemoOn,_histStarredOnly]);
+  var filterSig=JSON.stringify([fp,ft,fs,fr,fses,getSessionTypeFilterVal('flt-sessiontype'),getCcyFilterVal('flt-sessiontype'),fat,fskip,fsrch,_histSort.key,_histSort.dir,histDemoOn,_histStarredOnly]);
   if(_histLastFilterSig!==null&&_histLastFilterSig!==filterSig)_histPage=1;
   _histLastFilterSig=filterSig;
   // Apply sort — compound: session desc + loggedAt desc when key is loggedAt (default)
@@ -16779,7 +16930,7 @@ function recomputeTradeFields(t){
   var typ=t.type||'Long';
   if(entry&&exit&&qty){
     var diff=typ==='Long'?exit-entry:entry-exit;
-    var pl=toAccountPL(diff*qty,t.pair,entry);
+    var pl=toAccountPL(diff*qty,t.pair,entry,t);
     t.plDollar=parseFloat(pl.toFixed(2));
     t.plPct=acct?parseFloat((pl/acct*100).toFixed(4)):0;
     t.winLoss=diff>0?1:(diff<0?0:0.5);
@@ -17205,10 +17356,11 @@ function toggleTrdLtf(){
 function resetTrdFilters(){
   ['trd-session-filter','trd-pair-filter','trd-direction-filter','trd-error-filter'].forEach(function(id){var el=document.getElementById(id);if(el)el.selectedIndex=0;});
   var tst=document.getElementById('trd-sessiontype-filter');if(tst){tst.value='backtest';saveSessionTypeFilterPref('trd-sessiontype-filter');}
+  var tcc=document.getElementById('trd-ccy-filter');if(tcc){tcc.value='';saveSessionTypeFilterPref('trd-ccy-filter');}
   var tsk=document.getElementById('trd-skipped-filter');if(tsk)tsk.value='taken';
   // These filters are also synced across pages — forget the synced values too, or the next
   // repopulate below would just reapply them and undo this reset.
-  clearGlobalFilterKeys(['sessiontype','session','pair','direction','error','tradetype']);
+  clearGlobalFilterKeys(['sessiontype','ccy','session','pair','direction','error','tradetype']);
   _dashDemoMode=false;
   _histDemoMode=false;
   _syncDemoButtons(false);
@@ -17245,10 +17397,11 @@ function edgMethSetAll(open){
 function resetEdgFilters(){
   ['edg-session-filter','edg-pair-filter','edg-direction-filter','edg-error-filter'].forEach(function(id){var el=document.getElementById(id);if(el)el.selectedIndex=0;});
   var tst=document.getElementById('edg-sessiontype-filter');if(tst){tst.value='backtest';saveSessionTypeFilterPref('edg-sessiontype-filter');}
+  var ecc=document.getElementById('edg-ccy-filter');if(ecc){ecc.value='';saveSessionTypeFilterPref('edg-ccy-filter');}
   var tsk=document.getElementById('edg-skipped-filter');if(tsk)tsk.value='taken';
   // These filters are also synced across pages — forget the synced values too, or the next
   // repopulate below would just reapply them and undo this reset.
-  clearGlobalFilterKeys(['sessiontype','session','pair','direction','error','tradetype']);
+  clearGlobalFilterKeys(['sessiontype','ccy','session','pair','direction','error','tradetype']);
   _dashDemoMode=false;
   _histDemoMode=false;
   _syncDemoButtons(false);
@@ -18078,7 +18231,7 @@ async function initMonteCarlo(){
   var sessions=await dbGetAll('sessions');
   sessions=sessions.filter(function(s){return !s.archived;});
   var mcTypeVal=getSessionTypeFilterVal('mc-sessiontype-filter');
-  if(mcTypeVal)sessions=sessions.filter(function(s){return sessionTypeOf(s)===mcTypeVal;});
+  sessions=sessions.filter(function(s){return (!mcTypeVal||sessionTypeOf(s)===mcTypeVal)&&sessionMatchesCcy(s,'mc-sessiontype-filter');});
   sessions.sort(function(a,b){return new Date(b.startDate)-new Date(a.startDate)});
   var sel=document.getElementById('mc-session');
   // Load saved defaults — prefer IndexedDB, fall back to localStorage
@@ -18390,7 +18543,7 @@ function calcTradeFees(assetFees, qty, entry, durationMin, pair, direction, opts
   // the same quoteConvFactor used for plDollar/toAccountPL so fee drag isn't off by the exchange
   // rate. Flat $-denominated components ($/unit, $/unit/night, $/trade) are already in account
   // currency and must NOT be divided again.
-  var conv = quoteConvFactor(pair, entry);
+  var conv = quoteConvFactor(pair, entry, opts&&opts.ctx);
   // 1. Spread
   if(fees.spread && fees.spread.enabled && fees.spread.value > 0){
     var spreadVal = 0, unit = (fees.spread.unit||'pips').toLowerCase();
@@ -19210,6 +19363,41 @@ async function calcSyncAssets(){
   CALC_INSTRUMENTS=rebuilt;
   calcPopulateInstruments();
 }
+// ── Calculator account currency ─────────────────────────────────────────
+// Backtest mode: locked to the selected session's currency. Quick mode: free choice, remembered.
+function calcAcctCcy(){var el=document.getElementById('calc-ccy');return el&&el.value==='CAD'?'CAD':'USD';}
+// CAD per 1 USD (1 for a USD account); null = CAD account but no rate entered/available yet.
+function calcFxMult(){
+  if(calcAcctCcy()!=='CAD')return 1;
+  var el=document.getElementById('calc-fxrate');var v=parseFloat(el&&el.value);
+  return v>0?v:null;
+}
+function calcEnsureFxRate(){
+  var el=document.getElementById('calc-fxrate');if(!el)return;
+  function fill(){if(el.value)return;var r=acctFxRate();if(r){el.value=parseFloat(r.toFixed(4));calcCalc();}}
+  fill();
+  if(!el.value&&typeof fxDoFetch==='function'){try{fxDoFetch();}catch(e){}setTimeout(fill,2500);setTimeout(fill,7000);}
+}
+function calcApplyCcyUI(){
+  var c=calcAcctCcy(),S=ccySym(c);
+  document.querySelectorAll('.calc-ccy').forEach(function(e){e.textContent=S;});
+  var pf=document.getElementById('calc-bal-prefix');if(pf)pf.textContent=S;
+  var w=document.getElementById('calc-fx-wrap'),h=document.getElementById('calc-fx-hint');
+  if(w)w.style.display=c==='CAD'?'flex':'none';
+  if(h)h.style.display=c==='CAD'?'block':'none';
+  if(c==='CAD')calcEnsureFxRate();
+  calcUpdateBalanceTotalDisplay();
+}
+function calcLockCcy(ccy,locked){
+  var el=document.getElementById('calc-ccy');if(!el)return;
+  if(ccy)el.value=ccy;
+  el.disabled=!!locked;el.style.opacity=locked?'.6':'';
+  calcApplyCcyUI();
+}
+function calcOnCcyChange(){
+  try{localStorage.setItem('tj-calc-ccy',calcAcctCcy());}catch(e){}
+  calcApplyCcyUI();calcValidateBalance();calcCalc();
+}
 // Read the user's saved default starting capital for quick-mode calculations (falls back to $5,000)
 function calcGetDefaultCapital(){
   return parseFloat(localStorage.getItem('tj-calc-capital'))||5000;
@@ -19225,7 +19413,7 @@ function calcUpdateBalanceTotalDisplay(){
   var el=document.getElementById('calc-balance-total');
   if(!el)return;
   var total=(_calcMaxBalance!=null?_calcMaxBalance:calcGetDefaultCapital());
-  el.textContent='$'+total.toLocaleString(undefined,{maximumFractionDigits:2});
+  el.textContent=ccySym(calcAcctCcy())+total.toLocaleString(undefined,{maximumFractionDigits:2});
 }
 // Recompute the session capital cap *without* touching the balance field. Used when the
 // guided flow restores a previously-entered balance (calcOnBacktestSessionChange would
@@ -19237,6 +19425,7 @@ async function calcRefreshMaxBalance(){
     var sessions=await dbGetAll('sessions');
     var sess=sessions.find(function(s){return s.id===sel.value;});
     if(!sess){_calcMaxBalance=null;calcUpdateBalanceTotalDisplay();calcValidateBalance();return;}
+    calcLockCcy(sessionCcyOf(sess),true);
     var isSkipped=document.getElementById('calc-skipped')&&document.getElementById('calc-skipped').checked;
     var allT=await dbGetAll('trades');
     _calcMaxBalance=isSkipped?(sess.skippedCurrentEquity||sess.startingEquity||5000)
@@ -19255,7 +19444,7 @@ function calcValidateBalance(){
   var over=(_calcMaxBalance!=null&&!isNaN(v)&&v>_calcMaxBalance+0.005);
   if(err){
     if(over){
-      err.textContent='Balance used can\u2019t exceed the session\u2019s available capital of $'+_calcMaxBalance.toLocaleString(undefined,{maximumFractionDigits:2})+'.';
+      err.textContent='Balance used can\u2019t exceed the session\u2019s available capital of '+ccySym(calcAcctCcy())+_calcMaxBalance.toLocaleString(undefined,{maximumFractionDigits:2})+'.';
       err.style.display='block';
     } else {err.style.display='none';}
   }
@@ -19278,7 +19467,7 @@ function calcSetDefaultCapital(ev){
   localStorage.setItem('tj-calc-capital',v);
   setSetting('tj-calc-capital',v).then(function(){ghAutoSyncConfig();});
   calcUpdateBalanceTotalDisplay();
-  toast('Default capital set to $'+v.toLocaleString(),'ok');
+  toast('Default capital set to '+ccySym(calcAcctCcy())+v.toLocaleString(),'ok');
 }
 // ── Calculator mode: quick / backtest ─────────────────────────────
 var _calcMode='backtest';
@@ -19308,6 +19497,8 @@ function calcSetMode(mode){
     if(logBox)logBox.style.display='none';
     if(setDefaultBtn)setDefaultBtn.style.display='';
     // Restore balance to default capital — quick mode isn't tied to a session, so no cap
+    var _qc='USD';try{_qc=localStorage.getItem('tj-calc-ccy')==='CAD'?'CAD':'USD';}catch(e){}
+    calcLockCcy(_qc,false);
     _calcMaxBalance=null;
     var bal=document.getElementById('calc-balance');
     if(bal){bal.value=calcGetDefaultCapital();bal.removeAttribute('max');}
@@ -19356,10 +19547,11 @@ async function calcPopulateBacktestSessions(){
 async function calcOnBacktestSessionChange(){
   var sel=document.getElementById('calc-backtest-session');
   var hint=document.getElementById('calc-backtest-hint');
-  if(!sel||!sel.value){if(hint)hint.style.display='none';_calcMaxBalance=null;var _bE=document.getElementById('calc-balance');if(_bE)_bE.removeAttribute('max');calcUpdateBalanceTotalDisplay();calcValidateBalance();return;}
+  if(!sel||!sel.value){calcLockCcy(null,false);if(hint)hint.style.display='none';_calcMaxBalance=null;var _bE=document.getElementById('calc-balance');if(_bE)_bE.removeAttribute('max');calcUpdateBalanceTotalDisplay();calcValidateBalance();return;}
   var sessions=await dbGetAll('sessions');
   var sess=sessions.find(function(s){return s.id===sel.value;});
   if(!sess){return;}
+  calcLockCcy(sessionCcyOf(sess),true);
   var isSkipped=document.getElementById('calc-skipped')&&document.getElementById('calc-skipped').checked;
   var allTradesForCalc=await dbGetAll('trades');
   var equity=isSkipped?(sess.skippedCurrentEquity||sess.startingEquity||5000):(await computeSessionNetEquityAsync(sess,allTradesForCalc));
@@ -19371,7 +19563,7 @@ async function calcOnBacktestSessionChange(){
   if(riskEl){riskEl.value=riskPct;}
   calcUpdateBalanceTotalDisplay();
   calcValidateBalance();
-  if(hint){hint.textContent='Balance $'+equity.toLocaleString()+' · Risk '+riskPct+'%'+(isSkipped?' (base equity — skipped)':' (running equity, after fees)')+' auto-filled';hint.style.display='block';}
+  if(hint){hint.textContent='Balance '+ccySym(sessionCcyOf(sess))+equity.toLocaleString()+' · Risk '+riskPct+'%'+(isSkipped?' (base equity — skipped)':' (running equity, after fees)')+' auto-filled';hint.style.display='block';}
   calcCalc();
 }
 // ══ Guided Trade-Logging Flow (pre-checklist → position-size calc → log form) ══
@@ -19985,7 +20177,21 @@ function calcCalc(){
   // Fallback for USD-base pairs (USD/JPY, USD/CHF, USD/CAD): pip value in USD
   // = (contract size × pip size) ÷ current price. e.g. USD/CAD @ 1.4189:
   // (100000 × 0.0001) / 1.4189 = $7.05 per pip per standard lot.
-  var pvp=inst.pvp!=null?inst.pvp:((inst.contract*pip)/entry);
+  // Everything below is expressed in the ACCOUNT currency. q2a converts an amount in the
+  // instrument's quote currency into it: same currency -> 1; USD quote -> CAD per USD (1 on a
+  // USD account); other quote (JPY/CHF, USD-base pairs) -> rate/entry.
+  var acctCcy=calcAcctCcy(),S=ccySym(acctCcy),fxm=calcFxMult();
+  if(fxm===null){
+    document.getElementById('calc-out-size').textContent='—';
+    document.getElementById('calc-out-sub').textContent='Enter the USD/CAD rate to size in CAD';
+    _calcClearPartialBreakdown();
+    var _bsF=document.getElementById('calc-borrow-section');if(_bsF)_bsF.style.display='none';
+    return;
+  }
+  window._lastCalcFx={ccy:acctCcy,rate:fxm};
+  var qCcy=inst.quote||'USD';
+  var q2a=qCcy===acctCcy?1:(qCcy==='USD'?fxm:fxm/entry);
+  var pvp=(inst.pvp!=null?inst.pvp:(inst.contract*pip))*q2a;
   var slDist=Math.abs(entry-slVal);
   var slTicks=slDist/pip;
   if(slDist===0){_calcClearPartialBreakdown();return;}
@@ -20004,39 +20210,39 @@ function calcCalc(){
   var size,posValue,actualRiskUsd,actualRiskPct,marginReq,marginUsedPct,cappedBy1to1=false; // cappedBy1to1 = "a ceiling above reduced the size" (1:1 or margin limit)
   if(bType==='lots'||!bType){
     size=riskDollar/(slTicks*pvp);
-    posValue=size*inst.contract*entry;
+    posValue=size*inst.contract*entry*q2a;
     // Cap to the position-value ceiling (own balance, or balance + margin amount)
-    if(posValue>posLimit){size=posLimit/(inst.contract*entry);posValue=size*inst.contract*entry;cappedBy1to1=true;}
+    if(posValue>posLimit){size=posLimit/(inst.contract*entry*q2a);posValue=size*inst.contract*entry*q2a;cappedBy1to1=true;}
     actualRiskUsd=size*slTicks*pvp;
     actualRiskPct=(actualRiskUsd/balance)*100;
-    marginReq=(size*inst.contract*entry)/leverage;
+    marginReq=(size*inst.contract*entry*q2a)/leverage;
     marginUsedPct=(marginReq/balance)*100;
   } else if(bType==='crypto'){
-    size=riskDollar/slDist;
-    posValue=size*entry;
+    size=riskDollar/(slDist*q2a);
+    posValue=size*entry*q2a;
     // Cap to the position-value ceiling (own balance, or balance + margin amount)
-    if(posValue>posLimit){size=posLimit/entry;posValue=size*entry;cappedBy1to1=true;}
-    actualRiskUsd=size*slDist;
+    if(posValue>posLimit){size=posLimit/(entry*q2a);posValue=size*entry*q2a;cappedBy1to1=true;}
+    actualRiskUsd=size*slDist*q2a;
     actualRiskPct=(actualRiskUsd/balance)*100;
     marginReq=posValue/leverage;
     marginUsedPct=(marginReq/balance)*100;
   } else if(bType==='shares'){
-    size=riskDollar/slDist;
+    size=riskDollar/(slDist*q2a);
     var shares=Math.floor(size);
     // Whole shares must fit inside the position-value ceiling (own balance, or balance + margin amount)
-    if(shares*entry>posLimit){shares=Math.floor(posLimit/entry);cappedBy1to1=true;}
-    posValue=shares*entry;
-    actualRiskUsd=shares*slDist;
+    if(shares*entry*q2a>posLimit){shares=Math.floor(posLimit/(entry*q2a));cappedBy1to1=true;}
+    posValue=shares*entry*q2a;
+    actualRiskUsd=shares*slDist*q2a;
     actualRiskPct=(actualRiskUsd/balance)*100;
     marginReq=posValue/leverage;
     marginUsedPct=(marginReq/balance)*100;
     size=shares;
   } else if(bType==='contracts'||bType==='oz'){
-    size=riskDollar/(inst.tickVal*(slDist/pip));
-    posValue=size*inst.contract*entry;
+    size=riskDollar/(inst.tickVal*q2a*(slDist/pip));
+    posValue=size*inst.contract*entry*q2a;
     // Cap to the position-value ceiling (own balance, or balance + margin amount)
-    if(posValue>posLimit){size=posLimit/(inst.contract*entry);posValue=size*inst.contract*entry;cappedBy1to1=true;}
-    actualRiskUsd=size*inst.tickVal*(slDist/pip);
+    if(posValue>posLimit){size=posLimit/(inst.contract*entry*q2a);posValue=size*inst.contract*entry*q2a;cappedBy1to1=true;}
+    actualRiskUsd=size*inst.tickVal*q2a*(slDist/pip);
     actualRiskPct=(actualRiskUsd/balance)*100;
     marginReq=posValue/leverage;
     marginUsedPct=(marginReq/balance)*100;
@@ -20053,21 +20259,21 @@ function calcCalc(){
   } else if(bType==='crypto'){
     sizeDisplay=calcFmt(size,4);sizeLabel=inst.unitLabel||'Coins';
     document.getElementById('calc-bk0').textContent=calcFmt(size,4); document.getElementById('calc-bk0l').textContent=sizeLabel;
-    document.getElementById('calc-bk1').textContent='$'+calcFmt(posValue,2); document.getElementById('calc-bk1l').textContent='Pos. Value';
-    document.getElementById('calc-bk2').textContent='$'+calcFmt(actualRiskUsd,2); document.getElementById('calc-bk2l').textContent='At Risk';
+    document.getElementById('calc-bk1').textContent=''+S+calcFmt(posValue,2); document.getElementById('calc-bk1l').textContent='Pos. Value';
+    document.getElementById('calc-bk2').textContent=''+S+calcFmt(actualRiskUsd,2); document.getElementById('calc-bk2l').textContent='At Risk';
     document.getElementById('calc-breakdown-row').style.display='grid';
   } else if(bType==='shares'){
     sizeDisplay=calcFmt(size,0);sizeLabel='Shares';
     document.getElementById('calc-bk0').textContent=size; document.getElementById('calc-bk0l').textContent='Shares';
-    document.getElementById('calc-bk1').textContent='$'+calcFmt(posValue,2); document.getElementById('calc-bk1l').textContent='Pos. Value';
-    document.getElementById('calc-bk2').textContent='$'+calcFmt(actualRiskUsd,2); document.getElementById('calc-bk2l').textContent='At Risk';
+    document.getElementById('calc-bk1').textContent=''+S+calcFmt(posValue,2); document.getElementById('calc-bk1l').textContent='Pos. Value';
+    document.getElementById('calc-bk2').textContent=''+S+calcFmt(actualRiskUsd,2); document.getElementById('calc-bk2l').textContent='At Risk';
     document.getElementById('calc-breakdown-row').style.display='grid';
   } else {
     sizeDisplay=calcFmt(size,2);sizeLabel=inst.unitLabel||'Contracts';
     var full=Math.floor(size);
     document.getElementById('calc-bk0').textContent=full; document.getElementById('calc-bk0l').textContent='Full';
-    document.getElementById('calc-bk1').textContent='$'+calcFmt(inst.tickVal*(slDist/pip),2); document.getElementById('calc-bk1l').textContent='Risk/Contract';
-    document.getElementById('calc-bk2').textContent='$'+calcFmt(inst.tickVal,2); document.getElementById('calc-bk2l').textContent='Tick Value';
+    document.getElementById('calc-bk1').textContent=''+S+calcFmt(inst.tickVal*q2a*(slDist/pip),2); document.getElementById('calc-bk1l').textContent='Risk/Contract';
+    document.getElementById('calc-bk2').textContent=''+S+calcFmt(inst.tickVal*q2a,2); document.getElementById('calc-bk2l').textContent='Tick Value';
     document.getElementById('calc-breakdown-row').style.display='grid';
   }
   // NOTE: only round to a whole unit for 'lots' (forex), where the multiplier (100,000
@@ -20083,7 +20289,7 @@ function calcCalc(){
   }
   document.getElementById('calc-out-size').textContent=sizeDisplay;
   document.getElementById('calc-out-unit-label').textContent=sizeLabel;
-  document.getElementById('calc-out-sub').textContent=calcLastUnits.toLocaleString()+' units · $'+calcFmt(posValue,2)+' notional';
+  document.getElementById('calc-out-sub').textContent=calcLastUnits.toLocaleString()+' units · '+S+calcFmt(posValue,2)+' notional';
   _calcUpdatePartialBreakdown(size,bType,(inst.contract||1),posValue);
   // SL info
   if(calcCurrentClass==='forex'){
@@ -20097,10 +20303,10 @@ function calcCalc(){
     document.getElementById('calc-out-sl-dist').textContent=calcFmt(slDist,calcCurrentClass==='crypto'&&entry<1?5:2);
   }
   var spreadPips=calcCurrentClass==='forex'?1:calcCurrentClass==='metals'?0.5:0;
-  document.getElementById('calc-out-breakeven').textContent=spreadPips>0?calcFmt(spreadPips,1)+' pip ≈ $'+calcFmt(spreadPips*pvp*size,2):'N/A';
+  document.getElementById('calc-out-breakeven').textContent=spreadPips>0?calcFmt(spreadPips,1)+' pip ≈ '+S+calcFmt(spreadPips*pvp*size,2):'N/A';
   document.getElementById('calc-tick-val-label').textContent=calcCurrentClass==='forex'?'Pip value (per lot)':'Tick value (per contract)';
-  document.getElementById('calc-out-tick-val').textContent='$'+calcFmt(pvp,pvp<0.1?5:2);
-  document.getElementById('calc-out-risk-usd').textContent='$'+calcFmt(actualRiskUsd,2);
+  document.getElementById('calc-out-tick-val').textContent=''+S+calcFmt(pvp,pvp<0.1?5:2);
+  document.getElementById('calc-out-risk-usd').textContent=''+S+calcFmt(actualRiskUsd,2);
   document.getElementById('calc-out-risk-pct').textContent=calcFmt(actualRiskPct,2)+'%';
   // Risk bar
   var barEl=document.getElementById('calc-risk-bar');
@@ -20112,14 +20318,14 @@ function calcCalc(){
   // Margin
   var mSec=document.getElementById('calc-margin-section');
   if(leverage===1){mSec.style.display='none';}
-  else{mSec.style.display='block';document.getElementById('calc-out-margin').textContent='$'+calcFmt(marginReq,2);document.getElementById('calc-out-margin-pct').textContent=calcFmt(marginUsedPct,1)+'%';}
+  else{mSec.style.display='block';document.getElementById('calc-out-margin').textContent=''+S+calcFmt(marginReq,2);document.getElementById('calc-out-margin-pct').textContent=calcFmt(marginUsedPct,1)+'%';}
   // Warnings
   var wCap=document.getElementById('calc-warn-cap');
   var wMar=document.getElementById('calc-warn-margin');
   wCap.style.display=cappedBy1to1?'block':'none';
   if(cappedBy1to1){
-    if(calcUseMargin)wCap.textContent='⚠ Position capped to your margin limit: $'+calcFmt(balance,2)+' balance + $'+calcFmt(marginAmt,2)+' margin = $'+calcFmt(posLimit,2)+' max. Actual risk: $'+calcFmt(actualRiskUsd,2)+' ('+calcFmt(actualRiskPct,2)+'%).';
-    else wCap.textContent='⚠ Position capped to fit your $'+calcFmt(balance,2)+' balance at 1:1. Enable "Use margin" above to size using '+leverage+':1 leverage. Actual risk: $'+calcFmt(actualRiskUsd,2)+' ('+calcFmt(actualRiskPct,2)+'%).';
+    if(calcUseMargin)wCap.textContent='⚠ Position capped to your margin limit: '+S+calcFmt(balance,2)+' balance + '+S+calcFmt(marginAmt,2)+' margin = '+S+calcFmt(posLimit,2)+' max. Actual risk: '+S+calcFmt(actualRiskUsd,2)+' ('+calcFmt(actualRiskPct,2)+'%).';
+    else wCap.textContent='⚠ Position capped to fit your '+S+calcFmt(balance,2)+' balance at 1:1. Enable "Use margin" above to size using '+leverage+':1 leverage. Actual risk: '+S+calcFmt(actualRiskUsd,2)+' ('+calcFmt(actualRiskPct,2)+'%).';
   }
   // Margin loan: only the part of the position above your own balance is borrowed, and only that accrues interest.
   // Rate is annual (%); daily cost uses a 365-day year. Informational — not deducted from the R:R figures above.
@@ -20128,7 +20334,7 @@ function calcCalc(){
     var borrowed=calcUseMargin?Math.max(0,posValue-balance):0;
     if(borrowed>0){
       bSec.style.display='block';
-      document.getElementById('calc-out-borrowed').textContent='$'+calcFmt(borrowed,2);
+      document.getElementById('calc-out-borrowed').textContent=''+S+calcFmt(borrowed,2);
       var _rEl=document.getElementById('calc-margin-rate');
       var _rate=_rEl?parseFloat(_rEl.value):NaN;
       var showInt=!isNaN(_rate)&&_rate>0;
@@ -20136,8 +20342,8 @@ function calcCalc(){
       document.getElementById('calc-int-row-yr').style.display=showInt?'flex':'none';
       if(showInt){
         var intYr=borrowed*_rate/100;
-        document.getElementById('calc-out-int-day').textContent='$'+calcFmt(intYr/365,2);
-        document.getElementById('calc-out-int-yr').textContent='$'+calcFmt(intYr,2);
+        document.getElementById('calc-out-int-day').textContent=''+S+calcFmt(intYr/365,2);
+        document.getElementById('calc-out-int-yr').textContent=''+S+calcFmt(intYr,2);
       }
     } else {
       bSec.style.display='none';
@@ -20171,13 +20377,13 @@ function calcCalc(){
     calcLastRR=parseFloat(blendedRR.toFixed(2));
     var tpUsd=blendedRR*actualRiskUsd;
     var tpPct=(tpUsd/balance)*100;
-    document.getElementById('calc-rr-loss').textContent='-$'+calcFmt(actualRiskUsd,2);
+    document.getElementById('calc-rr-loss').textContent='-'+S+calcFmt(actualRiskUsd,2);
     document.getElementById('calc-rr-loss-pct').textContent='-'+calcFmt(actualRiskPct,2)+'%';
-    document.getElementById('calc-rr-win').textContent='+$'+calcFmt(tpUsd,2);
+    document.getElementById('calc-rr-win').textContent='+'+S+calcFmt(tpUsd,2);
     document.getElementById('calc-rr-win-pct').textContent='+'+calcFmt(tpPct,2)+'%';
     document.getElementById('calc-rr-ratio').textContent='1 : '+calcFmt(blendedRR,2);
     rrBox.style.display='block';
-    document.getElementById('calc-out-tp-usd').textContent='+$'+calcFmt(tpUsd,2);
+    document.getElementById('calc-out-tp-usd').textContent='+'+S+calcFmt(tpUsd,2);
     document.getElementById('calc-out-tp-pct').textContent='+'+calcFmt(tpPct,2)+'%';
     document.getElementById('calc-tp-dist-label').textContent='Blended (weighted by %)';
     document.getElementById('calc-out-tp-dist').textContent=calcFmt(ptpSum,1)+'% allocated';
@@ -20190,19 +20396,19 @@ function calcCalc(){
     calcLastRR=parseFloat(rr.toFixed(2));
     var tpUsd=rr*actualRiskUsd;
     var tpPct=(tpUsd/balance)*100;
-    document.getElementById('calc-rr-loss').textContent='-$'+calcFmt(actualRiskUsd,2);
+    document.getElementById('calc-rr-loss').textContent='-'+S+calcFmt(actualRiskUsd,2);
     document.getElementById('calc-rr-loss-pct').textContent='-'+calcFmt(actualRiskPct,2)+'%';
-    document.getElementById('calc-rr-win').textContent='+$'+calcFmt(tpUsd,2);
+    document.getElementById('calc-rr-win').textContent='+'+S+calcFmt(tpUsd,2);
     document.getElementById('calc-rr-win-pct').textContent='+'+calcFmt(tpPct,2)+'%';
     document.getElementById('calc-rr-ratio').textContent='1 : '+calcFmt(rr,2);
     rrBox.style.display='block';
-    document.getElementById('calc-out-tp-usd').textContent='+$'+calcFmt(tpUsd,2);
+    document.getElementById('calc-out-tp-usd').textContent='+'+S+calcFmt(tpUsd,2);
     document.getElementById('calc-out-tp-pct').textContent='+'+calcFmt(tpPct,2)+'%';
     if(calcCurrentClass==='forex'){document.getElementById('calc-tp-dist-label').textContent='Distance (pips)';document.getElementById('calc-out-tp-dist').textContent=calcFmt(tpTicks,1)+' pips';}
     else if(calcCurrentClass==='indices'||calcCurrentClass==='metals'){document.getElementById('calc-tp-dist-label').textContent='Distance (ticks)';document.getElementById('calc-out-tp-dist').textContent=calcFmt(tpTicks,1)+' ticks';}
     else{document.getElementById('calc-tp-dist-label').textContent='Price distance';document.getElementById('calc-out-tp-dist').textContent=calcFmt(tpDist,calcCurrentClass==='crypto'&&entry<1?5:2);}
     var spreadCostPips=calcCurrentClass==='forex'?1:calcCurrentClass==='metals'?0.5:0;
-    document.getElementById('calc-out-tp-breakeven').textContent=spreadCostPips>0?calcFmt(spreadCostPips,1)+' pip ≈ $'+calcFmt(spreadCostPips*pvp*size,2):'N/A';
+    document.getElementById('calc-out-tp-breakeven').textContent=spreadCostPips>0?calcFmt(spreadCostPips,1)+' pip ≈ '+S+calcFmt(spreadCostPips*pvp*size,2):'N/A';
     tpSection.style.display='block';
   } else {
     rrBox.style.display='none';
@@ -23142,12 +23348,12 @@ async function calPopulateSessionFilter(){
   // Re-assert any globally-synced "Session type" value before reading it below — this
   // function runs independently of populateSessionSelects() when the Calendar page is
   // entered directly, so it needs its own sync point too.
-  applyGlobalFilterGroup('sessiontype');
+  applyGlobalFilterGroup('sessiontype');applyGlobalFilterGroup('ccy');
   var sessions=await dbGetAll('sessions');
   var demoOn=!!_dashDemoMode;
   sessions=sessions.filter(function(s){return !s.archived&&(demoOn?!!s.isDemo:!s.isDemo);});
   var calTypeVal=getSessionTypeFilterVal('cal-sessiontype-filter');
-  sessions=sessions.filter(function(s){return !calTypeVal||sessionTypeOf(s)===calTypeVal;});
+  sessions=sessions.filter(function(s){return (!calTypeVal||sessionTypeOf(s)===calTypeVal)&&sessionMatchesCcy(s,'cal-sessiontype-filter');});
   sessions.sort(function(a,b){return new Date(b.startDate)-new Date(a.startDate);});
   var existing=sel.value;
   sel.innerHTML='<option value="">All sessions</option>'+sessions.map(function(s){
@@ -23926,7 +24132,7 @@ async function aiPopulateSessionFilter(){
   var demoOn=_aiDemoMode;
   sessions=sessions.filter(function(s){return !s.archived&&(demoOn?!!s.isDemo:!s.isDemo);});
   var aiTypeVal=getSessionTypeFilterVal('ai-sessiontype-filter');
-  sessions=sessions.filter(function(s){return !aiTypeVal||sessionTypeOf(s)===aiTypeVal;});
+  sessions=sessions.filter(function(s){return (!aiTypeVal||sessionTypeOf(s)===aiTypeVal)&&sessionMatchesCcy(s,'ai-sessiontype-filter');});
   sessions.sort(function(a,b){return new Date(b.startDate)-new Date(a.startDate);});
   sel.innerHTML='<option value="">All sessions</option>'+sessions.map(function(s){
     return'<option value="'+s.id+'">'+escHtml(s.name)+'</option>';
