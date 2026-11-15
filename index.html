@@ -18969,6 +18969,57 @@ function calcClearPartialTPs(){
   _calcPartialTPs=[];
   calcRenderPartialTPs();
 }
+// Per-partial quantity breakdown. Splits the TOTAL position (the number shown top-right) across
+// the partial rows by their %, so each row shows its own lots/units/notional. For whole-unit
+// instruments (forex lots → units, shares) the units are rounded to integers and the LAST
+// allocated row absorbs the rounding remainder when the %s sum to 100, so the rows add up
+// exactly to the total units shown at the top.
+function _calcFmtQty(n,d){return isNaN(n)||!isFinite(n)?'—':(parseFloat(n.toFixed(d))).toLocaleString(undefined,{maximumFractionDigits:d});}
+function _calcClearPartialBreakdown(){
+  _calcPartialTPs.forEach(function(p){
+    var q=document.getElementById('calc-ptp-qty-'+p.id);if(q)q.textContent='—';
+    var b=document.getElementById('calc-ptp-brk-'+p.id);if(b){b.style.display='none';b.innerHTML='';}
+  });
+}
+function _calcUpdatePartialBreakdown(size,bType,mult,posValue){
+  if(!_calcPartialTPs.length)return;
+  if(!(size>0)){_calcClearPartialBreakdown();return;}
+  var isLots=(bType==='lots'||!bType);
+  var intUnits=isLots||bType==='shares';
+  var totalUnits=intUnits?Math.round(size*mult):size*mult;
+  var withPct=_calcPartialTPs.filter(function(p){return parseFloat(p.pct)>0;});
+  var pctSum=withPct.reduce(function(s,p){return s+parseFloat(p.pct);},0);
+  var splitsAll=Math.abs(pctSum-100)<0.01;
+  var lastId=withPct.length?withPct[withPct.length-1].id:null;
+  var cumPct=0,prevCumUnits=0;
+  _calcPartialTPs.forEach(function(p){
+    var qEl=document.getElementById('calc-ptp-qty-'+p.id);
+    var bEl=document.getElementById('calc-ptp-brk-'+p.id);
+    var pct=parseFloat(p.pct);
+    if(!(pct>0)){if(qEl)qEl.textContent='—';if(bEl){bEl.style.display='none';bEl.innerHTML='';}return;}
+    var qty_i=size*(pct/100);
+    var units_i=intUnits?Math.round(totalUnits*(pct/100)):totalUnits*(pct/100);
+    if(intUnits&&splitsAll){
+      // Cumulative rounding: each row = round(total × cumulative%) − what earlier rows already took,
+      // so rounding is spread evenly and the rows add up exactly to the total.
+      cumPct+=pct;
+      var cumUnits=(p.id===lastId)?totalUnits:Math.round(totalUnits*cumPct/100);
+      units_i=cumUnits-prevCumUnits;prevCumUnits=cumUnits;
+    }
+    // Shares: the label must match the whole shares actually allocated to this row
+    if(bType==='shares')qty_i=units_i;
+    var frac=totalUnits>0?units_i/totalUnits:pct/100;
+    var notional_i=posValue*frac;
+    var qDec=bType==='shares'?0:(isLots?(qty_i<0.1?3:2):4);
+    var uDec=intUnits?0:4;
+    var pctTxt=calcFmt(pct,pct%1===0?0:1);
+    if(qEl)qEl.textContent='≈'+_calcFmtQty(qty_i,qDec)+' ('+pctTxt+'%)';
+    if(bEl){
+      bEl.innerHTML='<span style="color:var(--text2)">'+_calcFmtQty(units_i,uDec)+' units</span> · $'+calcFmt(notional_i,2)+' notional';
+      bEl.style.display='block';
+    }
+  });
+}
 function calcRenderPartialTPs(){
   var list=document.getElementById('calc-partial-tp-list');
   var tpInput=document.getElementById('calc-tp');
@@ -19000,6 +19051,8 @@ function calcRenderPartialTPs(){
       +'<button class="btn btn-ghost btn-sm btn-icon" onclick="calcRemovePartialTP(\''+p.id+'\')" title="Remove partial" style="color:var(--red);flex-shrink:0">'
         +'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'
       +'</button>'
+      // Full-width breakdown line (units · notional) — filled by _calcUpdatePartialBreakdown()
+      +'<div id="calc-ptp-brk-'+p.id+'" style="flex:0 0 100%;display:none;font-size:10px;color:var(--text3);font-family:DM Mono,monospace;padding-left:25px;line-height:1.4"></div>'
     +'</div>';
   });
   list.innerHTML=html;
@@ -19906,7 +19959,7 @@ function calcReset(){
 // Also derives R:R, margin usage, and risk-level tag, then writes all of it straight to the DOM.
 function calcCalc(){
   var inst=calcGetInst();
-  if(!inst)return;
+  if(!inst){_calcClearPartialBreakdown();return;}
   var balance=parseFloat(document.getElementById('calc-balance').value)||0;
   var riskPct=parseFloat(document.getElementById('calc-risk-pct').value)||0;
   var entry=parseFloat(document.getElementById('calc-entry').value)||0;
@@ -19923,6 +19976,7 @@ function calcCalc(){
   if(!balance||!riskPct||!entry||!slVal){
     document.getElementById('calc-out-size').textContent='—';
     document.getElementById('calc-out-sub').textContent='Enter trade details to calculate';
+    _calcClearPartialBreakdown();
     var _bsEarly=document.getElementById('calc-borrow-section');if(_bsEarly)_bsEarly.style.display='none';
     return;
   }
@@ -19934,7 +19988,7 @@ function calcCalc(){
   var pvp=inst.pvp!=null?inst.pvp:((inst.contract*pip)/entry);
   var slDist=Math.abs(entry-slVal);
   var slTicks=slDist/pip;
-  if(slDist===0)return;
+  if(slDist===0){_calcClearPartialBreakdown();return;}
   var bType=inst.breakdownType||'lots';
   // Position-value ceiling:
   //   margin OFF                         → your balance (1:1)
@@ -20030,6 +20084,7 @@ function calcCalc(){
   document.getElementById('calc-out-size').textContent=sizeDisplay;
   document.getElementById('calc-out-unit-label').textContent=sizeLabel;
   document.getElementById('calc-out-sub').textContent=calcLastUnits.toLocaleString()+' units · $'+calcFmt(posValue,2)+' notional';
+  _calcUpdatePartialBreakdown(size,bType,(inst.contract||1),posValue);
   // SL info
   if(calcCurrentClass==='forex'){
     document.getElementById('calc-sl-label').textContent='Distance (pips)';
@@ -20112,10 +20167,6 @@ function calcCalc(){
       var pPrice=parseFloat(p.price),pct=parseFloat(p.pct);
       var pDist=Math.abs(pPrice-entry);
       blendedRR+=(pDist/slDist)*(pct/100);
-      var qty_i=size*(pct/100);
-      var qDec=bType==='shares'?0:(bType==='lots'||!bType?2:4);
-      var qEl=document.getElementById('calc-ptp-qty-'+p.id);
-      if(qEl)qEl.textContent='≈'+calcFmt(qty_i,qDec)+' ('+calcFmt(pct,pct%1===0?0:1)+'%)';
     });
     calcLastRR=parseFloat(blendedRR.toFixed(2));
     var tpUsd=blendedRR*actualRiskUsd;
