@@ -2747,7 +2747,7 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
             <div class="frow"><label class="flabel">Stop Loss <span style="color:var(--red);margin-left:2px">*</span></label><input type="number" id="f-sl-price" step="any" placeholder="e.g. 1.07200" oninput="recalc()"></div>
             <div class="frow"><label class="flabel" id="exit-price-label">Exit price <span id="exit-price-hint" style="display:none;font-size:9px;color:var(--accent);font-weight:500">(remainder / last TP)</span></label><input type="number" id="f-exit" step="any" placeholder="e.g. 1.07714" oninput="recalc()"></div>
             <div class="frow">
-              <label class="flabel">Total Quantity (units) <span style="color:var(--red);margin-left:2px">*</span></label>
+              <label class="flabel" style="display:inline-flex;align-items:center">Total Quantity (units) <span style="color:var(--red);margin-left:2px">*</span><span class="th-info right" id="f-qty-plan-info" tabindex="0" style="display:none">i<span class="th-info-tip" id="f-qty-plan-tip" style="width:290px"></span></span></label>
               <input type="number" id="f-qty" step="any" placeholder="e.g. 100000" oninput="recalc();_validatePartialQty()">
               <div id="qty-partial-validation" style="display:none;font-size:10px;margin-top:4px;font-weight:600"></div>
             </div>
@@ -12171,6 +12171,7 @@ async function saveTrade(){
     errors:(document.getElementById('f-error-val').value||'').split(',').filter(Boolean),
     acct,riskpct,riskDollar:parseFloat(riskDollar.toFixed(2)),
     ccy:_acctCtx.ccy,fxRate:_acctCtx.ccy==='CAD'?_acctCtx.rate:null,
+    plannedPartials:_plannedPartials||null,
     entryPrice:entry,stopLoss:sl,exitPrice:exit,qty:actualQty,
     targetRR:trr,actualRR:(arr!=null)?parseFloat(arr.toFixed(3)):null,
     plDollar:parseFloat(pl.toFixed(2)),plPct:parseFloat(plPct.toFixed(4)),
@@ -12257,6 +12258,7 @@ function cancelEdit(goBack){
 // number to keep (used by editTrade so the form doesn't overwrite it with a
 // freshly generated one); otherwise a new trade # is generated.
 async function clearForm(skipCancelEdit){
+  _plannedPartials=null;if(typeof renderPlannedPartials==='function')renderPlannedPartials();
   if(!skipCancelEdit)cancelEdit();
   // The calculator's committed-balance hand-off belongs to one specific trade — once the
   // form is blanked it no longer applies, so #f-acct goes back to tracking session equity.
@@ -12341,6 +12343,7 @@ async function editTrade(id){
   await clearForm(true,trade.num||'');
   var s=function(elId,val){var el=document.getElementById(elId);if(el&&val!=null)el.value=val;};
   document.getElementById('f-num').value=trade.num||'';
+  _plannedPartials=trade.plannedPartials||null;renderPlannedPartials();
   // Pair
   var pSel=document.getElementById('f-pair');
   [].forEach.call(pSel.options,function(o){if(o.value===trade.pair)o.selected=true;});
@@ -19880,6 +19883,47 @@ function preClProceedToCalc() {
 // Captures every value needed *before* nav() (which resets the calculator page), snapshots the
 // calc inputs so the user can navigate back and tweak them, and — if this run started from the
 // pre-trade checklist — carries that checklist's checked state over onto the logged trade too.
+// ── Planned partials carried from the calculator ─────────────────────────
+// The calculator's partial TPs are plans, not fills, so they are NOT turned into Log Trade's
+// partial rows. Instead the plan (TP price, % of position, units, R) is kept here, shown in an
+// info icon beside Total Quantity, and saved on the trade as `plannedPartials`.
+var _plannedPartials=null;
+function _calcBuildPlannedPartials(inst,totalUnits,entry,sl){
+  var tps=(_calcPartialTPs||[]).filter(function(p){return parseFloat(p.price)>0&&parseFloat(p.pct)>0;});
+  if(!tps.length||!(totalUnits>0))return null;
+  var bT=(inst&&inst.breakdownType)||'lots';
+  var intU=(bT==='lots'||bT==='shares');
+  var pctSum=tps.reduce(function(a,p){return a+parseFloat(p.pct);},0);
+  var splits=Math.abs(pctSum-100)<0.01;
+  var slDist=Math.abs(entry-sl),cum=0,prev=0;
+  var rows=tps.map(function(p,i){
+    var pct=parseFloat(p.pct),price=parseFloat(p.price);
+    var units=intU?Math.round(totalUnits*pct/100):Math.round(totalUnits*pct/100*1e6)/1e6;
+    if(intU&&splits){ // same cumulative rounding as the calculator, so rows add up to the total
+      cum+=pct;
+      var cu=(i===tps.length-1)?totalUnits:Math.round(totalUnits*cum/100);
+      units=cu-prev;prev=cu;
+    }
+    return{price:price,pct:pct,units:units,r:slDist>0?Math.round(Math.abs(price-entry)/slDist*100)/100:null};
+  });
+  return{totalUnits:totalUnits,entry:entry,sl:sl,tps:rows};
+}
+function renderPlannedPartials(){
+  var info=document.getElementById('f-qty-plan-info'),tip=document.getElementById('f-qty-plan-tip');
+  if(!info||!tip)return;
+  var pl=_plannedPartials;
+  if(!pl||!pl.tps||!pl.tps.length){info.style.display='none';tip.innerHTML='';return;}
+  var fmt=function(n){return Number(n).toLocaleString(undefined,{maximumFractionDigits:6});};
+  var rows=pl.tps.map(function(t,i){
+    return'<div style="display:flex;justify-content:space-between;gap:10px;padding:3px 0;border-top:1px solid var(--border)">'
+      +'<span><b>TP'+(i+1)+'</b> <span class="mono">'+escHtml(String(t.price))+'</span></span>'
+      +'<span class="mono" style="white-space:nowrap">'+fmt(t.pct)+'% · '+fmt(t.units)+' units'+(t.r!=null?' · '+fmt(t.r)+'R':'')+'</span></div>';
+  }).join('');
+  tip.innerHTML='<div style="font-weight:700;color:var(--text);margin-bottom:5px">Planned partials (from calculator)</div>'+rows
+    +'<div style="margin-top:5px;padding-top:5px;border-top:1px solid var(--border2)">Total <span class="mono">'+fmt(pl.totalUnits)+'</span> units</div>'
+    +'<div style="margin-top:5px;font-size:10px;color:var(--text3)">Planned targets, not fills. Log what actually filled with Add partial below.</div>';
+  info.style.display='inline-flex';
+}
 async function calcLogTrade(){
   // Validate we have minimum required values
   var entry=parseFloat((document.getElementById('calc-entry')||{}).value)||0;
@@ -19906,6 +19950,7 @@ async function calcLogTrade(){
   var calcIsSkipped=!!(document.getElementById('calc-skipped')&&document.getElementById('calc-skipped').checked);
   // Capture pending checklist state (set when coming via pre-checklist flow)
   var capturedChecklistState = _pendingChecklistState ? JSON.parse(JSON.stringify(_pendingChecklistState)) : null;
+  var _planSnap=_calcBuildPlannedPartials(inst,calcLastUnits,entry,sl);
   // Snapshot calc values so user can come back and tweak
   _flowCalcSnapshot = {
     entry: entry,
@@ -19943,6 +19988,7 @@ async function calcLogTrade(){
   var entryEl=document.getElementById('f-entry');     if(entryEl) entryEl.value = entry;
   var slEl   =document.getElementById('f-sl-price');  if(slEl)    slEl.value    = sl;
   var qtyEl  =document.getElementById('f-qty');       if(qtyEl)   qtyEl.value   = calcLastUnits;
+  _plannedPartials=_planSnap;renderPlannedPartials();
   var trrEl  =document.getElementById('f-trr');       if(trrEl&&capturedRR) trrEl.value = capturedRR;
   // Pre-fill entry date from the economic-calendar step's date — time is left as-is since
   // that page only ever collects a date.
