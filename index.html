@@ -3417,7 +3417,7 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
               <input type="number" id="mc-trades" value="36" min="5" max="5000" style="font-size:12px;color:var(--text3);background:var(--bg4)" readonly>
             </div>
             <div class="frow" style="min-width:110px;margin-bottom:0">
-              <label class="flabel">Starting equity ($)</label>
+              <label class="flabel">Starting equity (<span id="mc-ccy-sym">$</span>)</label>
               <input type="number" id="mc-equity" value="5000" step="any" style="font-size:12px">
             </div>
             <button class="btn btn-primary" id="mc-run-btn" style="align-self:flex-end" onclick="runMonteCarlo()">
@@ -9101,6 +9101,47 @@ function calPlFmtM(arr,v){
   if(!isMixedCcy(arr))return calPlFmt(v);
   var b=plByCcy(arr);return _plSigned(b.USD,'$')+' \u00b7 '+_plSigned(b.CAD,'C$');
 }
+// Day total used only for colour/sign decisions: a day with trades in BOTH currencies is only
+// green/red if both currencies agree, otherwise neutral (their dollars can't be added).
+function effDayPL(arr){
+  var b=plByCcy(arr);
+  if(!isMixedCcy(arr))return b.USD+b.CAD;
+  return((b.USD>=0&&b.CAD>=0)||(b.USD<=0&&b.CAD<=0))?(b.USD+b.CAD):0;
+}
+function calExtremeTxt(arr,which,unit){
+  var out=[];
+  ['USD','CAD'].forEach(function(cc){
+    var x=arr.filter(function(t){return tradeCcy(t)===cc&&(t.entryTime||t.savedAt);});if(!x.length)return;
+    var g={};
+    x.forEach(function(t){var d=new Date(t.entryTime||t.savedAt);var k=unit==='month'?d.getFullYear()+'-'+d.getMonth():calDateKey(d);g[k]=(g[k]||0)+(t.plDollar||0);});
+    var vals=Object.keys(g).map(function(k){return g[k];});
+    out.push(_plSigned(which==='best'?Math.max.apply(null,vals):Math.min.apply(null,vals),ccySym(cc)));
+  });
+  return out.join(' \u00b7 ');
+}
+function pairExtremesMixed(buckets,keys,which){
+  var names=[],subs=[];
+  ['USD','CAD'].forEach(function(cc){
+    var best=null,bk=null;
+    keys.forEach(function(k){
+      var x=buckets[k].trades.filter(function(t){return tradeCcy(t)===cc;});if(!x.length)return;
+      var v=x.reduce(function(a,t){return a+(t.plDollar||0);},0);
+      if(best===null||(which==='best'?v>best:v<best)){best=v;bk=k;}
+    });
+    if(bk!==null){names.push(cc+' '+bk);subs.push(_plSigned(best,ccySym(cc)));}
+  });
+  return{names:names.join(' \u00b7 '),sub:subs.join(' \u00b7 ')};
+}
+function strongerDirMixed(longs,shorts){
+  var out=[];
+  ['USD','CAD'].forEach(function(cc){
+    var l=longs.filter(function(t){return tradeCcy(t)===cc;}),sh=shorts.filter(function(t){return tradeCcy(t)===cc;});
+    if(!l.length&&!sh.length)return;
+    var lt=l.reduce(function(a,t){return a+(t.plDollar||0);},0),st=sh.reduce(function(a,t){return a+(t.plDollar||0);},0);
+    out.push(cc+': '+(lt===st?'Even':(lt>st?'Long':'Short')));
+  });
+  return out.join(' \u00b7 ');
+}
 // ── Session name auto-format: "[number] [Type] Month Day - Month Day/Present [Year] [CCY]" ────
 // This format only ever applies to an untouched, still-auto-generated name. The moment the
 // user types anything in the field, it's free text from then on — saved exactly as typed,
@@ -12628,7 +12669,7 @@ var ALL_HISTORY_COLS=[
   {key:'assetType', label:'Asset',     sortVal:function(t){return t.assetType||'';},              render:function(t){return'<td style="color:var(--text2)">'+escHtml(t.assetType||'—')+'</td>';}},
   {key:'type',      label:'Direction', sortVal:function(t){return t.type||'';},                   render:function(t){var typ=t.type||'';return'<td>'+(typ?'<span class="badge '+(typ==='Long'?'badge-green':'badge-red')+'">'+typ+'</span>':'—')+'</td>';}},
   {key:'result',    label:'Result',    sortVal:function(t){return t.winLoss||0;},                 render:function(t){if(!t.exitPrice)return'<td><span class="badge badge-amber">Pending</span></td>';var win=t.winLoss===1;return'<td><span class="badge '+(win?'badge-green':'badge-red')+'">'+(win?'Win':'Loss')+'</span></td>';}},
-  {key:'plDollar',  label:'P/L ($)',   sortVal:function(t){return parseFloat(t.plDollar)||0;},    render:function(t){var pl=parseFloat(t.plDollar)||0;var ptag=(t.partialTPs&&t.partialTPs.length)?'<span style="font-size:8px;font-weight:700;vertical-align:middle;background:rgba(77,127,255,.12);color:var(--accent);border-radius:3px;padding:1px 4px;margin-left:4px">P</span>':'';return'<td class="mono" style="color:'+(pl>=0?'var(--green)':'var(--red)')+'">'+((pl>=0?'+':'')+pl.toFixed(2))+ptag+'</td>';}},
+  {key:'plDollar',  label:'P/L ($)',   sortVal:function(t){return parseFloat(t.plDollar)||0;},    render:function(t){var pl=parseFloat(t.plDollar)||0;var ptag=(t.partialTPs&&t.partialTPs.length)?'<span style="font-size:8px;font-weight:700;vertical-align:middle;background:rgba(77,127,255,.12);color:var(--accent);border-radius:3px;padding:1px 4px;margin-left:4px">P</span>':'';return'<td class="mono" style="color:'+(pl>=0?'var(--green)':'var(--red)')+'">'+((pl>=0?'+':'')+pl.toFixed(2))+(t.ccy==='CAD'?' <span style="font-size:9px;color:var(--text3)">CAD</span>':'')+ptag+'</td>';}},
   {key:'plPct',     label:'P/L (%)',   sortVal:function(t){return parseFloat(t.plPct)||0;},       render:function(t){var p=parseFloat(t.plPct)||0;return'<td class="mono" style="color:'+(p>=0?'var(--green)':'var(--red)')+'">'+((p>=0?'+':'')+p.toFixed(2))+'%</td>';}},
   {key:'actualRR',  label:'RR',        sortVal:function(t){return t.actualRR!=null?parseFloat(t.actualRR):-999;},render:function(t){return'<td class="mono">'+(t.actualRR!=null?parseFloat(t.actualRR).toFixed(2)+'R':'—')+'</td>';}},
   {key:'entryTime', label:'Date',      sortVal:function(t){return t.entryTime||t.savedAt||'';},   render:function(t){if(!t.entryTime)return'<td style="color:var(--text3);font-size:12px">—</td>';var timeStr=t.entryTime.length>10?' <span style="color:var(--text3);font-size:10px">'+to12h(t.entryTime.slice(11,16))+'</span>':'';return'<td style="color:var(--text3);font-size:12px;white-space:nowrap">'+t.entryTime.slice(0,10)+timeStr+'</td>';}},
@@ -12649,8 +12690,8 @@ var ALL_HISTORY_COLS=[
   {key:'ltf',       label:'LTF',       sortVal:function(t){return t.ltf||'';},                    render:function(t){return'<td style="font-size:11px;color:var(--text2)">'+escHtml(t.ltf||'—')+'</td>';}},
   {key:'targetRR',  label:'Target RR', sortVal:function(t){return parseFloat(t.targetRR)||0;},    render:function(t){return'<td class="mono">'+(t.targetRR?t.targetRR+'R':'—')+'</td>';}},
   {key:'loggedAt',  label:'Logged at', sortVal:function(t){return t.loggedAt||t.savedAt||'';},    render:function(t){var d=t.loggedAt||t.savedAt;if(!d)return'<td>—</td>';var dt=new Date(d);return'<td style="color:var(--text3);font-size:11px;white-space:nowrap" title="'+escHtml(d)+'">'+dt.toLocaleDateString()+' '+dt.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'})+'</td>';}},
-  {key:'fees',      label:'Fees (est.)',sortVal:function(t){return 0;}, render:function(t){return'<td class="mono hist-fee-cell" data-trade-id="'+escHtml(t.id||'')+'" data-asset="'+escHtml(t.assetType||'')+'" data-entry="'+escHtml(String(t.entryPrice||''))+'" data-qty="'+escHtml(String(t.qty||''))+'" data-dur="'+escHtml(String(t.durationMin||0))+'" data-pair="'+escHtml(t.pair||'')+'" data-dir="'+escHtml(t.type||'')+'"'+((t.manualFees||t.marginRate)?' data-fopts="'+escHtml(JSON.stringify({m:t.manualFees||null,r:t.marginRate==null?null:t.marginRate,b:t.marginBorrowed==null?null:t.marginBorrowed}))+'"':'')+'><span style="color:var(--text3);font-size:10px">…</span></td>';}},
-  {key:'netPL',     label:'Net P/L',sortVal:function(t){return parseFloat(t.plDollar)||0;}, render:function(t){var isPartial=(t.partialTPs&&t.partialTPs.length)?'1':'0';return'<td class="mono hist-netpl-cell" data-trade-id="'+escHtml(t.id||'')+'" data-pl="'+escHtml(String(t.plDollar||0))+'" data-acct="'+escHtml(String(t.acct||0))+'" data-partial="'+isPartial+'"><span style="color:var(--text3);font-size:10px">…</span></td>';}},
+  {key:'fees',      label:'Fees (est.)',sortVal:function(t){return 0;}, render:function(t){return'<td class="mono hist-fee-cell" data-trade-id="'+escHtml(t.id||'')+'" data-asset="'+escHtml(t.assetType||'')+'" data-entry="'+escHtml(String(t.entryPrice||''))+'" data-qty="'+escHtml(String(t.qty||''))+'" data-dur="'+escHtml(String(t.durationMin||0))+'" data-pair="'+escHtml(t.pair||'')+'" data-dir="'+escHtml(t.type||'')+'"'+(t.ccy==='CAD'?' data-ccy="CAD" data-fx="'+escHtml(String(t.fxRate||1))+'"':'')+((t.manualFees||t.marginRate)?' data-fopts="'+escHtml(JSON.stringify({m:t.manualFees||null,r:t.marginRate==null?null:t.marginRate,b:t.marginBorrowed==null?null:t.marginBorrowed}))+'"':'')+'><span style="color:var(--text3);font-size:10px">…</span></td>';}},
+  {key:'netPL',     label:'Net P/L',sortVal:function(t){return parseFloat(t.plDollar)||0;}, render:function(t){var isPartial=(t.partialTPs&&t.partialTPs.length)?'1':'0';return'<td class="mono hist-netpl-cell" data-trade-id="'+escHtml(t.id||'')+'" data-pl="'+escHtml(String(t.plDollar||0))+'"'+(t.ccy==='CAD'?' data-ccy="CAD"':'')+' data-acct="'+escHtml(String(t.acct||0))+'" data-partial="'+isPartial+'"><span style="color:var(--text3);font-size:10px">…</span></td>';}},
 ];
 // ── Sort state ──────────────────────────────────────
 var _histSort={key:'loggedAt',dir:-1}; // default: session desc + loggedAt desc
@@ -13746,7 +13787,7 @@ function _dashRenderMiniCal(trades){
     var dt=byDay[key]||[];
     var cls='';
     if(dt.length){
-      var pl=dt.reduce(function(a,t){return a+(parseFloat(t.plDollar)||0);},0);
+      var pl=effDayPL(dt);
       cls=pl>0?'mc-green':(pl<0?'mc-red':'mc-yellow');
     }
     cells+='<div class="mini-cal-day '+cls+'" title="'+key+'">'+dnum+'</div>';
@@ -13942,6 +13983,7 @@ async function _renderHistoryImpl(){
       if(window._histRenderGen !== myGen) return; // abort after await
       var _fopts = null;
       if(cell.dataset.fopts){ try{ var _fo = JSON.parse(cell.dataset.fopts); _fopts = { manualFees:_fo.m, marginRate:_fo.r, marginBorrowed:_fo.b }; }catch(e){ _fopts = null; } }
+      if(cell.dataset.ccy==='CAD'){ _fopts = _fopts || {}; _fopts.ctx = { ccy:'CAD', rate:parseFloat(cell.dataset.fx)||1 }; }
       var feeResult = assetFees ? calcTradeFees(assetFees, qty, entry, dur, pair, dir, _fopts) : null;
       var feeTotal  = (feeResult && feeResult.total > 0) ? feeResult.total : 0;
       cell.innerHTML = feeTotal > 0
@@ -13958,12 +14000,12 @@ async function _renderHistoryImpl(){
           // No fees configured — show gross P/L directly
           if(grossPL === 0){ nc.innerHTML='<span style="color:var(--text3)">—</span>'+ptag; continue; }
           var pctStr0 = acctBal ? '<span style="color:'+(grossPL>=0?'var(--green)':'var(--red)')+';font-size:11px;margin-left:3px">('+(grossPL>=0?'+':'')+((grossPL/acctBal)*100).toFixed(2)+'%)</span>' : '';
-          nc.innerHTML='<span style="color:'+(grossPL>=0?'var(--green)':'var(--red)')+'">'+( grossPL>=0?'+':'')+grossPL.toFixed(2)+'</span>'+pctStr0+ptag;
+          nc.innerHTML='<span style="color:'+(grossPL>=0?'var(--green)':'var(--red)')+'">'+( grossPL>=0?'+':'')+grossPL.toFixed(2)+'</span>'+(nc.dataset.ccy==='CAD'?' <span style="font-size:9px;color:var(--text3)">CAD</span>':'')+pctStr0+ptag;
           continue;
         }
         var netPL = parseFloat((grossPL - feeTotal).toFixed(2));
         var pctStr = acctBal ? '<span style="color:'+(netPL>=0?'var(--green)':'var(--red)')+';font-size:11px;margin-left:3px">('+(netPL>=0?'+':'')+((netPL/acctBal)*100).toFixed(2)+'%)</span>' : '';
-        nc.innerHTML='<span style="color:'+(netPL>=0?'var(--green)':'var(--red)')+'">'+( netPL>=0?'+':'')+netPL.toFixed(2)+'</span>'+pctStr+ptag;
+        nc.innerHTML='<span style="color:'+(netPL>=0?'var(--green)':'var(--red)')+'">'+( netPL>=0?'+':'')+netPL.toFixed(2)+'</span>'+(nc.dataset.ccy==='CAD'?' <span style="font-size:9px;color:var(--text3)">CAD</span>':'')+pctStr+ptag;
       }
     }
     syncHistTopScrollbar(); // fee/net-P/L text can change column widths — recheck overflow
@@ -16067,14 +16109,15 @@ function _renderPairAnalytics(trades){
     if(tp>bestPL){bestPL=tp;bestPLKey=k;}
     if(tp<worstPL){worstPL=tp;worstPLKey=k;}
   });
+  var _pmx=isMixedCcy(trades)?{b:pairExtremesMixed(buckets,keys,'best'),w:pairExtremesMixed(buckets,keys,'worst')}:null;
   var statsEl=document.getElementById('dash-pairs-stats');
   if(statsEl){
     statsEl.innerHTML=
       '<div class="stat-card"><div class="stat-label">Pairs traded</div><div class="stat-value">'+keys.length+'</div><div class="stat-sub">'+trades.length+' trades in current filter</div></div>'+
       '<div class="stat-card"><div class="stat-label">Most traded pair</div><div class="stat-value" style="font-size:15px">'+(byVolume?escHtml(byVolume):'—')+'</div><div class="stat-sub">'+(byVolume?buckets[byVolume].trades.length+' trades':'no trades')+'</div></div>'+
       '<div class="stat-card '+(bestWRKey?'green':'')+'"><div class="stat-label">Best win rate</div><div class="stat-value" style="font-size:15px">'+(bestWRKey?escHtml(bestWRKey):'—')+'</div><div class="stat-sub">'+(bestWRKey?bestWR.toFixed(0)+'% · '+buckets[bestWRKey].trades.length+' trade'+(buckets[bestWRKey].trades.length===1?'':'s'):'no trades')+'</div></div>'+
-      '<div class="stat-card '+(bestPLKey?'green':'')+'"><div class="stat-label">Most profitable</div><div class="stat-value" style="font-size:15px">'+(bestPLKey?escHtml(bestPLKey):'—')+'</div><div class="stat-sub">'+(bestPLKey?(bestPL>=0?'+':'')+bestPL.toFixed(2)+' total P/L':'no trades')+'</div></div>'+
-      '<div class="stat-card '+(worstPLKey?'red':'')+'"><div class="stat-label">Weakest pair</div><div class="stat-value" style="font-size:15px">'+(worstPLKey?escHtml(worstPLKey):'—')+'</div><div class="stat-sub">'+(worstPLKey?worstPL.toFixed(2)+' total P/L':'no trades')+'</div></div>';
+      '<div class="stat-card '+(bestPLKey?'green':'')+'"><div class="stat-label">Most profitable</div><div class="stat-value" style="font-size:15px">'+(_pmx?escHtml(_pmx.b.names||'—'):(bestPLKey?escHtml(bestPLKey):'—'))+'</div><div class="stat-sub">'+(_pmx?_pmx.b.sub+' total P/L':(bestPLKey?(bestPL>=0?'+':'')+bestPL.toFixed(2)+' total P/L':'no trades'))+'</div></div>'+
+      '<div class="stat-card '+(worstPLKey?'red':'')+'"><div class="stat-label">Weakest pair</div><div class="stat-value" style="font-size:15px">'+(_pmx?escHtml(_pmx.w.names||'—'):(worstPLKey?escHtml(worstPLKey):'—'))+'</div><div class="stat-sub">'+(_pmx?_pmx.w.sub+' total P/L':(worstPLKey?worstPL.toFixed(2)+' total P/L':'no trades'))+'</div></div>';
   }
   // ── Trades by pair (bar) ──
   var countData=keys.map(function(k){return buckets[k].trades.length;});
@@ -16442,12 +16485,6 @@ function _renderStreakAnalytics(trades){
 // curve chart), so it reads the Dashboard's own session filter, not Trade Analytics'.
 function _renderDrawdownAnalytics(trades,allSess){
   trades=trades||[];allSess=allSess||[];
-  if(isMixedCcy(trades)){ // peak-to-trough in dollars can't be computed across two currencies
-    var _ddEl=document.getElementById('dash-drawdown-stats');
-    if(_ddEl)_ddEl.innerHTML='<div class="stat-card" style="grid-column:1/-1"><div class="stat-label">Drawdown</div><div class="stat-sub" style="font-size:12px;line-height:1.5">Your filters include both USD and CAD sessions, and drawdown is a peak-to-trough dollar figure, so it can\u2019t be added across currencies. Choose <strong>USD</strong> or <strong>CAD</strong> in the Currency filter to see it.</div></div>';
-    if(charts.drawdown){charts.drawdown.destroy();charts.drawdown=null;}
-    return;
-  }
   var c=chartColors();
   var demoOn=!!_dashDemoMode;
   var sesF=(document.getElementById('dash-session-filter')||{}).value||'';
@@ -16461,6 +16498,36 @@ function _renderDrawdownAnalytics(trades,allSess){
     baselineEquity=allSessForBase.reduce(function(sum,s){return sum+(s.startingEquity||5000);},0)||5000;
   }
   var sorted=trades.slice().sort(function(a,b){return new Date(a.entryTime||a.savedAt)-new Date(b.entryTime||b.savedAt);});
+  if(isMixedCcy(trades)){ // USD and CAD sessions are tracked as two separate accounts
+    var _dd={},_lab=['Start'];
+    ['USD','CAD'].forEach(function(cc){var b=0;allSessForBase.forEach(function(x){if(sessionCcyOf(x)===cc)b+=(x.startingEquity||5000);});_dd[cc]={run:b,peak:b,mdd:0,mddPct:0,trough:b,cur:0,data:[0]};});
+    sorted.forEach(function(t){
+      var cc=tradeCcy(t),d=_dd[cc];
+      d.run+=parseFloat(t.plDollar)||0;if(d.run>d.peak)d.peak=d.run;
+      var dl=d.peak-d.run,pc=d.peak>0?dl/d.peak*100:0;
+      if(dl>d.mdd){d.mdd=dl;d.mddPct=pc;d.trough=d.run;}
+      d.cur=pc;
+      _lab.push(t.entryTime?t.entryTime.slice(0,10):'#'+t.num);
+      ['USD','CAD'].forEach(function(k){_dd[k].data.push(k===cc?parseFloat((-pc).toFixed(2)):_dd[k].data[_dd[k].data.length-1]);});
+    });
+    var _st=document.getElementById('dash-drawdown-stats');
+    if(_st){
+      var _fm=function(v){return v.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});};
+      _st.innerHTML=['USD','CAD'].map(function(cc){var d=_dd[cc],S2=ccySym(cc);
+        return'<div class="stat-card"><div class="stat-label">Peak equity \u00b7 '+cc+'</div><div class="stat-value" style="font-size:18px">'+S2+_fm(d.peak)+'</div><div class="stat-sub">highest point reached</div></div>'
+          +'<div class="stat-card"><div class="stat-label">Trough \u00b7 '+cc+'</div><div class="stat-value" style="font-size:18px">'+S2+_fm(d.trough)+'</div><div class="stat-sub">equity at the deepest point</div></div>'
+          +'<div class="stat-card '+(d.mdd>0?'red':'')+'"><div class="stat-label">Max drawdown \u00b7 '+cc+'</div><div class="stat-value neg" style="font-size:18px">'+(d.mdd>0?'\u2212'+d.mddPct.toFixed(1)+'%':'0%')+'</div><div class="stat-sub">'+(d.mdd>0?'\u2212'+S2+d.mdd.toFixed(2)+' peak-to-trough':'no drawdown yet')+'</div></div>'
+          +'<div class="stat-card '+(d.cur>0.05?'amber':'green')+'"><div class="stat-label">Current drawdown \u00b7 '+cc+'</div><div class="stat-value" style="font-size:18px">'+(d.cur>0.05?'\u2212'+d.cur.toFixed(1)+'%':'At peak')+'</div><div class="stat-sub">vs. all-time-high equity now</div></div>';
+      }).join('');
+    }
+    if(charts.drawdown)charts.drawdown.destroy();
+    var _cvM=document.getElementById('chart-drawdown');
+    if(_cvM){
+      var _mk=function(lab,data,col){return{label:lab,data:data,borderColor:col,backgroundColor:'transparent',borderWidth:2,pointRadius:curvePointRadius(data.length),pointHoverRadius:curvePointHoverRadius(data.length),fill:false,tension:0.25};};
+      charts.drawdown=safeChart(_cvM.getContext('2d'),{type:'line',data:{labels:_lab,datasets:[_mk('USD drawdown %',_dd.USD.data,c.accent),_mk('CAD drawdown %',_dd.CAD.data,c.amber)]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,labels:{boxWidth:10,font:{size:10}}}},scales:{x:{ticks:{maxTicksLimit:8,color:c.tick,font:{size:10}},grid:{color:c.grid}},y:{max:0,ticks:{callback:function(v){return v.toFixed(0)+'%';},color:c.tick,font:{size:10}},grid:{color:c.grid}}}}});
+    }
+    return;
+  }
   var running=baselineEquity,peak=baselineEquity;
   var maxDDPct=0,maxDDDollar=0,maxDDTrough=baselineEquity;
   var ddLabels=['Start'],ddData=[0];
@@ -16785,7 +16852,7 @@ function _renderDirectionAnalytics(trades){
     statsEl.innerHTML=
       '<div class="stat-card green"><div class="stat-label">Long trades</div><div class="stat-value">'+longs.length+'</div><div class="stat-sub">'+(lWR!=null?lWR.toFixed(0)+'% win rate':'no trades')+'</div></div>'+
       '<div class="stat-card red"><div class="stat-label">Short trades</div><div class="stat-value">'+shorts.length+'</div><div class="stat-sub">'+(sWR!=null?sWR.toFixed(0)+'% win rate':'no trades')+'</div></div>'+
-      '<div class="stat-card '+(lTot>=sTot?'green':'red')+'"><div class="stat-label">Stronger direction</div><div class="stat-value" style="font-size:15px">'+((!longs.length&&!shorts.length)||isMixedCcy(longs.concat(shorts))?'—':(lTot===sTot?'Even':(lTot>sTot?'Long':'Short')))+'</div><div class="stat-sub">by total P/L</div></div>'+
+      '<div class="stat-card '+(lTot>=sTot?'green':'red')+'"><div class="stat-label">Stronger direction</div><div class="stat-value" style="font-size:15px">'+((!longs.length&&!shorts.length)?'—':isMixedCcy(longs.concat(shorts))?strongerDirMixed(longs,shorts):(lTot===sTot?'Even':(lTot>sTot?'Long':'Short')))+'</div><div class="stat-sub">by total P/L</div></div>'+
       '<div class="stat-card amber"><div class="stat-label">Avg P/L (L vs S)</div><div class="stat-value" style="font-size:15px">'+avgPLtxt(longs,lPL)+' / '+avgPLtxt(shorts,sPL)+'</div><div class="stat-sub">per trade</div></div>';
   }
   if(charts.dirWR)charts.dirWR.destroy();
@@ -18362,6 +18429,7 @@ async function initMonteCarlo(){
     if(sesForEquity)mcEqEl.value=await computeSessionNetEquityAsync(sesForEquity,mcAllTrades);
     else if(sessions.length)mcEqEl.value=await computeSessionNetEquityAsync(sessions[0],mcAllTrades);
     else mcEqEl.value=5000;
+    var _msy=document.getElementById('mc-ccy-sym');if(_msy)_msy.textContent=ccySym(sessionCcyOf(sesForEquity||sessions[0]));
     mcEqEl.addEventListener('input',function(){mcEqEl._userSet=true;},{once:true});
   }
 }
@@ -18379,6 +18447,8 @@ async function runMonteCarlo(){
   var runs=parseInt((document.getElementById('mc-runs')||{}).value)||500;
   var tradesPerSim=parseInt((document.getElementById('mc-trades')||{}).value)||50;
   var startingEquity=parseFloat((document.getElementById('mc-equity')||{}).value)||5000;
+  var _mcAllS=await dbGetAll('sessions');var _mcSelS=_mcAllS.find(function(x){return x.id===sesId;});
+  var _mcS=ccySym(_mcSelS?sessionCcyOf(_mcSelS):(getCcyFilterVal('mc-sessiontype-filter')||'USD'));
   var allTrades=await dbGetAll('trades');
   var allSess=await dbGetAll('sessions');
   var archivedIds=new Set(allSess.filter(function(s){return s.archived;}).map(function(s){return s.id;}));
@@ -18498,8 +18568,8 @@ async function runMonteCarlo(){
   // ── Info block: 7 metrics (median/50th pct path) ──────────────
   var mc=document.getElementById('mc-info-block');
   if(mc){mc.style.gridTemplateColumns='repeat(4,1fr)';mc.innerHTML=
-    '<div class="stat-card"><div class="stat-label">Initial balance</div><div class="stat-value mono" style="font-size:18px">$'+startingEquity.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+'</div><div class="stat-sub">Starting equity</div></div>'+
-    '<div class="stat-card '+(medianFinal>=startingEquity?'green':'red')+'"><div class="stat-label">Result balance</div><div class="stat-value '+(medianFinal>=startingEquity?'pos':'neg')+'" style="font-size:18px">$'+medianFinal.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+'</div><div class="stat-sub">Median (50th pct)</div></div>'+
+    '<div class="stat-card"><div class="stat-label">Initial balance</div><div class="stat-value mono" style="font-size:18px">'+_mcS+startingEquity.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+'</div><div class="stat-sub">Starting equity</div></div>'+
+    '<div class="stat-card '+(medianFinal>=startingEquity?'green':'red')+'"><div class="stat-label">Result balance</div><div class="stat-value '+(medianFinal>=startingEquity?'pos':'neg')+'" style="font-size:18px">'+_mcS+medianFinal.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+'</div><div class="stat-sub">Median (50th pct)</div></div>'+
     '<div class="stat-card '+(medianReturn>=0?'green':'red')+'"><div class="stat-label">Return % (full period)</div><div class="stat-value '+(medianReturn>=0?'pos':'neg')+'" style="font-size:18px">'+(medianReturn>=0?'+':'')+medianReturn.toFixed(2)+'%</div><div class="stat-sub">Median outcome</div></div>'+
     '<div class="stat-card red"><div class="stat-label">Max drawdown</div><div class="stat-value neg" style="font-size:18px">−'+medianDD.toFixed(1)+'%</div><div class="stat-sub">Median · worst: −'+worstDD.toFixed(1)+'%</div></div>'+
     '<div class="stat-card amber"><div class="stat-label">Max consec. losses</div><div class="stat-value" style="font-size:18px;color:var(--red)">'+maxConsecLosses+'</div><div class="stat-sub">From sample data</div></div>'+
@@ -18507,7 +18577,7 @@ async function runMonteCarlo(){
     '<div class="stat-card '+(winPct>=50?'green':'red')+'"><div class="stat-label">Win rate</div><div class="stat-value '+(winPct>=50?'pos':'neg')+'" style="font-size:18px">'+winPct.toFixed(1)+'%</div><div class="stat-sub">'+histWins+' W · '+(returns.length-histWins)+' L · PF: '+histPF+'</div></div>'+
     '<div class="stat-card '+(histRR!=null&&histRR>=1?'green':'red')+'"><div class="stat-label">Risk / Reward</div><div class="stat-value '+(histRR!=null&&histRR>=1?'pos':'neg')+'" style="font-size:18px">'+(histRR!=null?'1 : '+histRR.toFixed(2):'N/A')+'</div><div class="stat-sub">Avg win: '+(histAvgWin.toFixed(2))+'% · Avg loss: '+(histAvgLoss.toFixed(2))+'%</div></div>';}
   var label=document.getElementById('mc-chart-label');
-  if(label)label.textContent=runs+' simulations · '+returns.length+' sample trades · starting $'+startingEquity.toLocaleString();
+  if(label)label.textContent=runs+' simulations · '+returns.length+' sample trades · starting '+_mcS+startingEquity.toLocaleString();
   // Render chart
   if(charts.mc)charts.mc.destroy();
   var tcol=chartColors().tick;var ctx=document.getElementById('chart-mc');if(!ctx)return;
@@ -18518,14 +18588,14 @@ async function runMonteCarlo(){
     {label:'25th pct',data:p25,borderColor:'rgba(245,101,101,.3)',backgroundColor:'rgba(245,101,101,.06)',borderWidth:1,pointRadius:0,fill:4,tension:0.3},
     {label:'5th pct',data:p5,borderColor:'rgba(245,101,101,.5)',backgroundColor:'rgba(245,101,101,.07)',borderWidth:1.5,pointRadius:0,fill:false,tension:0.3},
     {label:'Start',data:Array(tradesPerSim+1).fill(startingEquity),borderColor:'rgba(139,146,168,.25)',borderWidth:1,borderDash:[4,4],pointRadius:0,fill:false}
-  ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{position:'bottom',labels:{color:chartColors().legend,font:{size:10},padding:10,boxWidth:12}},tooltip:{callbacks:{label:function(ctx){return ctx.dataset.label+': $'+ctx.parsed.y.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});}}}},scales:{x:{ticks:{maxTicksLimit:12,color:tcol,font:{size:10}},grid:{color:chartColors().grid}},y:{ticks:{callback:function(v){return'$'+v.toLocaleString()},color:tcol,font:{size:10}},grid:{color:chartColors().grid}}}}});
+  ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{position:'bottom',labels:{color:chartColors().legend,font:{size:10},padding:10,boxWidth:12}},tooltip:{callbacks:{label:function(ctx){return ctx.dataset.label+': '+_mcS+ctx.parsed.y.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});}}}},scales:{x:{ticks:{maxTicksLimit:12,color:tcol,font:{size:10}},grid:{color:chartColors().grid}},y:{ticks:{callback:function(v){return _mcS+v.toLocaleString()},color:tcol,font:{size:10}},grid:{color:chartColors().grid}}}}});
   // Percentile table
   var rows=[5,10,25,50,75,90,95].map(function(p){
     var idx=Math.floor(p/100*(finalEqs.length-1));
     var eq=finalEqs[idx];
     var ret=(eq-startingEquity)/startingEquity*100;
     var cls=eq>=startingEquity?'var(--green)':'var(--red)';
-    return'<tr><td style="color:var(--text);font-weight:600">'+p+'th</td><td class="mono" style="color:'+cls+'">$'+eq.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+'</td><td class="mono" style="color:'+cls+'">'+(ret>=0?'+':'')+ret.toFixed(2)+'%</td></tr>';
+    return'<tr><td style="color:var(--text);font-weight:600">'+p+'th</td><td class="mono" style="color:'+cls+'">'+_mcS+eq.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+'</td><td class="mono" style="color:'+cls+'">'+(ret>=0?'+':'')+ret.toFixed(2)+'%</td></tr>';
   }).join('');
   var tbl=document.getElementById('mc-table');
   if(tbl)tbl.innerHTML='<thead><tr><th>Percentile</th><th>Final Equity</th><th>Return</th></tr></thead><tbody>'+rows+'</tbody>';
@@ -18768,7 +18838,7 @@ async function computeTradeFeesAsync(trade){
   if(!trade || !trade.assetType || !trade.entryPrice || !trade.qty) return null;
   var fees = await _getAssetFeesForType(trade.assetType);
   if(!fees) return null;
-  return calcTradeFees(fees, parseFloat(trade.qty), parseFloat(trade.entryPrice), trade.durationMin || 0, trade.pair, trade.type, { manualFees:trade.manualFees||null, marginRate:trade.marginRate, marginBorrowed:trade.marginBorrowed });
+  return calcTradeFees(fees, parseFloat(trade.qty), parseFloat(trade.entryPrice), trade.durationMin || 0, trade.pair, trade.type, { manualFees:trade.manualFees||null, marginRate:trade.marginRate, marginBorrowed:trade.marginBorrowed, ctx:ctxFromTrade(trade) });
 }
 // Compute net equity for a session by summing (grossPL - fees) across its trades.
 // Falls back to sess.currentEquity if no fees are configured for any trade.
@@ -23508,7 +23578,7 @@ function calHeatClass(dayTrades,maxCount,maxAbsPl){
     if(ratio>0.25)return'heat-2';
     return'heat-1';
   } else {
-    var pl=dayTrades.reduce(function(a,t){return a+(parseFloat(t.plDollar)||0);},0);
+    var pl=effDayPL(dayTrades);
     var r=Math.abs(pl)/Math.max(maxAbsPl,0.01);
     var lvl=r>0.66?3:r>0.33?2:1;
     if(pl>=0)return'heat-pl-pos-'+lvl;
@@ -23613,7 +23683,7 @@ function calRenderStreakBar(trades){
     keys.forEach(function(k){
       var dt=byDay[k]||[];
       cnt+=dt.length;
-      pl+=dt.reduce(function(a,t){return a+(parseFloat(t.plDollar)||0);},0);
+      pl+=effDayPL(dt);
     });
     if(!cnt)return's-off';
     return pl>=0?'s-win':'s-loss';
@@ -23740,7 +23810,7 @@ function calRenderMonth(){
   // Max values for heat normalisation
   var allCounts=Object.values(byDay).map(function(v){return v.length;});
   var maxCount=allCounts.length?allCounts.reduce(function(a,b){return a>b?a:b;}):1;
-  var allPl=Object.values(byDay).map(function(v){return Math.abs(v.reduce(function(a,t){return a+(parseFloat(t.plDollar)||0);},0));});
+  var allPl=Object.values(byDay).map(function(v){return Math.abs(effDayPL(v));});
   var maxAbsPl=allPl.length?allPl.reduce(function(a,b){return a>b?a:b;}):1;
   // First day of month & grid padding
   var firstDay=new Date(y,m,1).getDay(); // 0=Sun
@@ -23786,7 +23856,7 @@ function calRenderMonth(){
       if(c.trades.length>0)cls+=' has-trades';
       if(c.key===_calSelectedDay)cls+=' selected-day';
       if(c.trades.length>0&&!c.otherMonth)cls+=' '+calHeatClass(c.trades,maxCount,maxAbsPl);
-      var dayPl=c.trades.reduce(function(a,t){return a+(parseFloat(t.plDollar)||0);},0);
+      var dayPl=effDayPL(c.trades);
       var dayPlPct=c.trades.reduce(function(a,t){return a+(parseFloat(t.plPct)||0);},0);
       var dayWins=c.trades.filter(function(t){return t.winLoss===1;}).length;
       var dayRRArr=c.trades.filter(function(t){return t.actualRR!=null;});
@@ -23841,7 +23911,7 @@ function calRenderMonth(){
   var weekSummaryRows='';
   var activeWeekCount=0;
   weeks.forEach(function(week,wi){
-    var wPl=week.reduce(function(a,c){return a+c.trades.reduce(function(b,t){return b+(parseFloat(t.plDollar)||0);},0);},0);
+    var wPl=effDayPL(week.reduce(function(a,c){return a.concat(c.trades);},[]));
     var wPlPct=week.reduce(function(a,c){return a+c.trades.reduce(function(b,t){return b+(parseFloat(t.plPct)||0);},0);},0);
     var wCnt=week.reduce(function(a,c){return a+c.trades.length;},0);
     var wWins=week.reduce(function(a,c){return a+c.trades.filter(function(t){return t.winLoss===1;}).length;},0);
@@ -23876,7 +23946,7 @@ function calRenderMonth(){
     var td=new Date(t.entryTime);
     return td.getFullYear()===y&&td.getMonth()===m;
   });
-  var moPl=monthTrades.reduce(function(a,t){return a+(parseFloat(t.plDollar)||0);},0);
+  var moPl=effDayPL(monthTrades);
   var moPlPct=monthTrades.reduce(function(a,t){return a+(parseFloat(t.plPct)||0);},0);
   var moWins=monthTrades.filter(function(t){return t.winLoss===1;}).length;
   var moLosses=monthTrades.length-moWins;
@@ -23907,8 +23977,8 @@ function calRenderMonth(){
         '<div class="js-stat-cell"><div class="js-stat-lbl">Trades</div><div class="js-val-lg">'+monthTrades.length+'</div></div>'+
         '<div class="js-stat-cell"><div class="js-stat-lbl">Win Rate</div><div class="js-val-lg">'+moWinRate+'%</div><div class="js-hint-mt"><span style="color:var(--green)">'+moWins+'W</span> / <span style="color:var(--red)">'+moLosses+'L</span></div></div>'+
         (moAvgRR!=null?'<div class="js-stat-cell"><div class="js-stat-lbl">Avg RR</div><div class="js-val-lg">'+moAvgRR.toFixed(2)+'R</div></div>':'')+
-        (moBestDay!==null&&!isMixedCcy(monthTrades)?'<div class="js-stat-cell"><div class="js-stat-lbl">Best Day</div><div style="font-size:20px;font-weight:700;font-family:DM Mono,monospace;color:var(--green)">'+calPlFmt(moBestDay)+'</div></div>':'')+
-        (moWorstDay!==null&&!isMixedCcy(monthTrades)?'<div style="padding:12px 14px"><div class="js-stat-lbl">Worst Day</div><div style="font-size:20px;font-weight:700;font-family:DM Mono,monospace;color:'+(moWorstDay>=0?'var(--green)':'var(--red)')+'">'+calPlFmt(moWorstDay)+'</div></div>':'')+
+        (moBestDay!==null?'<div class="js-stat-cell"><div class="js-stat-lbl">Best Day</div><div style="font-size:20px;font-weight:700;font-family:DM Mono,monospace;color:var(--green)">'+(isMixedCcy(monthTrades)?calExtremeTxt(monthTrades,'best','day'):calPlFmt(moBestDay))+'</div></div>':'')+
+        (moWorstDay!==null?'<div style="padding:12px 14px"><div class="js-stat-lbl">Worst Day</div><div style="font-size:20px;font-weight:700;font-family:DM Mono,monospace;color:'+(moWorstDay>=0?'var(--green)':'var(--red)')+'">'+(isMixedCcy(monthTrades)?calExtremeTxt(monthTrades,'worst','day'):calPlFmt(moWorstDay))+'</div></div>':'')+
       '</div>'+
     '</div>';
     monthSummaryHtml='<details class="cal-summary-details" style="margin-top:12px">'+
@@ -23946,7 +24016,7 @@ function calRenderWeek(){
   // Max values for heat normalisation (same as month view)
   var allCounts=Object.values(byDay).map(function(v){return v.length;});
   var maxCount=allCounts.length?allCounts.reduce(function(a,b){return a>b?a:b;}):1;
-  var allPl=Object.values(byDay).map(function(v){return Math.abs(v.reduce(function(a,t){return a+(parseFloat(t.plDollar)||0);},0));});
+  var allPl=Object.values(byDay).map(function(v){return Math.abs(effDayPL(v));});
   var maxAbsPl=allPl.length?allPl.reduce(function(a,b){return a>b?a:b;}):1;
   var html='<div class="cal-week-grid">';
   for(var i=0;i<7;i++){
@@ -23959,7 +24029,7 @@ function calRenderWeek(){
     var heatCls=dayTrades.length?(' '+calHeatClass(dayTrades,maxCount,maxAbsPl)):'';
     var cls='cal-week-cell'+(isToday?' today':'')+(dayTrades.length?' has-trades':'')+(sel?' selected-day':'')+heatCls;
     // Compute daily stats
-    var dayPl=dayTrades.reduce(function(a,t){return a+(parseFloat(t.plDollar)||0);},0);
+    var dayPl=effDayPL(dayTrades);
     var dayPlPct=dayTrades.reduce(function(a,t){return a+(parseFloat(t.plPct)||0);},0);
     var dayWins=dayTrades.filter(function(t){return t.winLoss===1;}).length;
     var dayRRArr=dayTrades.filter(function(t){return t.actualRR!=null;});
@@ -24004,7 +24074,7 @@ function calRenderWeek(){
   }
   html+='</div>';
   // Week grand total summary card
-  var wPl=weekTrades.reduce(function(a,t){return a+(parseFloat(t.plDollar)||0);},0);
+  var wPl=effDayPL(weekTrades);
   var wPlPct=weekTrades.reduce(function(a,t){return a+(parseFloat(t.plPct)||0);},0);
   var wWins=weekTrades.filter(function(t){return t.winLoss===1;}).length;
   var wLosses=weekTrades.length-wWins;
@@ -24034,8 +24104,8 @@ function calRenderWeek(){
       '<div class="js-stat-cell"><div class="js-stat-lbl">Trades</div><div class="js-val-lg">'+weekTrades.length+'</div></div>'+
       '<div class="js-stat-cell"><div class="js-stat-lbl">Win Rate</div><div class="js-val-lg">'+wWinRate+'%</div><div class="js-hint-mt"><span style="color:var(--green)">'+wWins+'W</span> / <span style="color:var(--red)">'+wLosses+'L</span></div></div>'+
       (avgRR!=null?'<div class="js-stat-cell"><div class="js-stat-lbl">Avg RR</div><div class="js-val-lg">'+avgRR.toFixed(2)+'R</div></div>':'')+
-      (wBestDay!==null&&!isMixedCcy(weekTrades)?'<div class="js-stat-cell"><div class="js-stat-lbl">Best Day</div><div style="font-size:20px;font-weight:700;font-family:DM Mono,monospace;color:var(--green)">'+calPlFmt(wBestDay)+'</div></div>':'')+
-      (wWorstDay!==null&&!isMixedCcy(weekTrades)?'<div style="padding:12px 14px"><div class="js-stat-lbl">Worst Day</div><div style="font-size:20px;font-weight:700;font-family:DM Mono,monospace;color:'+(wWorstDay>=0?'var(--green)':'var(--red)')+'">'+calPlFmt(wWorstDay)+'</div></div>':'')+
+      (wBestDay!==null?'<div class="js-stat-cell"><div class="js-stat-lbl">Best Day</div><div style="font-size:20px;font-weight:700;font-family:DM Mono,monospace;color:var(--green)">'+(isMixedCcy(weekTrades)?calExtremeTxt(weekTrades,'best','day'):calPlFmt(wBestDay))+'</div></div>':'')+
+      (wWorstDay!==null?'<div style="padding:12px 14px"><div class="js-stat-lbl">Worst Day</div><div style="font-size:20px;font-weight:700;font-family:DM Mono,monospace;color:'+(wWorstDay>=0?'var(--green)':'var(--red)')+'">'+(isMixedCcy(weekTrades)?calExtremeTxt(weekTrades,'worst','day'):calPlFmt(wWorstDay))+'</div></div>':'')+
     '</div>'+
   '</div>';
   document.getElementById('cal-body').innerHTML=html;
@@ -24160,7 +24230,7 @@ function calRenderYear(){
     if(!t.entryTime)return false;
     return new Date(t.entryTime).getFullYear()===y;
   });
-  var yrPl=yrTrades.reduce(function(a,t){return a+(parseFloat(t.plDollar)||0);},0);
+  var yrPl=effDayPL(yrTrades);
   var yrPlPct=yrTrades.reduce(function(a,t){return a+(parseFloat(t.plPct)||0);},0);
   var yrWins=yrTrades.filter(function(t){return t.winLoss===1;}).length;
   var yrLosses=yrTrades.length-yrWins;
@@ -24188,8 +24258,8 @@ function calRenderYear(){
         '<div class="js-stat-cell"><div class="js-stat-lbl">Win Rate</div><div class="js-val-lg">'+yrWinRate+'%</div><div class="js-hint-mt"><span style="color:var(--green)">'+yrWins+'W</span> / <span style="color:var(--red)">'+yrLosses+'L</span></div></div>'+
         (yrAvgRR!=null?'<div class="js-stat-cell"><div class="js-stat-lbl">Avg RR</div><div class="js-val-lg">'+yrAvgRR.toFixed(2)+'R</div></div>':'')+
         '<div class="js-stat-cell"><div class="js-stat-lbl">Active Months</div><div class="js-val-lg">'+activeMonths.length+' / 12</div></div>'+
-        (yrBestMo!==null&&!isMixedCcy(yrTrades)?'<div class="js-stat-cell"><div class="js-stat-lbl">Best Month</div><div style="font-size:14px;font-weight:700;font-family:DM Mono,monospace;color:var(--green)">'+calPlFmt(yrBestMo)+'</div><div class="js-hint-mt">'+yrBestMoName+'</div></div>':'')+
-        (yrWorstMo!==null&&!isMixedCcy(yrTrades)?'<div style="padding:12px 14px"><div class="js-stat-lbl">Worst Month</div><div style="font-size:14px;font-weight:700;font-family:DM Mono,monospace;color:'+(yrWorstMo>=0?'var(--green)':'var(--red)')+'">'+calPlFmt(yrWorstMo)+'</div><div class="js-hint-mt">'+yrWorstMoName+'</div></div>':'')+
+        (yrBestMo!==null?'<div class="js-stat-cell"><div class="js-stat-lbl">Best Month</div><div style="font-size:14px;font-weight:700;font-family:DM Mono,monospace;color:var(--green)">'+(isMixedCcy(yrTrades)?calExtremeTxt(yrTrades,'best','month'):calPlFmt(yrBestMo))+'</div><div class="js-hint-mt">'+yrBestMoName+'</div></div>':'')+
+        (yrWorstMo!==null?'<div style="padding:12px 14px"><div class="js-stat-lbl">Worst Month</div><div style="font-size:14px;font-weight:700;font-family:DM Mono,monospace;color:'+(yrWorstMo>=0?'var(--green)':'var(--red)')+'">'+(isMixedCcy(yrTrades)?calExtremeTxt(yrTrades,'worst','month'):calPlFmt(yrWorstMo))+'</div><div class="js-hint-mt">'+yrWorstMoName+'</div></div>':'')+
       '</div>'+
     '</div>';
     html+='<details class="cal-summary-details" style="margin-top:12px">'+
@@ -24714,6 +24784,16 @@ function aiComputeMetrics(trades,sessions){
   var totalPL=taken.reduce(function(a,t){return a+(parseFloat(t.plDollar)||0);},0);
   var avgWin=wins.length?wins.reduce(function(a,t){return a+(parseFloat(t.plDollar)||0);},0)/wins.length:0;
   var avgLoss=losses.length?losses.reduce(function(a,t){return a+(parseFloat(t.plDollar)||0);},0)/losses.length:0;
+  var _aiBy=null; // mixed USD+CAD: dollar metrics are reported per currency, never added together
+  if(isMixedCcy(taken)){
+    _aiBy={};
+    ['USD','CAD'].forEach(function(cc){
+      var x=taken.filter(function(t){return tradeCcy(t)===cc;});if(!x.length)return;
+      var w=x.filter(function(t){return t.winLoss===1;}),l=x.filter(function(t){return t.winLoss===0;});
+      var sm=function(a){return a.reduce(function(q,t){return q+(parseFloat(t.plDollar)||0);},0);};
+      _aiBy[cc]={totalPL:sm(x),avgWin:w.length?sm(w)/w.length:0,avgLoss:l.length?sm(l)/l.length:0};
+    });
+  }
   var rrTrades=taken.filter(function(t){return t.actualRR!=null;});
   var avgRR=rrTrades.length?rrTrades.reduce(function(a,t){return a+parseFloat(t.actualRR);},0)/rrTrades.length:null;
   // Checklist adherence
@@ -24756,6 +24836,7 @@ function aiComputeMetrics(trades,sessions){
     stratGroups[s].trades++;
     if(t.winLoss===1)stratGroups[s].wins++;
     stratGroups[s].pl+=(parseFloat(t.plDollar)||0);
+    stratGroups[s].plBy=stratGroups[s].plBy||{USD:0,CAD:0};stratGroups[s].plBy[tradeCcy(t)]+=(parseFloat(t.plDollar)||0);
   });
   // Consecutive losses (max drawdown streak)
   var maxConsecLoss=0,curConsecLoss=0;
@@ -24768,7 +24849,7 @@ function aiComputeMetrics(trades,sessions){
     winRate:winRate,totalPL:totalPL,avgWin:avgWin,avgLoss:avgLoss,avgRR:avgRR,
     avgCL:avgCL,riskMean:riskMean,riskStdev:riskStdev,
     ratingCounts:ratingCounts,errorCounts:errorCounts,
-    avgRefl:avgRefl,avgPlan:avgPlan,stratGroups:stratGroups,
+    avgRefl:avgRefl,avgPlan:avgPlan,stratGroups:stratGroups,byCcy:_aiBy,
     maxConsecLoss:maxConsecLoss,
     trades:taken,skipped:skipped
   };
@@ -24842,8 +24923,9 @@ function aiBuilderPrompt(m,sessionInfo,depth){
   lines.push('Setups skipped: '+m.skippedCount);
   lines.push('Wins: '+m.wins+' | Losses: '+m.losses);
   lines.push('Win rate: '+(m.winRate*100).toFixed(1)+'%');
-  lines.push('Total P/L: $'+m.totalPL.toFixed(2));
-  lines.push('Avg win: $'+(m.avgWin||0).toFixed(2)+' | Avg loss: $'+(m.avgLoss||0).toFixed(2));
+  var _aiFmt=function(f){return Object.keys(m.byCcy).map(function(cc){return ccySym(cc)+f(m.byCcy[cc]).toFixed(2)+' '+cc;}).join(' | ');};
+  lines.push(m.byCcy?'Total P/L (sessions are in different currencies, not converted): '+_aiFmt(function(x){return x.totalPL;}):'Total P/L: $'+m.totalPL.toFixed(2));
+  lines.push(m.byCcy?'Avg win: '+_aiFmt(function(x){return x.avgWin;})+' || Avg loss: '+_aiFmt(function(x){return x.avgLoss;}):'Avg win: $'+(m.avgWin||0).toFixed(2)+' | Avg loss: $'+(m.avgLoss||0).toFixed(2));
   if(m.avgRR!=null)lines.push('Avg actual RR: '+m.avgRR.toFixed(2)+'R');
   if(m.riskMean!=null)lines.push('Avg risk %: '+m.riskMean.toFixed(2)+'%'+(m.riskStdev!=null?' (stdev: '+m.riskStdev.toFixed(2)+'%)':''));
   if(m.avgCL!=null)lines.push('Checklist adherence: '+(m.avgCL*100).toFixed(0)+'%');
@@ -24878,7 +24960,7 @@ function aiBuilderPrompt(m,sessionInfo,depth){
     lines.push('Strategy breakdown:');
     strats.forEach(function(e){
       var s=e[1];
-      lines.push('  '+e[0]+': '+s.trades+' trades, '+(s.wins/s.trades*100).toFixed(0)+'% win rate, $'+s.pl.toFixed(2)+' P/L');
+      lines.push('  '+e[0]+': '+s.trades+' trades, '+(s.wins/s.trades*100).toFixed(0)+'% win rate, '+(m.byCcy?Object.keys(m.byCcy).map(function(cc){return ccySym(cc)+((s.plBy||{})[cc]||0).toFixed(2)+' '+cc;}).join(' | '):'$'+s.pl.toFixed(2))+' P/L');
     });
   }
   if(depth==='deep'){
@@ -25011,7 +25093,7 @@ function aiRenderResults(m,scores,aiText,sessionInfo,totalCount,typeF){
   html+='<div class="ai-result-card-header"><div class="ai-result-card-icon" style="background:var(--accent)"><svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><div class="ai-result-card-title">Session Overview'+(sessionInfo?' — '+escHtml(sessionInfo.name):'')+'</div></div>';
   html+='<div class="ai-result-card-body">';
   html+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">';
-  html+='<span class="ai-stat-mini" style="color:'+(m.totalPL>=0?'var(--green)':'var(--red)')+'">P/L: '+(m.totalPL>=0?'+':'')+'$'+m.totalPL.toFixed(2)+'</span>';
+  html+=m.byCcy?'<span class="ai-stat-mini">P/L: '+Object.keys(m.byCcy).map(function(cc){return _plSigned(m.byCcy[cc].totalPL,ccySym(cc))+' '+cc;}).join(' \u00b7 ')+'</span>':'<span class="ai-stat-mini" style="color:'+(m.totalPL>=0?'var(--green)':'var(--red)')+'">P/L: '+(m.totalPL>=0?'+':'')+'$'+m.totalPL.toFixed(2)+'</span>';
   html+='<span class="ai-stat-mini">'+m.totalTrades+' trades</span>';
   html+='<span class="ai-stat-mini">'+(m.winRate*100).toFixed(0)+'% win rate</span>';
   if(m.avgRR!=null)html+='<span class="ai-stat-mini">'+m.avgRR.toFixed(2)+'R avg</span>';
