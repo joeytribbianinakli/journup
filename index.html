@@ -8996,8 +8996,36 @@ function restoreHistFilterPrefs(){
 // Each page's Currency filter is paired with its Session type filter, so every consumer of
 // this function (dashboard, analytics, history, calendar, Monte Carlo ...) honors both at once.
 var CCY_FILTER_FOR={'dash-sessiontype-filter': 'dash-ccy-filter', 'trd-sessiontype-filter': 'trd-ccy-filter', 'edg-sessiontype-filter': 'edg-ccy-filter', 'cal-sessiontype-filter': 'cal-ccy-filter', 'flt-sessiontype': 'flt-ccy', 'ai-sessiontype-filter': 'ai-ccy-filter', 'mc-sessiontype-filter': 'mc-ccy-filter'};
-function getCcyFilterVal(typeFilterId){var el=document.getElementById(CCY_FILTER_FOR[typeFilterId]||'');return el?el.value:'';}
-function sessionMatchesCcy(s,typeFilterId){var c=getCcyFilterVal(typeFilterId);return !c||sessionCcyOf(s)===c;}
+// The Currency filter only matters while Session = "All sessions": a specific session already
+// has its own currency, so the filter is hidden then and ignored when computing results.
+var CCY_SESSION_SEL={'dash-ccy-filter':'dash-session-filter','trd-ccy-filter':'trd-session-filter','edg-ccy-filter':'edg-session-filter','cal-ccy-filter':'cal-session-filter','flt-ccy':'flt-session','ai-ccy-filter':'ai-session-filter','mc-ccy-filter':'mc-session'};
+// raw=true ignores the "specific session selected" rule (used for narrowing the session dropdown itself).
+function getCcyFilterVal(typeFilterId,raw){
+  var cid=CCY_FILTER_FOR[typeFilterId]||'',el=document.getElementById(cid);
+  if(!el)return '';
+  if(!raw){var ses=document.getElementById(CCY_SESSION_SEL[cid]||'');if(ses&&ses.value)return '';}
+  return el.value;
+}
+function sessionMatchesCcy(s,typeFilterId){var c=getCcyFilterVal(typeFilterId,true);return !c||sessionCcyOf(s)===c;}
+function updateCcyFilterVisibility(){
+  Object.keys(CCY_SESSION_SEL).forEach(function(cid){
+    var c=document.getElementById(cid),ses=document.getElementById(CCY_SESSION_SEL[cid]);
+    if(!c||!ses)return;
+    var g=c.closest('.dash-filter-group,.hist-filter-group,.ai-filter-group,.frow');
+    if(g)g.style.display=ses.value?'none':'';
+  });
+}
+document.addEventListener('change',function(e){if(e.target&&e.target.tagName==='SELECT')updateCcyFilterVisibility();});
+window.addEventListener('load',function(){
+  ['populateSessionSelects','calPopulateSessionFilter','aiPopulateSessionFilter'].forEach(function(n){
+    var f=window[n];
+    if(typeof f==='function'&&!f._ccyWrapped){
+      var w=function(){var r=f.apply(this,arguments);Promise.resolve(r).then(updateCcyFilterVisibility);return r;};
+      w._ccyWrapped=true;window[n]=w;
+    }
+  });
+  updateCcyFilterVisibility();setTimeout(updateCcyFilterVisibility,1500);
+});
 function sessionIdsMatchingType(sessions,typeFilterId){
   var t=getSessionTypeFilterVal(typeFilterId),c=getCcyFilterVal(typeFilterId);
   if(!t&&!c)return null;
