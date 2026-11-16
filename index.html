@@ -9059,6 +9059,26 @@ function acctFxRate(){
   if(!r){try{var c=fxLoadRateCache();if(c&&c.rate>0)r=c.rate;}catch(e){}}
   return r;
 }
+// ── Mixed-currency dollar figures ─────────────────────────────────────────
+// With Session = All sessions and Currency = All currencies, dollar totals are NOT converted:
+// they are shown per currency (USD trades summed together, CAD trades summed together).
+function tradeCcy(t){return t&&t.ccy==='CAD'?'CAD':'USD';}
+function isMixedCcy(arr){var u=0,c=0;(arr||[]).forEach(function(t){if(tradeCcy(t)==='CAD')c++;else u++;});return u>0&&c>0;}
+function plByCcy(arr){var o={USD:0,CAD:0,n:{USD:0,CAD:0}};(arr||[]).forEach(function(t){var c=tradeCcy(t);o[c]+=(t.plDollar||0);o.n[c]++;});return o;}
+function _plSigned(v,sym){return(v>=0?'+':'-')+sym+Math.abs(v).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});}
+function plCellText(arr,tp){
+  if(!isMixedCcy(arr))return(tp>=0?"+":"")+tp.toFixed(2);
+  var b=plByCcy(arr);
+  return _plSigned(b.USD,'$')+' \u00b7 '+_plSigned(b.CAD,'C$');
+}
+// Stacked USD / CAD lines for a stat card; fees (optional) are per-currency totals to net off.
+function plSplitHtml(arr,fees){
+  var b=plByCcy(arr);fees=fees||{USD:0,CAD:0};
+  return['USD','CAD'].filter(function(c){return b.n[c];}).map(function(c){
+    var v=b[c]-fees[c];
+    return'<div style="color:var(--'+(v>=0?'green':'red')+');font-size:17px;line-height:1.3">'+_plSigned(v,ccySym(c))+' <span style="font-size:10px;color:var(--text3)">'+c+'</span></div>';
+  }).join('');
+}
 // ── Session name auto-format: "[number] [Type] Month Day - Month Day/Present [Year] [CCY]" ────
 // This format only ever applies to an untouched, still-auto-generated name. The moment the
 // user types anything in the field, it's free text from then on — saved exactly as typed,
@@ -14839,6 +14859,14 @@ async function _renderDashboardImpl(){
   var plSign=totalPL>=0?'+':'';
   document.getElementById('dash-stat-total').innerHTML='<div class="stat-label">Total trades</div><div class="stat-value">'+n+'</div><div class="stat-sub">'+wins.length+' wins · '+(n-wins.length)+' losses</div>';
   document.getElementById('dash-stat-winrate').innerHTML='<div class="stat-label">Win rate</div><div class="stat-value '+(parseFloat(wr)>=50?'pos':'neg')+'">'+wr+'%</div><div class="stat-sub">'+wins.length+'/'+n+' trades</div>';
+  var _plMixed=isMixedCcy(trades);
+  if(_plMixed){
+    var _bU=0,_bC=0;allSessForBase.forEach(function(x){if(sessionCcyOf(x)==='CAD')_bC+=(x.startingEquity||5000);else _bU+=(x.startingEquity||5000);});
+    var _pb=plByCcy(trades);
+    var _pU=_bU>0?(_pb.USD/_bU*100):0,_pC=_bC>0?(_pb.CAD/_bC*100):0;
+    document.getElementById('dash-pl-card').className='stat-card';
+    document.getElementById('dash-pl-card').innerHTML='<div class="stat-label">Total P/L <span style="font-size:9px;color:var(--text3)">(per currency)</span></div><div class="stat-value" id="dash-pl-val" style="font-size:inherit">'+plSplitHtml(trades)+'</div><div class="stat-sub" id="dash-pl-sub">USD '+(_pU>=0?'+':'')+_pU.toFixed(2)+'% · CAD '+(_pC>=0?'+':'')+_pC.toFixed(2)+'%</div><div class="stat-sub" id="dash-fees-line" style="color:var(--text3);font-size:10px;margin-top:2px"></div>';
+  } else
   document.getElementById('dash-pl-card').innerHTML='<div class="stat-label">Total P/L</div><div class="stat-value '+(totalPL>=0?'pos':'neg')+'" id="dash-pl-val">'+plSign+totalPL.toFixed(2)+'</div><div class="stat-sub" id="dash-pl-sub">'+(totalPLpct>=0?'+':'')+totalPLpct.toFixed(2)+'% · $'+baselineForStats.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+' \u2192 $'+finalEquity.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+'</div><div class="stat-sub" id="dash-fees-line" style="color:var(--text3);font-size:10px;margin-top:2px"></div>';
   document.getElementById('dash-stat-rr').innerHTML='<div class="stat-label">Avg RR · PF</div><div class="stat-value '+(avgRR!=null?(avgRR>=0?'pos':'neg'):'')+'">'+( avgRR!=null?avgRR.toFixed(2)+'R':'—')+'</div><div class="stat-sub">PF: '+pf+'</div>';
   document.getElementById('dash-stat-hold').innerHTML='<div class="stat-label">Avg hold time</div><div class="stat-value" style="font-size:20px">'+durDisplay+'</div><div class="stat-sub">'+durSub+'</div>';
@@ -14856,12 +14884,18 @@ async function _renderDashboardImpl(){
   _dashRenderMiniCal(trades);
   // Async: compute total fees, then update Total P/L card to show net figures
   (async function(){
-    var totalFees = 0;
+    var totalFees = 0;var _feesBy={USD:0,CAD:0};
     for(var i=0;i<trades.length;i++){
       var feeResult = await computeTradeFeesAsync(trades[i]);
-      if(feeResult) totalFees += feeResult.total;
+      if(feeResult){totalFees += feeResult.total;_feesBy[tradeCcy(trades[i])]+=feeResult.total;}
     }
     if(totalFees <= 0) return; // no fees configured — leave card as-is
+    if(_plMixed){
+      var _pv=document.getElementById('dash-pl-val'),_fl=document.getElementById('dash-fees-line');
+      if(_pv)_pv.innerHTML=plSplitHtml(trades,_feesBy);
+      if(_fl)_fl.textContent='est. fees: '+(_feesBy.USD?'-$'+_feesBy.USD.toFixed(2):'')+(_feesBy.USD&&_feesBy.CAD?' · ':'')+(_feesBy.CAD?'-C$'+_feesBy.CAD.toFixed(2):'');
+      return;
+    }
     var netPL = totalPL - totalFees;
     var netPct = baselineForStats > 0 ? (netPL / baselineForStats * 100) : 0;
     var netEquity = baselineForStats + netPL;
@@ -15210,7 +15244,7 @@ function _renderQualityAnalytics(trades){
       '<td class="mono" style="color:'+(wr!=null?(wr>=50?'var(--green)':'var(--red)'):'var(--text3)')+'">'+(wr!=null?wr.toFixed(1)+'%':'—')+'</td>'+
       '<td class="mono">'+soloCell+'</td>'+
       '<td class="mono">'+(rr!=null?rr.toFixed(2)+'R':'—')+'</td>'+
-      '<td class="mono" style="color:'+(tp>=0?'var(--green)':'var(--red)')+'">'+(tp>=0?'+':'')+tp.toFixed(2)+'</td>'+
+      '<td class="mono" style="color:'+(tp>=0?'var(--green)':'var(--red)')+'">'+plCellText(r.arr,tp)+'</td>'+
       '<td class="mono">'+costCell+'</td>'+
       '</tr>';
   }).join('');
@@ -15955,7 +15989,7 @@ function _renderCategoryAnalytics(trades,field,emptyLabel,statsElId,wrChartId,pl
       '<td class="mono">'+arr.length+'</td>'+
       '<td class="mono" style="color:'+(wr!=null?(wr>=50?'var(--green)':'var(--red)'):'var(--text3)')+'">'+(wr!=null?wr.toFixed(1)+'%':'—')+'</td>'+
       '<td class="mono">'+(rr!=null?rr.toFixed(2)+'R':'—')+'</td>'+
-      '<td class="mono" style="color:'+(tp>=0?'var(--green)':'var(--red)')+'">'+(tp>=0?'+':'')+tp.toFixed(2)+'</td>'+
+      '<td class="mono" style="color:'+(tp>=0?'var(--green)':'var(--red)')+'">'+plCellText(arr,tp)+'</td>'+
       '</tr>';
   }).join('');
   var tblEl=document.getElementById(tableElId);
@@ -16071,7 +16105,7 @@ function _renderPairAnalytics(trades){
       '<td class="mono"><span style="color:var(--green)">'+wins+'W</span> / <span style="color:var(--red)">'+losses+'L</span>'+(be?' / <span style="color:var(--amber)">'+be+'BE</span>':'')+'</td>'+
       '<td class="mono" style="color:'+(wr!=null?(wr>=50?'var(--green)':'var(--red)'):'var(--text3)')+'">'+(wr!=null?wr.toFixed(1)+'%':'—')+'</td>'+
       '<td class="mono">'+(rr!=null?rr.toFixed(2)+'R':'—')+'</td>'+
-      '<td class="mono" style="color:'+(tp>=0?'var(--green)':'var(--red)')+'">'+(tp>=0?'+':'')+tp.toFixed(2)+'</td>'+
+      '<td class="mono" style="color:'+(tp>=0?'var(--green)':'var(--red)')+'">'+plCellText(arr,tp)+'</td>'+
       '<td class="mono">'+_fmtDurShort(avgDur)+'</td>'+
       '</tr>';
   }).join('');
@@ -16802,7 +16836,7 @@ function _renderMarketSessionAnalytics(trades){
       '<td class="mono">'+arr.length+'</td>'+
       '<td class="mono" style="color:'+(wr!=null?(wr>=50?'var(--green)':'var(--red)'):'var(--text3)')+'">'+(wr!=null?wr.toFixed(1)+'%':'—')+'</td>'+
       '<td class="mono">'+(rr!=null?rr.toFixed(2)+'R':'—')+'</td>'+
-      '<td class="mono" style="color:'+(tp>=0?'var(--green)':'var(--red)')+'">'+(tp>=0?'+':'')+tp.toFixed(2)+'</td>'+
+      '<td class="mono" style="color:'+(tp>=0?'var(--green)':'var(--red)')+'">'+plCellText(arr,tp)+'</td>'+
       '</tr>';
   }).join('');
   var tblEl=document.getElementById('dash-marketsession-table');
@@ -19149,6 +19183,33 @@ function _calcPtpSync(id,field,val){
   var p=_calcPartialTPs.find(function(x){return x.id===id;});
   if(p){p[field]=val;calcCalc();}
 }
+// ── Partial units mode ───────────────────────────────────────────────────
+// Each partial takes EITHER a % OR a units amount, never a mix. As soon as any partial has units,
+// every % field is greyed out (and shows the % derived from the units); as soon as any partial has
+// a % (typed), every units field is greyed out. In units mode the TOTAL position is simply the sum
+// of the units entered (it replaces the risk-based size); in % mode nothing changes.
+function _calcResolvePtpUnits(){
+  var tot=0;
+  _calcPartialTPs.forEach(function(p){var u=parseFloat(p.units);if(u>0)tot+=u;});
+  if(tot>0){
+    _calcPartialTPs.forEach(function(p){var u=parseFloat(p.units);p.pct=u>0?(u/tot*100):'';p._derived=true;});
+  } else {
+    _calcPartialTPs.forEach(function(p){if(p._derived){p.pct='';p._derived=false;}});
+  }
+  return tot;
+}
+function _calcApplyPtpModeUI(uTot){
+  var pctMode=!(uTot>0)&&_calcPartialTPs.some(function(p){return parseFloat(p.pct)>0&&!p._derived;});
+  _calcPartialTPs.forEach(function(p){
+    var pe=document.getElementById('calc-ptp-pct-'+p.id),ue=document.getElementById('calc-ptp-units-'+p.id);
+    if(pe){
+      var dis=uTot>0;
+      pe.disabled=dis;pe.style.opacity=dis?'.45':'';pe.style.cursor=dis?'not-allowed':'';
+      if(document.activeElement!==pe)pe.value=(p.pct===''||p.pct==null)?'':(dis?String(+(+p.pct).toFixed(2)):pe.value);
+    }
+    if(ue){ue.disabled=pctMode;ue.style.opacity=pctMode?'.45':'';ue.style.cursor=pctMode?'not-allowed':'';}
+  });
+}
 function calcClearPartialTPs(){
   _calcPartialTPs=[];
   calcRenderPartialTPs();
@@ -19228,9 +19289,10 @@ function calcRenderPartialTPs(){
       +'<span class="partial-tp-label">#'+(i+1)+'</span>'
       +'<input type="number" step="any" placeholder="TP price" value="'+escHtml(String(p.price||''))+'" oninput="_calcPtpSync(\''+p.id+'\',\'price\',this.value)" style="max-width:110px">'
       +'<div style="position:relative;display:flex;align-items:center;max-width:70px;flex-shrink:0">'
-        +'<input type="number" step="any" min="0" max="100" placeholder="%" value="'+escHtml(String(p.pct||''))+'" oninput="_calcPtpSync(\''+p.id+'\',\'pct\',this.value)" style="width:100%;padding-right:18px">'
+        +'<input type="number" step="any" min="0" max="100" placeholder="%" id="calc-ptp-pct-'+p.id+'" value="'+escHtml(String(p._derived&&p.pct!==''?+(+p.pct).toFixed(2):(p.pct||'')))+'" oninput="_calcPtpSync(\''+p.id+'\',\'pct\',this.value)" style="width:100%;padding-right:18px">'
         +'<span style="position:absolute;right:7px;font-size:11px;font-weight:700;color:var(--text3);pointer-events:none">%</span>'
       +'</div>'
+      +'<input type="number" step="any" min="0" placeholder="units" id="calc-ptp-units-'+p.id+'" value="'+escHtml(String(p.units||''))+'" oninput="_calcPtpSync(\''+p.id+'\',\'units\',this.value)" title="Enter units instead of %. Use % OR units on all partials, not both. With units, the total position = the sum of the units." style="max-width:84px;flex-shrink:0">'
       +'<span id="calc-ptp-qty-'+p.id+'" style="font-size:10px;color:var(--text3);white-space:nowrap;flex-shrink:0">—</span>'
       +'<button class="btn btn-ghost btn-sm btn-icon" onclick="calcRemovePartialTP(\''+p.id+'\')" title="Remove partial" style="color:var(--red);flex-shrink:0">'
         +'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'
@@ -20226,6 +20288,7 @@ function calcReset(){
 function calcCalc(){
   var inst=calcGetInst();
   if(!inst){_calcClearPartialBreakdown();return;}
+  var _uTot=_calcResolvePtpUnits();_calcApplyPtpModeUI(_uTot);
   var balance=parseFloat(document.getElementById('calc-balance').value)||0;
   var riskPct=parseFloat(document.getElementById('calc-risk-pct').value)||0;
   var entry=parseFloat(document.getElementById('calc-entry').value)||0;
@@ -20321,6 +20384,18 @@ function calcCalc(){
     marginReq=posValue/leverage;
     marginUsedPct=(marginReq/balance)*100;
   }
+  // Partial UNITS mode: the position is exactly the units entered across the partials.
+  var unitsMode=_uTot>0;
+  if(unitsMode){
+    size=(bType==='shares')?Math.round(_uTot):_uTot/(inst.contract||1);
+    cappedBy1to1=false;
+    if(bType==='lots'||!bType){posValue=size*inst.contract*entry*q2a;actualRiskUsd=size*slTicks*pvp;}
+    else if(bType==='crypto'||bType==='shares'){posValue=size*entry*q2a;actualRiskUsd=size*slDist*q2a;}
+    else{posValue=size*inst.contract*entry*q2a;actualRiskUsd=size*inst.tickVal*q2a*(slDist/pip);}
+    actualRiskPct=(actualRiskUsd/balance)*100;
+    marginReq=posValue/leverage;
+    marginUsedPct=(marginReq/balance)*100;
+  }
   // Outputs
   var sizeDisplay,sizeLabel;
   if(bType==='lots'||!bType){
@@ -20400,6 +20475,11 @@ function calcCalc(){
   if(cappedBy1to1){
     if(calcUseMargin)wCap.textContent='⚠ Position capped to your margin limit: '+S+calcFmt(balance,2)+' balance + '+S+calcFmt(marginAmt,2)+' margin = '+S+calcFmt(posLimit,2)+' max. Actual risk: '+S+calcFmt(actualRiskUsd,2)+' ('+calcFmt(actualRiskPct,2)+'%).';
     else wCap.textContent='⚠ Position capped to fit your '+S+calcFmt(balance,2)+' balance at 1:1. Enable "Use margin" above to size using '+leverage+':1 leverage. Actual risk: '+S+calcFmt(actualRiskUsd,2)+' ('+calcFmt(actualRiskPct,2)+'%).';
+  }
+  if(unitsMode){
+    var _over=actualRiskPct>riskPct*1.0001,_exceeds=posValue>posLimit;
+    wCap.style.display=(_over||_exceeds)?'block':'none';
+    wCap.textContent='\u26a0 Position set by your partial units ('+_calcFmtQty(_uTot,6)+' units). '+(_exceeds?'It exceeds your '+S+calcFmt(posLimit,2)+' position limit. ':'')+'Actual risk '+S+calcFmt(actualRiskUsd,2)+' ('+calcFmt(actualRiskPct,2)+'%) vs your '+calcFmt(riskPct,2)+'% target.';
   }
   // Margin loan: only the part of the position above your own balance is borrowed, and only that accrues interest.
   // Rate is annual (%); daily cost uses a 365-day year. Informational — not deducted from the R:R figures above.
