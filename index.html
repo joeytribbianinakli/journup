@@ -9079,6 +9079,28 @@ function plSplitHtml(arr,fees){
     return'<div style="color:var(--'+(v>=0?'green':'red')+');font-size:17px;line-height:1.3">'+_plSigned(v,ccySym(c))+' <span style="font-size:10px;color:var(--text3)">'+c+'</span></div>';
   }).join('');
 }
+// Dollar bar charts (Avg/Total P/L by category). Single currency: the usual green/red bars.
+// Mixed USD+CAD: two grouped bars per category (one per currency) so nothing is added across currencies.
+function plDs(label,plData,arrs,c,kind){
+  var all=[].concat.apply([],arrs);
+  if(!isMixedCcy(all))return[{label:label+' ($)',data:plData,backgroundColor:plData.map(function(v){return v>=0?c.green:c.red;}),borderRadius:4}];
+  var f=function(cc){return arrs.map(function(a){
+    var x=a.filter(function(t){return tradeCcy(t)===cc;});if(!x.length)return 0;
+    var sm=x.reduce(function(q,t){return q+(t.plDollar||0);},0);
+    return parseFloat((kind==='total'?sm:sm/x.length).toFixed(2));});};
+  return[{label:label+' (USD $)',data:f('USD'),backgroundColor:c.accent,borderRadius:4,_mixed:true},
+         {label:label+' (CAD C$)',data:f('CAD'),backgroundColor:c.amber,borderRadius:4,_mixed:true}];
+}
+function avgPLtxt(arr,v){
+  if(v==null)return'\u2014';
+  if(!isMixedCcy(arr))return'$'+v.toFixed(0);
+  var b=plByCcy(arr);
+  return['USD','CAD'].filter(function(c){return b.n[c];}).map(function(c){return ccySym(c)+(b[c]/b.n[c]).toFixed(0);}).join(' / ');
+}
+function calPlFmtM(arr,v){
+  if(!isMixedCcy(arr))return calPlFmt(v);
+  var b=plByCcy(arr);return _plSigned(b.USD,'$')+' \u00b7 '+_plSigned(b.CAD,'C$');
+}
 // ── Session name auto-format: "[number] [Type] Month Day - Month Day/Present [Year] [CCY]" ────
 // This format only ever applies to an untouched, still-auto-generated name. The moment the
 // user types anything in the field, it's free text from then on — saved exactly as typed,
@@ -12995,6 +13017,7 @@ function chartColors(soft){
 // anywhere the code used to call `new Chart(ctx,cfg)`.
 var _chartUnavailableWarned = false;
 function safeChart(ctx, config){
+  try{if(config&&config.data&&(config.data.datasets||[]).some(function(d){return d._mixed;})){config.options=config.options||{};config.options.plugins=config.options.plugins||{};config.options.plugins.legend={display:true,labels:{boxWidth:10,font:{size:10}}};}}catch(e){}
   if (typeof Chart === 'undefined') {
     if (!_chartUnavailableWarned) {
       _chartUnavailableWarned = true;
@@ -14940,10 +14963,25 @@ async function _renderDashboardImpl(){
     cumPctLabels.unshift('Start');
     cumPctData.unshift(0);
   }
+  // Mixed USD+CAD: one equity line and one cumulative-% line PER currency (each against its own baseline)
+  var _eqMixed=isMixedCcy(trades),_eqDS=null,_cumDS=null,eU=[],eC=[];
+  if(_eqMixed){
+    var _bUe=0,_bCe=0;allSessForBase.forEach(function(x){if(sessionCcyOf(x)==='CAD')_bCe+=(x.startingEquity||5000);else _bUe+=(x.startingEquity||5000);});
+    var rU=_bUe,rC=_bCe,cU=0,cC=0,pU=[0],pC=[0];eU=[rU];eC=[rC];
+    sorted.forEach(function(t){
+      var pl=parseFloat(t.plDollar)||0;
+      if(tradeCcy(t)==='CAD'){cC+=rC>0?pl/rC*100:0;rC+=pl;}else{cU+=rU>0?pl/rU*100:0;rU+=pl;}
+      eU.push(parseFloat(rU.toFixed(2)));eC.push(parseFloat(rC.toFixed(2)));pU.push(parseFloat(cU.toFixed(3)));pC.push(parseFloat(cC.toFixed(3)));
+    });
+    var _cc=chartColors();
+    var _mk=function(lab,data,col){return{label:lab,data:data,borderColor:col,backgroundColor:'transparent',borderWidth:2,pointRadius:curvePointRadius(data.length),pointHoverRadius:curvePointHoverRadius(data.length),fill:false,tension:0.3};};
+    _eqDS=[_mk('USD equity ($)',eU,_cc.accent),_mk('CAD equity (C$)',eC,_cc.amber)];
+    _cumDS=[_mk('USD cum. %',pU,_cc.accent),_mk('CAD cum. %',pC,_cc.amber)];
+  }
   // Cumulative P/L chart
   if(charts.cumpl)charts.cumpl.destroy();
   var _cvCumpl=document.getElementById('chart-cumpl');
-  if(_cvCumpl)charts.cumpl=safeChart(_cvCumpl.getContext('2d'),{type:'line',data:{labels:cumPctLabels,datasets:[{label:'Cum. P/L %',data:cumPctData,borderColor:chartColors().accent,backgroundColor:chartColors().accentBg,borderWidth:2,pointRadius:curvePointRadius(cumPctData.length),pointHoverRadius:curvePointHoverRadius(cumPctData.length),fill:true,tension:0.35}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{maxTicksLimit:8,color:chartColors().tick,font:{size:10}},grid:{color:chartColors().grid}},y:{ticks:{callback:function(v){return v.toFixed(1)+'%'},color:chartColors().tick,font:{size:10}},grid:{color:chartColors().grid}}}}});
+  if(_cvCumpl)charts.cumpl=safeChart(_cvCumpl.getContext('2d'),{type:'line',data:{labels:cumPctLabels,datasets:(_cumDS||[{label:'Cum. P/L %',data:cumPctData,borderColor:chartColors().accent,backgroundColor:chartColors().accentBg,borderWidth:2,pointRadius:curvePointRadius(cumPctData.length),pointHoverRadius:curvePointHoverRadius(cumPctData.length),fill:true,tension:0.35}])},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:_eqMixed,labels:{boxWidth:10,font:{size:10}}}},scales:{x:{ticks:{maxTicksLimit:8,color:chartColors().tick,font:{size:10}},grid:{color:chartColors().grid}},y:{ticks:{callback:function(v){return v.toFixed(1)+'%'},color:chartColors().tick,font:{size:10}},grid:{color:chartColors().grid}}}}});
   // If a pair is selected in the "By pair" donut, scope Win/Loss to just that pair;
   // otherwise show the overall split. Clear the selection if it no longer applies
   // (e.g. the pair has no trades under the current filters).
@@ -15034,12 +15072,12 @@ async function _renderDashboardImpl(){
   var eqBgColor=eqTrending?chartColors().greenBg:chartColors().redBg;
   if(eqData.length){
     var eqLabel=document.getElementById('dash-equity-label');
-    if(eqLabel)eqLabel.textContent='Current: $'+eqData[eqData.length-1].toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+    if(eqLabel)eqLabel.textContent=_eqMixed?('Current: $'+eU[eU.length-1].toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+' \u00b7 C$'+eC[eC.length-1].toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})):'Current: $'+eqData[eqData.length-1].toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
   }
   if(charts.equity)charts.equity.destroy();
   var _cvEquity=document.getElementById('chart-equity');
   if(_cvEquity)
-    charts.equity=safeChart(_cvEquity.getContext('2d'),{type:'line',data:{labels:eqLabels,datasets:[{label:'Equity ($)',data:eqData,borderColor:eqColor,backgroundColor:eqBgColor,borderWidth:2,pointRadius:curvePointRadius(eqData.length),pointHoverRadius:curvePointHoverRadius(eqData.length),fill:true,tension:0.3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{maxTicksLimit:10,color:chartColors().tick,font:{size:10}},grid:{color:chartColors().grid}},y:{ticks:{callback:function(v){return'$'+v.toLocaleString()},color:chartColors().tick,font:{size:10}},grid:{color:chartColors().grid},suggestedMin:eqMin*0.995,suggestedMax:eqMax*1.005}}}});
+    charts.equity=safeChart(_cvEquity.getContext('2d'),{type:'line',data:{labels:eqLabels,datasets:(_eqDS||[{label:'Equity ($)',data:eqData,borderColor:eqColor,backgroundColor:eqBgColor,borderWidth:2,pointRadius:curvePointRadius(eqData.length),pointHoverRadius:curvePointHoverRadius(eqData.length),fill:true,tension:0.3}])},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:_eqMixed,labels:{boxWidth:10,font:{size:10}}}},scales:{x:{ticks:{maxTicksLimit:10,color:chartColors().tick,font:{size:10}},grid:{color:chartColors().grid}},y:{ticks:{callback:function(v){return(_eqMixed?'':'$')+v.toLocaleString()},color:chartColors().tick,font:{size:10}},grid:{color:chartColors().grid},suggestedMin:_eqMixed?undefined:eqMin*0.995,suggestedMax:_eqMixed?undefined:eqMax*1.005}}}});
   // Drawdown (moved here from Trade Analytics — it's computed from this same equity/trades
   // series, so it lives right next to the Equity Curve it's derived from).
   _renderDrawdownAnalytics(trades,allSess);
@@ -15196,7 +15234,7 @@ function _renderQualityAnalytics(trades){
   var errPLColors=errPLData.map(function(v){return v>=0?c.green:c.red;});
   if(charts.errorPL)charts.errorPL.destroy();
   var _cvEP=document.getElementById('chart-error-pl');
-  if(_cvEP)charts.errorPL=safeChart(_cvEP.getContext('2d'),{type:'bar',data:{labels:errPLLabels,datasets:[{label:'Avg P/L ($)',data:errPLData,backgroundColor:errPLColors,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:10},callback:function(v){return'$'+v;}},grid:{color:c.grid}},y:{ticks:{color:c.tick,font:{size:10}},grid:{display:false}}}},plugins:[barValueLabelsPlugin('barVL11443')]});
+  if(_cvEP)charts.errorPL=safeChart(_cvEP.getContext('2d'),{type:'bar',data:{labels:errPLLabels,datasets:plDs('Avg P/L',errPLData,errPLArrs,c,'avg')},options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:10},callback:function(v){return'$'+v;}},grid:{color:c.grid}},y:{ticks:{color:c.tick,font:{size:10}},grid:{display:false}}}},plugins:[barValueLabelsPlugin('barVL11443')]});
   // ── Error type impact table ──
   // Row order and the two right-most columns answer the questions a raw average
   // can't:
@@ -15980,7 +16018,7 @@ function _renderCategoryAnalytics(trades,field,emptyLabel,statsElId,wrChartId,pl
   var plData=keys.map(function(k){var v=avgPLof(buckets[k]);return v!=null?parseFloat(v.toFixed(2)):0;});
   if(charts[plChartKey])charts[plChartKey].destroy();
   var _cvPL=document.getElementById(plChartId);
-  if(_cvPL)charts[plChartKey]=safeChart(_cvPL.getContext('2d'),{type:'bar',data:{labels:catLabels,datasets:[{label:'Avg P/L ($)',data:plData,backgroundColor:plData.map(function(v){return v>=0?c.green:c.red;}),borderRadius:4}]},options:horizontal?{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:10},callback:function(v){return'$'+v;}},grid:{color:c.grid}},y:{ticks:{color:c.tick,font:{size:10}},grid:{display:false}}}}:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:9}},grid:{display:false}},y:{ticks:{color:c.tick,font:{size:10},callback:function(v){return'$'+v;}},grid:{color:c.grid}}}},plugins:[barValueLabelsPlugin('barVL12206')]});
+  if(_cvPL)charts[plChartKey]=safeChart(_cvPL.getContext('2d'),{type:'bar',data:{labels:catLabels,datasets:plDs('Avg P/L',plData,keys.map(function(k){return buckets[k];}),c,'avg')},options:horizontal?{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:10},callback:function(v){return'$'+v;}},grid:{color:c.grid}},y:{ticks:{color:c.tick,font:{size:10}},grid:{display:false}}}}:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:9}},grid:{display:false}},y:{ticks:{color:c.tick,font:{size:10},callback:function(v){return'$'+v;}},grid:{color:c.grid}}}},plugins:[barValueLabelsPlugin('barVL12206')]});
   // ── Breakdown table ──
   var tblHtml=keys.map(function(k){
     var arr=buckets[k],wr=winRate(arr),rr=avgRRof(arr),tp=totalPLof(arr);
@@ -16053,7 +16091,7 @@ function _renderPairAnalytics(trades){
   var plData=keys.map(function(k){return parseFloat(totalPLof(buckets[k].trades).toFixed(2));});
   if(charts.pairsPL)charts.pairsPL.destroy();
   var _cvPP=document.getElementById('chart-pairs-pl');
-  if(_cvPP)charts.pairsPL=safeChart(_cvPP.getContext('2d'),{type:'bar',data:{labels:keys,datasets:[{label:'Total P/L ($)',data:plData,backgroundColor:plData.map(function(v){return v>=0?c.green:c.red;}),borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:10},callback:function(v){return'$'+v;}},grid:{color:c.grid}},y:{ticks:{color:c.tick,font:{size:10}},grid:{display:false}}}},plugins:[barValueLabelsPlugin('barVLpairsPL')]});
+  if(_cvPP)charts.pairsPL=safeChart(_cvPP.getContext('2d'),{type:'bar',data:{labels:keys,datasets:plDs('Total P/L',plData,keys.map(function(k){return buckets[k].trades;}),c,'total')},options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:10},callback:function(v){return'$'+v;}},grid:{color:c.grid}},y:{ticks:{color:c.tick,font:{size:10}},grid:{display:false}}}},plugins:[barValueLabelsPlugin('barVLpairsPL')]});
   // ── Exit criteria by pair (one proportional-width bar per pair, plain
   // HTML/CSS — see .pev-* rules for why this replaced a Chart.js grouped bar
   // chart). Segment widths are percentages of that pair's OWN trade count,
@@ -16332,7 +16370,7 @@ function _renderRiskSizeAnalytics(trades){
   var plData=buckets.map(function(b){var v=avgPLof(b);return v!=null?parseFloat(v.toFixed(2)):0;});
   if(charts.riskPL)charts.riskPL.destroy();
   var _cvRPl=document.getElementById('chart-risk-pl');
-  if(_cvRPl)charts.riskPL=safeChart(_cvRPl.getContext('2d'),{type:'bar',data:{labels:riskLabels,datasets:[{label:'Avg P/L ($)',data:plData,backgroundColor:plData.map(function(v){return v>=0?c.green:c.red;}),borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:10}},grid:{display:false}},y:{ticks:{color:c.tick,font:{size:10},callback:function(v){return'$'+v;}},grid:{color:c.grid}}}},plugins:[barValueLabelsPlugin('barVL12441')]});
+  if(_cvRPl)charts.riskPL=safeChart(_cvRPl.getContext('2d'),{type:'bar',data:{labels:riskLabels,datasets:plDs('Avg P/L',plData,buckets,c,'avg')},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:10}},grid:{display:false}},y:{ticks:{color:c.tick,font:{size:10},callback:function(v){return'$'+v;}},grid:{color:c.grid}}}},plugins:[barValueLabelsPlugin('barVL12441')]});
 }
 // ── Win/loss streak analysis ──────────────────────────
 // Walks the filtered trades in chronological order (same ordering as the
@@ -16404,6 +16442,12 @@ function _renderStreakAnalytics(trades){
 // curve chart), so it reads the Dashboard's own session filter, not Trade Analytics'.
 function _renderDrawdownAnalytics(trades,allSess){
   trades=trades||[];allSess=allSess||[];
+  if(isMixedCcy(trades)){ // peak-to-trough in dollars can't be computed across two currencies
+    var _ddEl=document.getElementById('dash-drawdown-stats');
+    if(_ddEl)_ddEl.innerHTML='<div class="stat-card" style="grid-column:1/-1"><div class="stat-label">Drawdown</div><div class="stat-sub" style="font-size:12px;line-height:1.5">Your filters include both USD and CAD sessions, and drawdown is a peak-to-trough dollar figure, so it can\u2019t be added across currencies. Choose <strong>USD</strong> or <strong>CAD</strong> in the Currency filter to see it.</div></div>';
+    if(charts.drawdown){charts.drawdown.destroy();charts.drawdown=null;}
+    return;
+  }
   var c=chartColors();
   var demoOn=!!_dashDemoMode;
   var sesF=(document.getElementById('dash-session-filter')||{}).value||'';
@@ -16485,7 +16529,7 @@ function _renderChecklistAnalytics(trades){
   var plData=buckets.map(function(b){var v=avgPLof(b);return v!=null?parseFloat(v.toFixed(2)):0;});
   if(charts.checklistPL)charts.checklistPL.destroy();
   var _cvCP=document.getElementById('chart-checklist-pl');
-  if(_cvCP)charts.checklistPL=safeChart(_cvCP.getContext('2d'),{type:'bar',data:{labels:clLabels,datasets:[{label:'Avg P/L ($)',data:plData,backgroundColor:plData.map(function(v){return v>=0?c.green:c.red;}),borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:10}},grid:{display:false}},y:{ticks:{color:c.tick,font:{size:10},callback:function(v){return'$'+v;}},grid:{color:c.grid}}}},plugins:[barValueLabelsPlugin('barVL12594')]});
+  if(_cvCP)charts.checklistPL=safeChart(_cvCP.getContext('2d'),{type:'bar',data:{labels:clLabels,datasets:plDs('Avg P/L',plData,buckets,c,'avg')},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:10}},grid:{display:false}},y:{ticks:{color:c.tick,font:{size:10},callback:function(v){return'$'+v;}},grid:{color:c.grid}}}},plugins:[barValueLabelsPlugin('barVL12594')]});
 }
 // ══ Checklist Item Breakdown by Setup Rating ═══════════════════════
 // _renderChecklistAnalytics (above) only looks at overall adherence % — this drills into
@@ -16741,8 +16785,8 @@ function _renderDirectionAnalytics(trades){
     statsEl.innerHTML=
       '<div class="stat-card green"><div class="stat-label">Long trades</div><div class="stat-value">'+longs.length+'</div><div class="stat-sub">'+(lWR!=null?lWR.toFixed(0)+'% win rate':'no trades')+'</div></div>'+
       '<div class="stat-card red"><div class="stat-label">Short trades</div><div class="stat-value">'+shorts.length+'</div><div class="stat-sub">'+(sWR!=null?sWR.toFixed(0)+'% win rate':'no trades')+'</div></div>'+
-      '<div class="stat-card '+(lTot>=sTot?'green':'red')+'"><div class="stat-label">Stronger direction</div><div class="stat-value" style="font-size:15px">'+(!longs.length&&!shorts.length?'—':(lTot===sTot?'Even':(lTot>sTot?'Long':'Short')))+'</div><div class="stat-sub">by total P/L</div></div>'+
-      '<div class="stat-card amber"><div class="stat-label">Avg P/L (L vs S)</div><div class="stat-value" style="font-size:15px">'+(lPL!=null?'$'+lPL.toFixed(0):'—')+' / '+(sPL!=null?'$'+sPL.toFixed(0):'—')+'</div><div class="stat-sub">per trade</div></div>';
+      '<div class="stat-card '+(lTot>=sTot?'green':'red')+'"><div class="stat-label">Stronger direction</div><div class="stat-value" style="font-size:15px">'+((!longs.length&&!shorts.length)||isMixedCcy(longs.concat(shorts))?'—':(lTot===sTot?'Even':(lTot>sTot?'Long':'Short')))+'</div><div class="stat-sub">by total P/L</div></div>'+
+      '<div class="stat-card amber"><div class="stat-label">Avg P/L (L vs S)</div><div class="stat-value" style="font-size:15px">'+avgPLtxt(longs,lPL)+' / '+avgPLtxt(shorts,sPL)+'</div><div class="stat-sub">per trade</div></div>';
   }
   if(charts.dirWR)charts.dirWR.destroy();
   var _cvDW=document.getElementById('chart-direction-wr');
@@ -16750,7 +16794,7 @@ function _renderDirectionAnalytics(trades){
   if(charts.dirPL)charts.dirPL.destroy();
   var _cvDP=document.getElementById('chart-direction-pl');
   var dPLData=[lPL!=null?parseFloat(lPL.toFixed(2)):0,sPL!=null?parseFloat(sPL.toFixed(2)):0];
-  if(_cvDP)charts.dirPL=safeChart(_cvDP.getContext('2d'),{type:'bar',data:{labels:['Long','Short'],datasets:[{label:'Avg P/L ($)',data:dPLData,backgroundColor:dPLData.map(function(v){return v>=0?c.green:c.red;}),borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:11}},grid:{display:false}},y:{ticks:{color:c.tick,font:{size:10},callback:function(v){return'$'+v;}},grid:{color:c.grid}}}},plugins:[barValueLabelsPlugin('barVL12859')]});
+  if(_cvDP)charts.dirPL=safeChart(_cvDP.getContext('2d'),{type:'bar',data:{labels:['Long','Short'],datasets:plDs('Avg P/L',dPLData,[longs,shorts],c,'avg')},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:11}},grid:{display:false}},y:{ticks:{color:c.tick,font:{size:10},callback:function(v){return'$'+v;}},grid:{color:c.grid}}}},plugins:[barValueLabelsPlugin('barVL12859')]});
 }
 // ── Entry-time-of-day breakdown (4-hour local-time blocks) ──────────
 function _renderTimeAnalytics(trades){
@@ -16784,7 +16828,7 @@ function _renderTimeAnalytics(trades){
   var plData=buckets.map(function(b){var v=avgPLof(b);return v!=null?parseFloat(v.toFixed(2)):0;});
   if(charts.timePL)charts.timePL.destroy();
   var _cvTP=document.getElementById('chart-time-pl');
-  if(_cvTP)charts.timePL=safeChart(_cvTP.getContext('2d'),{type:'bar',data:{labels:blockLabels,datasets:[{label:'Avg P/L ($)',data:plData,backgroundColor:plData.map(function(v){return v>=0?c.green:c.red;}),borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:9}},grid:{display:false}},y:{ticks:{color:c.tick,font:{size:10},callback:function(v){return'$'+v;}},grid:{color:c.grid}}}},plugins:[barValueLabelsPlugin('barVL12893')]});
+  if(_cvTP)charts.timePL=safeChart(_cvTP.getContext('2d'),{type:'bar',data:{labels:blockLabels,datasets:plDs('Avg P/L',plData,buckets,c,'avg')},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:9}},grid:{display:false}},y:{ticks:{color:c.tick,font:{size:10},callback:function(v){return'$'+v;}},grid:{color:c.grid}}}},plugins:[barValueLabelsPlugin('barVL12893')]});
 }
 // ── Performance by Market Session (named, asset-aware — see getMarketSession) ────────
 // Unlike the raw 4h local-time blocks above, this groups by the actual named session
@@ -16828,7 +16872,7 @@ function _renderMarketSessionAnalytics(trades){
   var plData=keys.map(function(k){var v=avgPLof(buckets[k]);return v!=null?parseFloat(v.toFixed(2)):0;});
   if(charts.marketSessionPL)charts.marketSessionPL.destroy();
   var _cvMSP=document.getElementById('chart-marketsession-pl');
-  if(_cvMSP)charts.marketSessionPL=safeChart(_cvMSP.getContext('2d'),{type:'bar',data:{labels:keys,datasets:[{label:'Avg P/L ($)',data:plData,backgroundColor:plData.map(function(v){return v>=0?c.green:c.red;}),borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:9}},grid:{display:false}},y:{ticks:{color:c.tick,font:{size:10},callback:function(v){return'$'+v;}},grid:{color:c.grid}}}},plugins:[barValueLabelsPlugin('barVL12937')]});
+  if(_cvMSP)charts.marketSessionPL=safeChart(_cvMSP.getContext('2d'),{type:'bar',data:{labels:keys,datasets:plDs('Avg P/L',plData,keys.map(function(k){return buckets[k];}),c,'avg')},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:9}},grid:{display:false}},y:{ticks:{color:c.tick,font:{size:10},callback:function(v){return'$'+v;}},grid:{color:c.grid}}}},plugins:[barValueLabelsPlugin('barVL12937')]});
   var tblHtml=keys.map(function(k){
     var arr=buckets[k],wr=winRate(arr),rr=avgRRof(arr),tp=totalPLof(arr),badge=SESSION_BADGE_MAP[k]||'badge-gray';
     return '<tr>'+
@@ -16878,7 +16922,7 @@ function _renderHoldTimeAnalytics(trades){
   var plData=buckets.map(function(b){var v=avgPLof(b);return v!=null?parseFloat(v.toFixed(2)):0;});
   if(charts.holdPL)charts.holdPL.destroy();
   var _cvHP=document.getElementById('chart-hold-pl');
-  if(_cvHP)charts.holdPL=safeChart(_cvHP.getContext('2d'),{type:'bar',data:{labels:holdLabels,datasets:[{label:'Avg P/L ($)',data:plData,backgroundColor:plData.map(function(v){return v>=0?c.green:c.red;}),borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:10},callback:function(v){return'$'+v;}},grid:{color:c.grid}},y:{ticks:{color:c.tick,font:{size:10}},grid:{display:false}}}},plugins:[barValueLabelsPlugin('barVL13043')]});
+  if(_cvHP)charts.holdPL=safeChart(_cvHP.getContext('2d'),{type:'bar',data:{labels:holdLabels,datasets:plDs('Avg P/L',plData,buckets,c,'avg')},options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:10},callback:function(v){return'$'+v;}},grid:{color:c.grid}},y:{ticks:{color:c.tick,font:{size:10}},grid:{display:false}}}},plugins:[barValueLabelsPlugin('barVL13043')]});
 }
 // ── Day-of-week breakdown (Sun–Sat, derived from entryTime) ──────────
 function _renderDowAnalytics(trades){
@@ -16912,7 +16956,7 @@ function _renderDowAnalytics(trades){
   var plData=buckets.map(function(b){var v=avgPLof(b);return v!=null?parseFloat(v.toFixed(2)):0;});
   if(charts.dowPL)charts.dowPL.destroy();
   var _cvDoP=document.getElementById('chart-dow-pl');
-  if(_cvDoP)charts.dowPL=safeChart(_cvDoP.getContext('2d'),{type:'bar',data:{labels:dowLabels,datasets:[{label:'Avg P/L ($)',data:plData,backgroundColor:plData.map(function(v){return v>=0?c.green:c.red;}),borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:10}},grid:{display:false}},y:{ticks:{color:c.tick,font:{size:10},callback:function(v){return'$'+v;}},grid:{color:c.grid}}}},plugins:[barValueLabelsPlugin('barVL13021')]});
+  if(_cvDoP)charts.dowPL=safeChart(_cvDoP.getContext('2d'),{type:'bar',data:{labels:dowLabels,datasets:plDs('Avg P/L',plData,buckets,c,'avg')},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:10}},grid:{display:false}},y:{ticks:{color:c.tick,font:{size:10},callback:function(v){return'$'+v;}},grid:{color:c.grid}}}},plugins:[barValueLabelsPlugin('barVL13021')]});
 }
 // ══ Sidebar stats ══════════════════════════════════
 // Tiny always-visible summary (trade count + win rate) shown in the nav sidebar on every
@@ -23772,7 +23816,7 @@ function calRenderMonth(){
         var dayAllPending=c.trades.every(function(t){return !t.exitPrice;});
         footerHtml='<div class="cal-pl-footer">'+
           '<div style="display:flex;align-items:baseline;gap:4px">'+
-            '<div class="cal-pl-footer-val" style="color:'+(dayAllPending?'var(--pending)':(dayPl>=0?'var(--green)':'var(--red)'))+'">'+calPlFmt(dayPl)+'</div>'+
+            '<div class="cal-pl-footer-val" style="color:'+(dayAllPending?'var(--pending)':(dayPl>=0?'var(--green)':'var(--red)'))+'">'+calPlFmtM(c.trades,dayPl)+'</div>'+
             (dayPlPct!==0?'<div style="font-size:8px;font-weight:600;font-family:DM Mono,monospace;color:'+(dayPlPct>=0?'var(--green)':'var(--red)')+'">'+calPctFmt(dayPlPct)+'</div>':'')+
           '</div>'+
           '<div class="cal-pl-footer-meta">'+
@@ -23815,7 +23859,7 @@ function calRenderMonth(){
       '<span>Wins: <strong style="color:var(--green)">'+wWins+'</strong> / Losses: <strong style="color:var(--red)">'+(wCnt-wWins)+'</strong></span>'+
       '<span>WR: <strong>'+(wWins/wCnt*100).toFixed(0)+'%</strong></span>'+
       (wAvgRR!=null?'<span>Avg RR: <strong>'+wAvgRR.toFixed(2)+'R</strong></span>':'')+
-      '<span>P/L: <strong style="color:'+(wPl>=0?'var(--green)':'var(--red)')+'">'+calPlFmt(wPl)+'</strong>'+(wPlPct!==0?' <strong style="color:'+(wPlPct>=0?'var(--green)':'var(--red)')+';font-size:10px">'+calPctFmt(wPlPct)+'</strong>':'')+' </span>'+
+      '<span>P/L: <strong style="color:'+(wPl>=0?'var(--green)':'var(--red)')+'">'+calPlFmtM(week.reduce(function(a,c){return a.concat(c.trades);},[]),wPl)+'</strong>'+(wPlPct!==0?' <strong style="color:'+(wPlPct>=0?'var(--green)':'var(--red)')+';font-size:10px">'+calPctFmt(wPlPct)+'</strong>':'')+' </span>'+
       '</div>';
   });
   var weekStripHtml='';
@@ -23855,7 +23899,7 @@ function calRenderMonth(){
       '<div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">'+
         '<span style="font-size:12px;font-weight:700;color:var(--text2)">'+moTitle+'</span>'+
         '<div style="display:flex;align-items:baseline;gap:7px">'+
-          '<span style="font-size:18px;font-weight:700;font-family:DM Mono,monospace;color:'+(moPl>=0?'var(--green)':'var(--red)')+'">'+calPlFmt(moPl)+'</span>'+
+          '<span style="font-size:18px;font-weight:700;font-family:DM Mono,monospace;color:'+(moPl>=0?'var(--green)':'var(--red)')+'">'+calPlFmtM(monthTrades,moPl)+'</span>'+
           (moPlPct!==0?'<span style="font-size:12px;font-weight:600;font-family:DM Mono,monospace;color:'+(moPlPct>=0?'var(--green)':'var(--red)')+'">'+calPctFmt(moPlPct)+'</span>':'')+
         '</div>'+
       '</div>'+
@@ -23863,12 +23907,12 @@ function calRenderMonth(){
         '<div class="js-stat-cell"><div class="js-stat-lbl">Trades</div><div class="js-val-lg">'+monthTrades.length+'</div></div>'+
         '<div class="js-stat-cell"><div class="js-stat-lbl">Win Rate</div><div class="js-val-lg">'+moWinRate+'%</div><div class="js-hint-mt"><span style="color:var(--green)">'+moWins+'W</span> / <span style="color:var(--red)">'+moLosses+'L</span></div></div>'+
         (moAvgRR!=null?'<div class="js-stat-cell"><div class="js-stat-lbl">Avg RR</div><div class="js-val-lg">'+moAvgRR.toFixed(2)+'R</div></div>':'')+
-        (moBestDay!==null?'<div class="js-stat-cell"><div class="js-stat-lbl">Best Day</div><div style="font-size:20px;font-weight:700;font-family:DM Mono,monospace;color:var(--green)">'+calPlFmt(moBestDay)+'</div></div>':'')+
-        (moWorstDay!==null?'<div style="padding:12px 14px"><div class="js-stat-lbl">Worst Day</div><div style="font-size:20px;font-weight:700;font-family:DM Mono,monospace;color:'+(moWorstDay>=0?'var(--green)':'var(--red)')+'">'+calPlFmt(moWorstDay)+'</div></div>':'')+
+        (moBestDay!==null&&!isMixedCcy(monthTrades)?'<div class="js-stat-cell"><div class="js-stat-lbl">Best Day</div><div style="font-size:20px;font-weight:700;font-family:DM Mono,monospace;color:var(--green)">'+calPlFmt(moBestDay)+'</div></div>':'')+
+        (moWorstDay!==null&&!isMixedCcy(monthTrades)?'<div style="padding:12px 14px"><div class="js-stat-lbl">Worst Day</div><div style="font-size:20px;font-weight:700;font-family:DM Mono,monospace;color:'+(moWorstDay>=0?'var(--green)':'var(--red)')+'">'+calPlFmt(moWorstDay)+'</div></div>':'')+
       '</div>'+
     '</div>';
     monthSummaryHtml='<details class="cal-summary-details" style="margin-top:12px">'+
-      '<summary>Month Summary — '+moTitle+' · '+calPlFmt(moPl)+(moPlPct!==0?' / '+calPctFmt(moPlPct):'')+' </summary>'+
+      '<summary>Month Summary — '+moTitle+' · '+calPlFmtM(monthTrades,moPl)+(moPlPct!==0?' / '+calPctFmt(moPlPct):'')+' </summary>'+
       summaryInner+
     '</details>';
   }
@@ -23940,7 +23984,7 @@ function calRenderWeek(){
       var dayAllPending=dayTrades.every(function(t){return !t.exitPrice;});
       dayPlHtml='<div style="margin-top:6px;padding-top:5px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:2px">'+
         '<div style="display:flex;align-items:baseline;gap:5px">'+
-          '<span style="font-size:10px;font-weight:700;font-family:DM Mono,monospace;color:'+(dayAllPending?'var(--pending)':(dayPl>=0?'var(--green)':'var(--red)'))+'">'+calPlFmt(dayPl)+'</span>'+
+          '<span style="font-size:10px;font-weight:700;font-family:DM Mono,monospace;color:'+(dayAllPending?'var(--pending)':(dayPl>=0?'var(--green)':'var(--red)'))+'">'+calPlFmtM(dayTrades,dayPl)+'</span>'+
           (dayPlPct!==0?'<span style="font-size:9px;font-weight:600;font-family:DM Mono,monospace;color:'+(dayPlPct>=0?'var(--green)':'var(--red)')+'">'+calPctFmt(dayPlPct)+'</span>':'')+
         '</div>'+
         '<div style="display:flex;gap:6px;flex-wrap:wrap">'+
@@ -23982,7 +24026,7 @@ function calRenderWeek(){
     '<div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">'+
       '<span style="font-size:12px;font-weight:700;color:var(--text2)">Week Summary — '+titleStr+'</span>'+
       '<div style="display:flex;align-items:baseline;gap:7px">'+
-        '<span style="font-size:18px;font-weight:700;font-family:DM Mono,monospace;color:'+(wPl>=0?'var(--green)':'var(--red)')+'">'+calPlFmt(wPl)+'</span>'+
+        '<span style="font-size:18px;font-weight:700;font-family:DM Mono,monospace;color:'+(wPl>=0?'var(--green)':'var(--red)')+'">'+calPlFmtM(weekTrades,wPl)+'</span>'+
         (wPlPct!==0?'<span style="font-size:12px;font-weight:600;font-family:DM Mono,monospace;color:'+(wPlPct>=0?'var(--green)':'var(--red)')+'">'+calPctFmt(wPlPct)+'</span>':'')+
       '</div>'+
     '</div>'+
@@ -23990,8 +24034,8 @@ function calRenderWeek(){
       '<div class="js-stat-cell"><div class="js-stat-lbl">Trades</div><div class="js-val-lg">'+weekTrades.length+'</div></div>'+
       '<div class="js-stat-cell"><div class="js-stat-lbl">Win Rate</div><div class="js-val-lg">'+wWinRate+'%</div><div class="js-hint-mt"><span style="color:var(--green)">'+wWins+'W</span> / <span style="color:var(--red)">'+wLosses+'L</span></div></div>'+
       (avgRR!=null?'<div class="js-stat-cell"><div class="js-stat-lbl">Avg RR</div><div class="js-val-lg">'+avgRR.toFixed(2)+'R</div></div>':'')+
-      (wBestDay!==null?'<div class="js-stat-cell"><div class="js-stat-lbl">Best Day</div><div style="font-size:20px;font-weight:700;font-family:DM Mono,monospace;color:var(--green)">'+calPlFmt(wBestDay)+'</div></div>':'')+
-      (wWorstDay!==null?'<div style="padding:12px 14px"><div class="js-stat-lbl">Worst Day</div><div style="font-size:20px;font-weight:700;font-family:DM Mono,monospace;color:'+(wWorstDay>=0?'var(--green)':'var(--red)')+'">'+calPlFmt(wWorstDay)+'</div></div>':'')+
+      (wBestDay!==null&&!isMixedCcy(weekTrades)?'<div class="js-stat-cell"><div class="js-stat-lbl">Best Day</div><div style="font-size:20px;font-weight:700;font-family:DM Mono,monospace;color:var(--green)">'+calPlFmt(wBestDay)+'</div></div>':'')+
+      (wWorstDay!==null&&!isMixedCcy(weekTrades)?'<div style="padding:12px 14px"><div class="js-stat-lbl">Worst Day</div><div style="font-size:20px;font-weight:700;font-family:DM Mono,monospace;color:'+(wWorstDay>=0?'var(--green)':'var(--red)')+'">'+calPlFmt(wWorstDay)+'</div></div>':'')+
     '</div>'+
   '</div>';
   document.getElementById('cal-body').innerHTML=html;
@@ -24039,14 +24083,14 @@ function calRenderYear(){
     var monthName=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][mo];
     var daysInMo=new Date(y,mo+1,0).getDate();
     var firstDow=new Date(y,mo,1).getDay();
-    var moPl=0,moPlPct=0,moCnt=0,moWins=0,moLosses=0,moRRSum=0,moRRCnt=0;
+    var moPl=0,moPlPct=0,moCnt=0,moWins=0,moLosses=0,moRRSum=0,moRRCnt=0,moTrades=[];
     // Mini dot grid (kept for visual day-pattern)
     var miniHtml='<div class="cal-year-mini-grid">';
     for(var pad=0;pad<firstDow;pad++)miniHtml+='<div class="cal-year-dot off"></div>';
     for(var dd=1;dd<=daysInMo;dd++){
       var key=y+'-'+String(mo+1).padStart(2,'0')+'-'+String(dd).padStart(2,'0');
       var dt=byDay[key]||[];
-      moCnt+=dt.length;
+      moCnt+=dt.length;moTrades=moTrades.concat(dt);
       var pl=dt.reduce(function(a,t){return a+(parseFloat(t.plDollar)||0);},0);
       moPl+=pl;
       moPlPct+=dt.reduce(function(a,t){return a+(parseFloat(t.plPct)||0);},0);
@@ -24062,7 +24106,7 @@ function calRenderYear(){
       miniHtml+='<div class="'+dotCls+'" title="'+key+(dt.length?' · '+dt.length+' trade'+(dt.length>1?'s':''):'')+'"></div>';
     }
     miniHtml+='</div>';
-    monthStats.push({name:monthName,mo:mo,cnt:moCnt,pl:moPl,plPct:moPlPct,wins:moWins,losses:moLosses,avgRR:moRRCnt?moRRSum/moRRCnt:null});
+    monthStats.push({name:monthName,mo:mo,cnt:moCnt,trades:moTrades,pl:moPl,plPct:moPlPct,wins:moWins,losses:moLosses,avgRR:moRRCnt?moRRSum/moRRCnt:null});
     var moAvgRR=moRRCnt?moRRSum/moRRCnt:null;
     var moWR=moCnt?(moWins/moCnt*100).toFixed(0):null;
     var heatCls=moHeatClass(moCnt,moPl);
@@ -24085,7 +24129,7 @@ function calRenderYear(){
     html+='<div class="'+cardCls+'" onclick="calClickYearMonth('+y+','+mo+')">'+
       '<div class="cal-year-month-header">'+
         '<div class="cal-year-month-name">'+monthName+' '+y+'</div>'+
-        (moCnt?'<div style="display:flex;align-items:baseline;gap:5px"><div class="cal-year-month-pl '+(moPl>=0?'pos':'neg')+'">'+calPlFmt(moPl)+'</div>'+(moPlPct!==0?'<div style="font-size:10px;font-weight:600;font-family:DM Mono,monospace;color:'+(moPlPct>=0?'var(--green)':'var(--red)')+'">'+calPctFmt(moPlPct)+'</div>':'')+'</div>':'')+
+        (moCnt?'<div style="display:flex;align-items:baseline;gap:5px"><div class="cal-year-month-pl '+(moPl>=0?'pos':'neg')+'">'+calPlFmtM(moTrades,moPl)+'</div>'+(moPlPct!==0?'<div style="font-size:10px;font-weight:600;font-family:DM Mono,monospace;color:'+(moPlPct>=0?'var(--green)':'var(--red)')+'">'+calPctFmt(moPlPct)+'</div>':'')+'</div>':'')+
       '</div>'+
       cardBody+
     '</div>';
@@ -24103,7 +24147,7 @@ function calRenderYear(){
         '<span>Wins: <strong style="color:var(--green)">'+ms.wins+'</strong> / Losses: <strong style="color:var(--red)">'+ms.losses+'</strong></span>'+
         '<span>WR: <strong>'+wr+'%</strong></span>'+
         (ms.avgRR!=null?'<span>Avg RR: <strong>'+ms.avgRR.toFixed(2)+'R</strong></span>':'')+
-        '<span>P/L: <strong style="color:'+(ms.pl>=0?'var(--green)':'var(--red)')+'">'+calPlFmt(ms.pl)+'</strong>'+(ms.plPct!==0?' <strong style="color:'+(ms.plPct>=0?'var(--green)':'var(--red)')+';font-size:10px">'+calPctFmt(ms.plPct)+'</strong>':'')+' </span>'+
+        '<span>P/L: <strong style="color:'+(ms.pl>=0?'var(--green)':'var(--red)')+'">'+calPlFmtM(ms.trades,ms.pl)+'</strong>'+(ms.plPct!==0?' <strong style="color:'+(ms.plPct>=0?'var(--green)':'var(--red)')+';font-size:10px">'+calPctFmt(ms.plPct)+'</strong>':'')+' </span>'+
         '</div>';
     });
     html+='<details class="cal-summary-details">'+
@@ -24135,7 +24179,7 @@ function calRenderYear(){
       '<div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">'+
         '<span style="font-size:12px;font-weight:700;color:var(--text2)">'+y+'</span>'+
         '<div style="display:flex;align-items:baseline;gap:7px">'+
-          '<span style="font-size:18px;font-weight:700;font-family:DM Mono,monospace;color:'+(yrPl>=0?'var(--green)':'var(--red)')+'">'+calPlFmt(yrPl)+'</span>'+
+          '<span style="font-size:18px;font-weight:700;font-family:DM Mono,monospace;color:'+(yrPl>=0?'var(--green)':'var(--red)')+'">'+calPlFmtM(yrTrades,yrPl)+'</span>'+
           (yrPlPct!==0?'<span style="font-size:12px;font-weight:600;font-family:DM Mono,monospace;color:'+(yrPlPct>=0?'var(--green)':'var(--red)')+'">'+calPctFmt(yrPlPct)+'</span>':'')+
         '</div>'+
       '</div>'+
@@ -24144,12 +24188,12 @@ function calRenderYear(){
         '<div class="js-stat-cell"><div class="js-stat-lbl">Win Rate</div><div class="js-val-lg">'+yrWinRate+'%</div><div class="js-hint-mt"><span style="color:var(--green)">'+yrWins+'W</span> / <span style="color:var(--red)">'+yrLosses+'L</span></div></div>'+
         (yrAvgRR!=null?'<div class="js-stat-cell"><div class="js-stat-lbl">Avg RR</div><div class="js-val-lg">'+yrAvgRR.toFixed(2)+'R</div></div>':'')+
         '<div class="js-stat-cell"><div class="js-stat-lbl">Active Months</div><div class="js-val-lg">'+activeMonths.length+' / 12</div></div>'+
-        (yrBestMo!==null?'<div class="js-stat-cell"><div class="js-stat-lbl">Best Month</div><div style="font-size:14px;font-weight:700;font-family:DM Mono,monospace;color:var(--green)">'+calPlFmt(yrBestMo)+'</div><div class="js-hint-mt">'+yrBestMoName+'</div></div>':'')+
-        (yrWorstMo!==null?'<div style="padding:12px 14px"><div class="js-stat-lbl">Worst Month</div><div style="font-size:14px;font-weight:700;font-family:DM Mono,monospace;color:'+(yrWorstMo>=0?'var(--green)':'var(--red)')+'">'+calPlFmt(yrWorstMo)+'</div><div class="js-hint-mt">'+yrWorstMoName+'</div></div>':'')+
+        (yrBestMo!==null&&!isMixedCcy(yrTrades)?'<div class="js-stat-cell"><div class="js-stat-lbl">Best Month</div><div style="font-size:14px;font-weight:700;font-family:DM Mono,monospace;color:var(--green)">'+calPlFmt(yrBestMo)+'</div><div class="js-hint-mt">'+yrBestMoName+'</div></div>':'')+
+        (yrWorstMo!==null&&!isMixedCcy(yrTrades)?'<div style="padding:12px 14px"><div class="js-stat-lbl">Worst Month</div><div style="font-size:14px;font-weight:700;font-family:DM Mono,monospace;color:'+(yrWorstMo>=0?'var(--green)':'var(--red)')+'">'+calPlFmt(yrWorstMo)+'</div><div class="js-hint-mt">'+yrWorstMoName+'</div></div>':'')+
       '</div>'+
     '</div>';
     html+='<details class="cal-summary-details" style="margin-top:12px">'+
-      '<summary>Year Summary — '+y+' · '+calPlFmt(yrPl)+(yrPlPct!==0?' / '+calPctFmt(yrPlPct):'')+' </summary>'+
+      '<summary>Year Summary — '+y+' · '+calPlFmtM(yrTrades,yrPl)+(yrPlPct!==0?' / '+calPctFmt(yrPlPct):'')+' </summary>'+
       yrSummaryInner+
     '</details>';
   }
@@ -24209,7 +24253,7 @@ function calShowDayDetail(key){
   }
   var summaryHtml='<div style="display:flex;gap:16px;margin-bottom:12px;flex-wrap:wrap">'+
     '<div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;font-weight:700">Trades</div><div style="font-size:18px;font-weight:700;font-family:DM Mono,monospace">'+dayTrades.length+'</div></div>'+
-    '<div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;font-weight:700">P/L</div><div style="font-size:18px;font-weight:700;font-family:DM Mono,monospace;color:'+(dayAllPending?'var(--pending)':(pl>=0?'var(--green)':'var(--red)'))+'">'+calPlFmt(pl)+'</div></div>'+
+    '<div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;font-weight:700">P/L</div><div style="font-size:18px;font-weight:700;font-family:DM Mono,monospace;color:'+(dayAllPending?'var(--pending)':(pl>=0?'var(--green)':'var(--red)'))+'">'+calPlFmtM(dayTrades,pl)+'</div></div>'+
     '<div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;font-weight:700">Win rate</div><div style="font-size:18px;font-weight:700;font-family:DM Mono,monospace">'+(dayTrades.length?(wins/dayTrades.length*100).toFixed(0):0)+'%</div></div>'+
     (avgRR!=null?'<div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;font-weight:700">Avg RR</div><div style="font-size:18px;font-weight:700;font-family:DM Mono,monospace">'+avgRR.toFixed(2)+'R</div></div>':'')+
     '</div>';
