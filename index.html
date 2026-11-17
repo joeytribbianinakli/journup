@@ -2735,6 +2735,10 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
         </div>
         <div class="form-section">
           <div class="fsec-title">Pricing &amp; sizing</div>
+          <div class="frow" id="f-fx-row" style="display:none;max-width:320px;margin-bottom:10px">
+            <label class="flabel" style="display:inline-flex;align-items:center">USD/CAD rate (CAD per 1 USD)<span class="th-info" tabindex="0">i<span class="th-info-tip">This session's account is in CAD. P/L on USD-quoted pairs (EUR/USD, gold, stocks...) is converted USD to CAD at this rate. It is filled from the position size calculator, or the live rate; edit it to the rate you actually used. It is saved with the trade.</span></span></label>
+            <input type="number" id="f-fxrate" step="any" min="0" placeholder="e.g. 1.4000" oninput="onLogFxInput()">
+          </div>
           <!-- Row 1: Balance used | Risk % | Target RR -->
           <div class="frow-inline">
             <div class="frow"><label class="flabel" style="display:inline-flex;align-items:center">Balance used (<span id="f-acct-ccy">$</span>)<span class="th-info" tabindex="0">i<span class="th-info-tip">The number before "/" is the portion actually committed to this trade — carried over from the position size calculator, and locked here since it was already set when you sized this trade there. The number after "/" is your session's full capital and can't be changed here.</span></span></label><div class="bal-split"><div class="bal-split-input-wrap"><span class="bal-split-prefix" id="f-acct-prefix">$</span><input type="number" id="f-acct" value="5000" readonly style="color:var(--text3);cursor:default" title="Balance committed to this trade — auto-filled from selected session"></div><span class="bal-split-sep">/</span><span id="f-acct-total" class="bal-split-total" title="Session's total capital (fixed)">$5,000</span></div></div>
@@ -9079,11 +9083,14 @@ function plSplitHtml(arr,fees){
     return'<div style="color:var(--'+(v>=0?'green':'red')+');font-size:17px;line-height:1.3">'+_plSigned(v,ccySym(c))+' <span style="font-size:10px;color:var(--text3)">'+c+'</span></div>';
   }).join('');
 }
+// Symbol for the dollar figures on the dashboard/analytics: C$ when everything in view is CAD, else $.
+var _viewSym='$';
+function setViewSym(arr){_viewSym=(arr&&arr.length&&arr.every(function(t){return tradeCcy(t)==='CAD';}))?'C$':'$';}
 // Dollar bar charts (Avg/Total P/L by category). Single currency: the usual green/red bars.
 // Mixed USD+CAD: two grouped bars per category (one per currency) so nothing is added across currencies.
 function plDs(label,plData,arrs,c,kind){
   var all=[].concat.apply([],arrs);
-  if(!isMixedCcy(all))return[{label:label+' ($)',data:plData,backgroundColor:plData.map(function(v){return v>=0?c.green:c.red;}),borderRadius:4}];
+  if(!isMixedCcy(all))return[{label:label+' ('+_viewSym+')',data:plData,backgroundColor:plData.map(function(v){return v>=0?c.green:c.red;}),borderRadius:4}];
   var f=function(cc){return arrs.map(function(a){
     var x=a.filter(function(t){return tradeCcy(t)===cc;});if(!x.length)return 0;
     var sm=x.reduce(function(q,t){return q+(t.plDollar||0);},0);
@@ -9093,9 +9100,9 @@ function plDs(label,plData,arrs,c,kind){
 }
 function avgPLtxt(arr,v){
   if(v==null)return'\u2014';
-  if(!isMixedCcy(arr))return'$'+v.toFixed(0);
+  if(!isMixedCcy(arr))return _viewSym+v.toFixed(0);
   var b=plByCcy(arr);
-  return['USD','CAD'].filter(function(c){return b.n[c];}).map(function(c){return ccySym(c)+(b[c]/b.n[c]).toFixed(0);}).join(' / ');
+  return['USD','CAD'].filter(function(c){return b.n[c];}).map(function(c){return ccySym(c)+(b[c]/b.n[c]).toFixed(0);}).join('\u00b7');
 }
 function calPlFmtM(arr,v){
   if(!isMixedCcy(arr))return calPlFmt(v);
@@ -9128,7 +9135,7 @@ function pairExtremesMixed(buckets,keys,which){
       var v=x.reduce(function(a,t){return a+(t.plDollar||0);},0);
       if(best===null||(which==='best'?v>best:v<best)){best=v;bk=k;}
     });
-    if(bk!==null){names.push(cc+' '+bk);subs.push(_plSigned(best,ccySym(cc)));}
+    if(bk!==null){names.push(cc+': '+bk);subs.push(_plSigned(best,ccySym(cc)));}
   });
   return{names:names.join(' \u00b7 '),sub:subs.join(' \u00b7 ')};
 }
@@ -9537,7 +9544,7 @@ function randChoice(arr){return arr[Math.floor(Math.random()*arr.length)];}
 // sessions exercise the skipped-trade P/L and history-filter code paths too. Returns
 // {trades, finalEquity, skippedCount} — saveSession() below assigns trade numbers and persists
 // the array; nothing here writes to IndexedDB directly.
-async function generateDemoTrades(sessionId,sessionStartDate,sessionEndDate,startingEquity,count,selectedAssets,durationOpts,riskPct,targetRR){
+async function generateDemoTrades(sessionId,sessionStartDate,sessionEndDate,startingEquity,count,selectedAssets,durationOpts,riskPct,targetRR,demoCcy){
   riskPct=(typeof riskPct==='number'&&riskPct>0)?riskPct:1;
   targetRR=(typeof targetRR==='number'&&targetRR>0)?targetRR:3;
   // Pull real user settings so demo trades match the actual form options
@@ -9740,6 +9747,7 @@ async function generateDemoTrades(sessionId,sessionStartDate,sessionEndDate,star
       acct:acct,
       riskpct:riskPct,
       riskDollar:parseFloat(riskDollar.toFixed(2)),
+      ccy:demoCcy==='CAD'?'CAD':'USD',fxRate:demoCcy==='CAD'?(acctFxRate()||1.4):null,
       entryPrice:entry,
       stopLoss:sl,
       exitPrice:exitPrice,
@@ -9926,6 +9934,7 @@ async function generateDemoTrades(sessionId,sessionStartDate,sessionEndDate,star
       actualRR:sActualRR,
       plDollar:sPlDollar,
       plPct:sPlPct,
+      ccy:demoCcy==='CAD'?'CAD':'USD',fxRate:demoCcy==='CAD'?(acctFxRate()||1.4):null,
       entryTime:fmtDt2(sEntryDt),
       exitTime:fmtDt2(sExitDt),
       durationMin:sActualDurMs>0?Math.round(sActualDurMs/60000):null,
@@ -10054,7 +10063,7 @@ async function saveSession(){
     if(saveBtn){saveBtn.disabled=true;saveBtn.textContent='Generating trades…';}
     try{
       // Fetch available strategies for demo
-      var result=await generateDemoTrades(sess.id,startDate,endDate,startingEquity,demoCount,selectedDemoAssets,demoDurationOpts,demoRiskPct,demoTargetRR);
+      var result=await generateDemoTrades(sess.id,startDate,endDate,startingEquity,demoCount,selectedDemoAssets,demoDurationOpts,demoRiskPct,demoTargetRR,currency);
       var trades=result.trades;
       var allExistingTrades=await dbGetAll('trades');
       var baseNum=allExistingTrades.length;
@@ -11559,8 +11568,11 @@ function setAcctCtxFromSession(sess){
   else{
     var lc=window._lastCalcFx;
     var r=(lc&&lc.ccy==='CAD'&&lc.rate>0)?lc.rate:acctFxRate();
-    _acctCtx={ccy:'CAD',rate:r||1};
-    if(!r&&typeof fxDoFetch==='function'){try{fxDoFetch();}catch(e){}}
+    _acctCtx={ccy:'CAD',rate:r||null};
+    if(!r&&typeof fxDoFetch==='function'){
+      try{fxDoFetch();}catch(e){}
+      setTimeout(function(){if(_acctCtx.ccy==='CAD'&&!(_acctCtx.rate>0)){var r2=acctFxRate();if(r2){_acctCtx.rate=r2;updateLogCcyUI();if(typeof recalc==='function')recalc();}}},3500);
+    }
   }
   updateLogCcyUI();
 }
@@ -11570,8 +11582,16 @@ async function _ensureAcctCtx(sessionId){
   var sess=sessions.find(function(x){return x.id===sessionId;});
   if(sess&&sessionCcyOf(sess)!==_acctCtx.ccy)setAcctCtxFromSession(sess);
 }
+function onLogFxInput(){
+  var v=parseFloat((document.getElementById('f-fxrate')||{}).value);
+  _acctCtx.rate=v>0?v:null;
+  if(typeof recalc==='function')recalc();
+}
 function updateLogCcyUI(){
   var S=ccySym(_acctCtx.ccy);
+  var fr=document.getElementById('f-fx-row'),fi=document.getElementById('f-fxrate');
+  if(fr)fr.style.display=_acctCtx.ccy==='CAD'?'':'none';
+  if(fi&&document.activeElement!==fi)fi.value=(_acctCtx.ccy==='CAD'&&_acctCtx.rate>0)?String(parseFloat(_acctCtx.rate.toFixed(5))):'';
   var a=document.getElementById('f-acct-ccy');if(a)a.textContent=S;
   var b=document.getElementById('f-acct-prefix');if(b)b.textContent=S;
   var c=document.getElementById('f-acct-total');if(c&&/^[^0-9]*[0-9]/.test(c.textContent))c.textContent=c.textContent.replace(/^[^0-9]+/,S);
@@ -12059,6 +12079,7 @@ async function saveTrade(){
   if(!pair){toast('Please select a pair','err');switchTab(0,null);return;}
   var sessionId=document.getElementById('f-session').value;
   await _ensureAcctCtx(sessionId);
+  if(_acctCtx.ccy==='CAD'&&!(_acctCtx.rate>0)){toast('Enter the USD/CAD rate (CAD per 1 USD) for this CAD session first','err');var _fx=document.getElementById('f-fxrate');if(_fx)_fx.focus();return;}
   if(!sessionId){toast('Please select a session','err');switchTab(0,null);return;}
   // ── Mandatory field checks ──
   // Tab 0 (Trade info)
@@ -14892,6 +14913,7 @@ async function _renderDashboardImpl(){
     return true;
   });
   trades=enrichSkippedPL(trades);
+  setViewSym(trades);
   var n=trades.length,wins=trades.filter(function(t){return t.winLoss===1});
   var wr=n?((wins.length/n)*100).toFixed(1):'0';
   var totalPL=trades.reduce(function(a,t){return a+(t.plDollar||0)},0);
@@ -14932,7 +14954,7 @@ async function _renderDashboardImpl(){
     document.getElementById('dash-pl-card').className='stat-card';
     document.getElementById('dash-pl-card').innerHTML='<div class="stat-label">Total P/L <span style="font-size:9px;color:var(--text3)">(per currency)</span></div><div class="stat-value" id="dash-pl-val" style="font-size:inherit">'+plSplitHtml(trades)+'</div><div class="stat-sub" id="dash-pl-sub">USD '+(_pU>=0?'+':'')+_pU.toFixed(2)+'% · CAD '+(_pC>=0?'+':'')+_pC.toFixed(2)+'%</div><div class="stat-sub" id="dash-fees-line" style="color:var(--text3);font-size:10px;margin-top:2px"></div>';
   } else
-  document.getElementById('dash-pl-card').innerHTML='<div class="stat-label">Total P/L</div><div class="stat-value '+(totalPL>=0?'pos':'neg')+'" id="dash-pl-val">'+plSign+totalPL.toFixed(2)+'</div><div class="stat-sub" id="dash-pl-sub">'+(totalPLpct>=0?'+':'')+totalPLpct.toFixed(2)+'% · $'+baselineForStats.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+' \u2192 $'+finalEquity.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+'</div><div class="stat-sub" id="dash-fees-line" style="color:var(--text3);font-size:10px;margin-top:2px"></div>';
+  document.getElementById('dash-pl-card').innerHTML='<div class="stat-label">Total P/L</div><div class="stat-value '+(totalPL>=0?'pos':'neg')+'" id="dash-pl-val">'+plSign+totalPL.toFixed(2)+'</div><div class="stat-sub" id="dash-pl-sub">'+(totalPLpct>=0?'+':'')+totalPLpct.toFixed(2)+'% · '+_viewSym+baselineForStats.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+' \u2192 '+_viewSym+finalEquity.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+'</div><div class="stat-sub" id="dash-fees-line" style="color:var(--text3);font-size:10px;margin-top:2px"></div>';
   document.getElementById('dash-stat-rr').innerHTML='<div class="stat-label">Avg RR · PF</div><div class="stat-value '+(avgRR!=null?(avgRR>=0?'pos':'neg'):'')+'">'+( avgRR!=null?avgRR.toFixed(2)+'R':'—')+'</div><div class="stat-sub">PF: '+pf+'</div>';
   document.getElementById('dash-stat-hold').innerHTML='<div class="stat-label">Avg hold time</div><div class="stat-value" style="font-size:20px">'+durDisplay+'</div><div class="stat-sub">'+durSub+'</div>';
   _dashRenderStreaksMini(trades);
@@ -14958,6 +14980,8 @@ async function _renderDashboardImpl(){
     if(_plMixed){
       var _pv=document.getElementById('dash-pl-val'),_fl=document.getElementById('dash-fees-line');
       if(_pv)_pv.innerHTML=plSplitHtml(trades,_feesBy);
+      var _nU=_bU>0?((_pb.USD-_feesBy.USD)/_bU*100):0,_nC=_bC>0?((_pb.CAD-_feesBy.CAD)/_bC*100):0,_sb=document.getElementById('dash-pl-sub');
+      if(_sb)_sb.textContent='USD '+(_nU>=0?'+':'')+_nU.toFixed(2)+'% \u00b7 CAD '+(_nC>=0?'+':'')+_nC.toFixed(2)+'%';
       if(_fl)_fl.textContent='est. fees: '+(_feesBy.USD?'-$'+_feesBy.USD.toFixed(2):'')+(_feesBy.USD&&_feesBy.CAD?' · ':'')+(_feesBy.CAD?'-C$'+_feesBy.CAD.toFixed(2):'');
       return;
     }
@@ -14972,8 +14996,8 @@ async function _renderDashboardImpl(){
     if(plValEl)  plValEl.textContent = netSign + netPL.toFixed(2);
     if(plValEl)  plValEl.className   = 'stat-value ' + (netPL >= 0 ? 'pos' : 'neg');
     if(plCard){  plCard.className    = 'stat-card'; }
-    if(plSubEl)  plSubEl.textContent = (netPct>=0?'+':'')+netPct.toFixed(2)+'% · $'+baselineForStats.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+' \u2192 $'+netEquity.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
-    if(feesLine) feesLine.textContent = 'est. fees: -$'+totalFees.toFixed(2);
+    if(plSubEl)  plSubEl.textContent = (netPct>=0?'+':'')+netPct.toFixed(2)+'% · '+_viewSym+baselineForStats.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+' \u2192 '+_viewSym+netEquity.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+    if(feesLine) feesLine.textContent = 'est. fees: -'+_viewSym+totalFees.toFixed(2);
   })();
   var sorted=trades.slice().sort(function(a,b){return new Date(a.entryTime||a.savedAt)-new Date(b.entryTime||b.savedAt)});
   // ── Equity curve & Cumulative P/L ──────────────────────────────
@@ -15114,12 +15138,12 @@ async function _renderDashboardImpl(){
   var eqBgColor=eqTrending?chartColors().greenBg:chartColors().redBg;
   if(eqData.length){
     var eqLabel=document.getElementById('dash-equity-label');
-    if(eqLabel)eqLabel.textContent=_eqMixed?('Current: $'+eU[eU.length-1].toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+' \u00b7 C$'+eC[eC.length-1].toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})):'Current: $'+eqData[eqData.length-1].toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+    if(eqLabel)eqLabel.textContent=_eqMixed?('Current: $'+eU[eU.length-1].toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+' \u00b7 C$'+eC[eC.length-1].toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})):'Current: '+_viewSym+eqData[eqData.length-1].toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
   }
   if(charts.equity)charts.equity.destroy();
   var _cvEquity=document.getElementById('chart-equity');
   if(_cvEquity)
-    charts.equity=safeChart(_cvEquity.getContext('2d'),{type:'line',data:{labels:eqLabels,datasets:(_eqDS||[{label:'Equity ($)',data:eqData,borderColor:eqColor,backgroundColor:eqBgColor,borderWidth:2,pointRadius:curvePointRadius(eqData.length),pointHoverRadius:curvePointHoverRadius(eqData.length),fill:true,tension:0.3}])},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:_eqMixed,labels:{boxWidth:10,font:{size:10}}}},scales:{x:{ticks:{maxTicksLimit:10,color:chartColors().tick,font:{size:10}},grid:{color:chartColors().grid}},y:{ticks:{callback:function(v){return(_eqMixed?'':'$')+v.toLocaleString()},color:chartColors().tick,font:{size:10}},grid:{color:chartColors().grid},suggestedMin:_eqMixed?undefined:eqMin*0.995,suggestedMax:_eqMixed?undefined:eqMax*1.005}}}});
+    charts.equity=safeChart(_cvEquity.getContext('2d'),{type:'line',data:{labels:eqLabels,datasets:(_eqDS||[{label:'Equity ('+_viewSym+')',data:eqData,borderColor:eqColor,backgroundColor:eqBgColor,borderWidth:2,pointRadius:curvePointRadius(eqData.length),pointHoverRadius:curvePointHoverRadius(eqData.length),fill:true,tension:0.3}])},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:_eqMixed,labels:{boxWidth:10,font:{size:10}}}},scales:{x:{ticks:{maxTicksLimit:10,color:chartColors().tick,font:{size:10}},grid:{color:chartColors().grid}},y:{ticks:{callback:function(v){return(_eqMixed?'':_viewSym)+v.toLocaleString()},color:chartColors().tick,font:{size:10}},grid:{color:chartColors().grid},suggestedMin:_eqMixed?undefined:eqMin*0.995,suggestedMax:_eqMixed?undefined:eqMax*1.005}}}});
   // Drawdown (moved here from Trade Analytics — it's computed from this same equity/trades
   // series, so it lives right next to the Equity Curve it's derived from).
   _renderDrawdownAnalytics(trades,allSess);
@@ -15130,7 +15154,7 @@ async function _renderDashboardImpl(){
     var typ=t.type||'';
     return'<tr onclick="openDetail(\''+t.id+'\')">'      +'<td style="color:var(--text);font-weight:600;font-family:DM Mono,monospace">#'+escHtml(t.num||'')+'</td>'      +'<td style="color:var(--text);font-weight:600">'+escHtml(t.pair||'')+'</td>'      +'<td>'+(typ?'<span class="badge '+(typ==='Long'?'badge-green':'badge-red')+'">'+typ+'</span>':'—')+'</td>'      +'<td><span class="badge '+(win?'badge-green':'badge-red')+'">'+(win?'Win':'Loss')+'</span></td>'      +'<td class="mono" style="color:'+(pl>=0?'var(--green)':'var(--red)')+'">'+((pl>=0?'+':'')+pl.toFixed(2))+'</td>'      +'<td class="mono">'+(t.actualRR!=null?parseFloat(t.actualRR).toFixed(2)+'R':'—')+'</td>'      +'</tr>';
   }).join('');
-  document.getElementById('dash-recent').innerHTML=!recent.length?'<div class="empty-state"><svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg><p>No trades yet</p><button class="btn btn-primary" onclick="startNewTrade()">Log your first trade</button></div>':'<table class="data"><thead><tr><th>Trade #</th><th>Pair</th><th>Type</th><th>Result</th><th>P/L ($)</th><th>RR</th></tr></thead><tbody>'+recentRows+'</tbody></table>';
+  document.getElementById('dash-recent').innerHTML=!recent.length?'<div class="empty-state"><svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg><p>No trades yet</p><button class="btn btn-primary" onclick="startNewTrade()">Log your first trade</button></div>':'<table class="data"><thead><tr><th>Trade #</th><th>Pair</th><th>Type</th><th>Result</th><th>P/L ('+_viewSym+')</th><th>RR</th></tr></thead><tbody>'+recentRows+'</tbody></table>';
 }
 // ══ Shared trade-stat helpers ═══════════════════════
 // Used by all trade-analytics renderers below (quality/category/direction/time).
@@ -15276,7 +15300,7 @@ function _renderQualityAnalytics(trades){
   var errPLColors=errPLData.map(function(v){return v>=0?c.green:c.red;});
   if(charts.errorPL)charts.errorPL.destroy();
   var _cvEP=document.getElementById('chart-error-pl');
-  if(_cvEP)charts.errorPL=safeChart(_cvEP.getContext('2d'),{type:'bar',data:{labels:errPLLabels,datasets:plDs('Avg P/L',errPLData,errPLArrs,c,'avg')},options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:10},callback:function(v){return'$'+v;}},grid:{color:c.grid}},y:{ticks:{color:c.tick,font:{size:10}},grid:{display:false}}}},plugins:[barValueLabelsPlugin('barVL11443')]});
+  if(_cvEP)charts.errorPL=safeChart(_cvEP.getContext('2d'),{type:'bar',data:{labels:errPLLabels,datasets:plDs('Avg P/L',errPLData,errPLArrs,c,'avg')},options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:10},callback:function(v){return _viewSym+v;}},grid:{color:c.grid}},y:{ticks:{color:c.tick,font:{size:10}},grid:{display:false}}}},plugins:[barValueLabelsPlugin('barVL11443')]});
   // ── Error type impact table ──
   // Row order and the two right-most columns answer the questions a raw average
   // can't:
@@ -15468,6 +15492,7 @@ async function _renderTradeAnalyticsImpl(){
     return true;
   });
   trades=enrichSkippedPL(trades);
+  setViewSym(trades);
   _renderQualityAnalytics(trades);
   _renderVolumeAnalytics(trades);
   _renderOutcomeAnalytics(trades);
@@ -16046,8 +16071,8 @@ function _renderCategoryAnalytics(trades,field,emptyLabel,statsElId,wrChartId,pl
       '<div class="stat-card"><div class="stat-label">'+label+' categories</div><div class="stat-value">'+keys.length+'</div><div class="stat-sub">'+trades.length+' trades in current filter</div></div>'+
       '<div class="stat-card"><div class="stat-label">Most traded</div><div class="stat-value" style="font-size:15px">'+(byVolume?escHtml(byVolume):'—')+'</div><div class="stat-sub">'+(byVolume?buckets[byVolume].length+' trades':'no trades')+'</div></div>'+
       '<div class="stat-card '+(bestWRKey?'green':'')+'"><div class="stat-label">Best win rate</div><div class="stat-value" style="font-size:15px">'+(bestWRKey?escHtml(bestWRKey):'—')+'</div><div class="stat-sub">'+(bestWRKey?bestWR.toFixed(0)+'% · '+buckets[bestWRKey].length+' trade'+(buckets[bestWRKey].length===1?'':'s'):'no trades')+'</div></div>'+
-      '<div class="stat-card '+(bestKey?'green':'')+'"><div class="stat-label">Best avg P/L</div><div class="stat-value" style="font-size:15px">'+(bestKey?escHtml(bestKey):'—')+'</div><div class="stat-sub">'+(bestKey?'$'+bestPL.toFixed(0)+' avg · '+buckets[bestKey].length+' trades':'need 3+ trades in a category')+'</div></div>'+
-      '<div class="stat-card '+(worstKey?'red':'')+'"><div class="stat-label">Weakest avg P/L</div><div class="stat-value" style="font-size:15px">'+(worstKey?escHtml(worstKey):'—')+'</div><div class="stat-sub">'+(worstKey?'$'+worstPL.toFixed(0)+' avg · '+buckets[worstKey].length+' trades':'need 3+ trades in a category')+'</div></div>';
+      '<div class="stat-card '+(bestKey?'green':'')+'"><div class="stat-label">Best avg P/L</div><div class="stat-value" style="font-size:15px">'+(bestKey?escHtml(bestKey):'—')+'</div><div class="stat-sub">'+(bestKey?_viewSym+bestPL.toFixed(0)+' avg · '+buckets[bestKey].length+' trades':'need 3+ trades in a category')+'</div></div>'+
+      '<div class="stat-card '+(worstKey?'red':'')+'"><div class="stat-label">Weakest avg P/L</div><div class="stat-value" style="font-size:15px">'+(worstKey?escHtml(worstKey):'—')+'</div><div class="stat-sub">'+(worstKey?_viewSym+worstPL.toFixed(0)+' avg · '+buckets[worstKey].length+' trades':'need 3+ trades in a category')+'</div></div>';
   }
   // ── Win rate by category (bar) — horizontal layout (matches Pairs charts) when requested ──
   var wrData=keys.map(function(k){var wr=winRate(buckets[k]);return wr!=null?parseFloat(wr.toFixed(1)):0;});
@@ -16060,7 +16085,7 @@ function _renderCategoryAnalytics(trades,field,emptyLabel,statsElId,wrChartId,pl
   var plData=keys.map(function(k){var v=avgPLof(buckets[k]);return v!=null?parseFloat(v.toFixed(2)):0;});
   if(charts[plChartKey])charts[plChartKey].destroy();
   var _cvPL=document.getElementById(plChartId);
-  if(_cvPL)charts[plChartKey]=safeChart(_cvPL.getContext('2d'),{type:'bar',data:{labels:catLabels,datasets:plDs('Avg P/L',plData,keys.map(function(k){return buckets[k];}),c,'avg')},options:horizontal?{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:10},callback:function(v){return'$'+v;}},grid:{color:c.grid}},y:{ticks:{color:c.tick,font:{size:10}},grid:{display:false}}}}:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:9}},grid:{display:false}},y:{ticks:{color:c.tick,font:{size:10},callback:function(v){return'$'+v;}},grid:{color:c.grid}}}},plugins:[barValueLabelsPlugin('barVL12206')]});
+  if(_cvPL)charts[plChartKey]=safeChart(_cvPL.getContext('2d'),{type:'bar',data:{labels:catLabels,datasets:plDs('Avg P/L',plData,keys.map(function(k){return buckets[k];}),c,'avg')},options:horizontal?{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:10},callback:function(v){return _viewSym+v;}},grid:{color:c.grid}},y:{ticks:{color:c.tick,font:{size:10}},grid:{display:false}}}}:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:9}},grid:{display:false}},y:{ticks:{color:c.tick,font:{size:10},callback:function(v){return _viewSym+v;}},grid:{color:c.grid}}}},plugins:[barValueLabelsPlugin('barVL12206')]});
   // ── Breakdown table ──
   var tblHtml=keys.map(function(k){
     var arr=buckets[k],wr=winRate(arr),rr=avgRRof(arr),tp=totalPLof(arr);
@@ -16134,7 +16159,7 @@ function _renderPairAnalytics(trades){
   var plData=keys.map(function(k){return parseFloat(totalPLof(buckets[k].trades).toFixed(2));});
   if(charts.pairsPL)charts.pairsPL.destroy();
   var _cvPP=document.getElementById('chart-pairs-pl');
-  if(_cvPP)charts.pairsPL=safeChart(_cvPP.getContext('2d'),{type:'bar',data:{labels:keys,datasets:plDs('Total P/L',plData,keys.map(function(k){return buckets[k].trades;}),c,'total')},options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:10},callback:function(v){return'$'+v;}},grid:{color:c.grid}},y:{ticks:{color:c.tick,font:{size:10}},grid:{display:false}}}},plugins:[barValueLabelsPlugin('barVLpairsPL')]});
+  if(_cvPP)charts.pairsPL=safeChart(_cvPP.getContext('2d'),{type:'bar',data:{labels:keys,datasets:plDs('Total P/L',plData,keys.map(function(k){return buckets[k].trades;}),c,'total')},options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:10},callback:function(v){return _viewSym+v;}},grid:{color:c.grid}},y:{ticks:{color:c.tick,font:{size:10}},grid:{display:false}}}},plugins:[barValueLabelsPlugin('barVLpairsPL')]});
   // ── Exit criteria by pair (one proportional-width bar per pair, plain
   // HTML/CSS — see .pev-* rules for why this replaced a Chart.js grouped bar
   // chart). Segment widths are percentages of that pair's OWN trade count,
@@ -16403,7 +16428,7 @@ function _renderRiskSizeAnalytics(trades){
     statsEl.innerHTML=
       '<div class="stat-card"><div class="stat-label">Trades with risk % logged</div><div class="stat-value">'+riskedCount+'</div><div class="stat-sub">of '+trades.length+' in current filter</div></div>'+
       '<div class="stat-card '+(bestIdx>=0?'green':'')+'"><div class="stat-label">Best risk-size bucket</div><div class="stat-value" style="font-size:15px">'+(bestIdx>=0?riskLabels[bestIdx]:'—')+'</div><div class="stat-sub">'+(bestIdx>=0?bestWR.toFixed(0)+'% win rate · '+buckets[bestIdx].length+' trades':'need 3+ trades in a bucket')+'</div></div>'+
-      '<div class="stat-card '+(worstIdx>=0?'red':'')+'"><div class="stat-label">Weakest risk-size bucket</div><div class="stat-value" style="font-size:15px">'+(worstIdx>=0?riskLabels[worstIdx]:'—')+'</div><div class="stat-sub">'+(worstIdx>=0?'$'+worstPL.toFixed(0)+' avg P/L · '+buckets[worstIdx].length+' trades':'need 3+ trades in a bucket')+'</div></div>';
+      '<div class="stat-card '+(worstIdx>=0?'red':'')+'"><div class="stat-label">Weakest risk-size bucket</div><div class="stat-value" style="font-size:15px">'+(worstIdx>=0?riskLabels[worstIdx]:'—')+'</div><div class="stat-sub">'+(worstIdx>=0?_viewSym+worstPL.toFixed(0)+' avg P/L · '+buckets[worstIdx].length+' trades':'need 3+ trades in a bucket')+'</div></div>';
   }
   var wrData=buckets.map(function(b){var wr=winRate(b);return wr!=null?parseFloat(wr.toFixed(1)):0;});
   var wrColors=buckets.map(function(b){var wr=winRate(b);return wr!=null&&wr>=50?c.green:c.red;});
@@ -16413,7 +16438,7 @@ function _renderRiskSizeAnalytics(trades){
   var plData=buckets.map(function(b){var v=avgPLof(b);return v!=null?parseFloat(v.toFixed(2)):0;});
   if(charts.riskPL)charts.riskPL.destroy();
   var _cvRPl=document.getElementById('chart-risk-pl');
-  if(_cvRPl)charts.riskPL=safeChart(_cvRPl.getContext('2d'),{type:'bar',data:{labels:riskLabels,datasets:plDs('Avg P/L',plData,buckets,c,'avg')},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:10}},grid:{display:false}},y:{ticks:{color:c.tick,font:{size:10},callback:function(v){return'$'+v;}},grid:{color:c.grid}}}},plugins:[barValueLabelsPlugin('barVL12441')]});
+  if(_cvRPl)charts.riskPL=safeChart(_cvRPl.getContext('2d'),{type:'bar',data:{labels:riskLabels,datasets:plDs('Avg P/L',plData,buckets,c,'avg')},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:10}},grid:{display:false}},y:{ticks:{color:c.tick,font:{size:10},callback:function(v){return _viewSym+v;}},grid:{color:c.grid}}}},plugins:[barValueLabelsPlugin('barVL12441')]});
 }
 // ── Win/loss streak analysis ──────────────────────────
 // Walks the filtered trades in chronological order (same ordering as the
@@ -16545,9 +16570,9 @@ function _renderDrawdownAnalytics(trades,allSess){
   var statsEl=document.getElementById('dash-drawdown-stats');
   if(statsEl){
     statsEl.innerHTML=
-      '<div class="stat-card"><div class="stat-label">Peak equity</div><div class="stat-value" style="font-size:18px">$'+peak.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+'</div><div class="stat-sub">highest point reached</div></div>'+
-      '<div class="stat-card"><div class="stat-label" style="display:inline-flex;align-items:center">Trough (at max DD)<span class="th-info" tabindex="0">i<span class="th-info-tip">The lowest your equity fell to during the single worst peak-to-trough drawdown in this history — i.e. the account balance at the bottom of that dip, right before it recovered or before the most recent trade.</span></span></div><div class="stat-value" style="font-size:18px">$'+maxDDTrough.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+'</div><div class="stat-sub">equity at the deepest point</div></div>'+
-      '<div class="stat-card '+(maxDDDollar>0?'red':'')+'"><div class="stat-label">Max drawdown</div><div class="stat-value neg" style="font-size:18px">'+(maxDDDollar>0?'−'+maxDDPct.toFixed(1)+'%':'0%')+'</div><div class="stat-sub">'+(maxDDDollar>0?'−$'+maxDDDollar.toFixed(2)+' peak-to-trough':'no drawdown yet')+'</div></div>'+
+      '<div class="stat-card"><div class="stat-label">Peak equity</div><div class="stat-value" style="font-size:18px">'+_viewSym+peak.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+'</div><div class="stat-sub">highest point reached</div></div>'+
+      '<div class="stat-card"><div class="stat-label" style="display:inline-flex;align-items:center">Trough (at max DD)<span class="th-info" tabindex="0">i<span class="th-info-tip">The lowest your equity fell to during the single worst peak-to-trough drawdown in this history — i.e. the account balance at the bottom of that dip, right before it recovered or before the most recent trade.</span></span></div><div class="stat-value" style="font-size:18px">'+_viewSym+maxDDTrough.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+'</div><div class="stat-sub">equity at the deepest point</div></div>'+
+      '<div class="stat-card '+(maxDDDollar>0?'red':'')+'"><div class="stat-label">Max drawdown</div><div class="stat-value neg" style="font-size:18px">'+(maxDDDollar>0?'−'+maxDDPct.toFixed(1)+'%':'0%')+'</div><div class="stat-sub">'+(maxDDDollar>0?'−'+_viewSym+maxDDDollar.toFixed(2)+' peak-to-trough':'no drawdown yet')+'</div></div>'+
       '<div class="stat-card '+(currentDD>0.05?'amber':'green')+'"><div class="stat-label">Current drawdown</div><div class="stat-value" style="font-size:18px">'+(currentDD>0.05?'−'+currentDD.toFixed(1)+'%':'At peak')+'</div><div class="stat-sub">vs. all-time-high equity now</div></div>';
   }
   if(charts.drawdown)charts.drawdown.destroy();
@@ -16586,7 +16611,7 @@ function _renderChecklistAnalytics(trades){
       '<div class="stat-card"><div class="stat-label">Trades with checklist</div><div class="stat-value">'+clCount+'</div><div class="stat-sub">of '+trades.length+' in current filter</div></div>'+
       '<div class="stat-card purple"><div class="stat-label">Avg adherence</div><div class="stat-value" style="font-size:20px">'+(avgAdherence!=null?avgAdherence.toFixed(0)+'%':'—')+'</div><div class="stat-sub">'+(clCount?'across '+clCount+' checklisted trades':'no checklists logged')+'</div></div>'+
       '<div class="stat-card '+(bestIdx>=0?'green':'')+'"><div class="stat-label">Best adherence bucket</div><div class="stat-value" style="font-size:15px">'+(bestIdx>=0?clLabels[bestIdx]:'—')+'</div><div class="stat-sub">'+(bestIdx>=0?bestWR.toFixed(0)+'% win rate · '+buckets[bestIdx].length+' trades':'need 3+ trades in a bucket')+'</div></div>'+
-      '<div class="stat-card '+(worstIdx>=0?'red':'')+'"><div class="stat-label">Weakest adherence bucket</div><div class="stat-value" style="font-size:15px">'+(worstIdx>=0?clLabels[worstIdx]:'—')+'</div><div class="stat-sub">'+(worstIdx>=0?'$'+worstPL.toFixed(0)+' avg P/L · '+buckets[worstIdx].length+' trades':'need 3+ trades in a bucket')+'</div></div>';
+      '<div class="stat-card '+(worstIdx>=0?'red':'')+'"><div class="stat-label">Weakest adherence bucket</div><div class="stat-value" style="font-size:15px">'+(worstIdx>=0?clLabels[worstIdx]:'—')+'</div><div class="stat-sub">'+(worstIdx>=0?_viewSym+worstPL.toFixed(0)+' avg P/L · '+buckets[worstIdx].length+' trades':'need 3+ trades in a bucket')+'</div></div>';
   }
   var wrData=buckets.map(function(b){var wr=winRate(b);return wr!=null?parseFloat(wr.toFixed(1)):0;});
   var wrColors=buckets.map(function(b){var wr=winRate(b);return wr!=null&&wr>=50?c.green:c.red;});
@@ -16596,7 +16621,7 @@ function _renderChecklistAnalytics(trades){
   var plData=buckets.map(function(b){var v=avgPLof(b);return v!=null?parseFloat(v.toFixed(2)):0;});
   if(charts.checklistPL)charts.checklistPL.destroy();
   var _cvCP=document.getElementById('chart-checklist-pl');
-  if(_cvCP)charts.checklistPL=safeChart(_cvCP.getContext('2d'),{type:'bar',data:{labels:clLabels,datasets:plDs('Avg P/L',plData,buckets,c,'avg')},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:10}},grid:{display:false}},y:{ticks:{color:c.tick,font:{size:10},callback:function(v){return'$'+v;}},grid:{color:c.grid}}}},plugins:[barValueLabelsPlugin('barVL12594')]});
+  if(_cvCP)charts.checklistPL=safeChart(_cvCP.getContext('2d'),{type:'bar',data:{labels:clLabels,datasets:plDs('Avg P/L',plData,buckets,c,'avg')},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:10}},grid:{display:false}},y:{ticks:{color:c.tick,font:{size:10},callback:function(v){return _viewSym+v;}},grid:{color:c.grid}}}},plugins:[barValueLabelsPlugin('barVL12594')]});
 }
 // ══ Checklist Item Breakdown by Setup Rating ═══════════════════════
 // _renderChecklistAnalytics (above) only looks at overall adherence % — this drills into
@@ -16785,8 +16810,8 @@ function renderChecklistItemBreakdown(){
       '<td class="mono">'+(wrC!=null?wrC.toFixed(0)+'%':'—')+'</td>'+
       '<td class="mono">'+(wrM!=null?wrM.toFixed(0)+'%':'—')+'</td>'+
       '<td class="mono" style="color:'+(delta!=null?(delta>0?'var(--green)':(delta<0?'var(--red)':'var(--text2)')):'var(--text3)')+'">'+(delta!=null?(delta>0?'+':'')+delta.toFixed(0)+'pp':'—')+'</td>'+
-      '<td class="mono" style="color:'+(plC!=null?(plC>=0?'var(--green)':'var(--red)'):'var(--text3)')+'">'+(plC!=null?(plC>=0?'+$':'-$')+Math.abs(plC).toFixed(0):'—')+'</td>'+
-      '<td class="mono" style="color:'+(plM!=null?(plM>=0?'var(--green)':'var(--red)'):'var(--text3)')+'">'+(plM!=null?(plM>=0?'+$':'-$')+Math.abs(plM).toFixed(0):'—')+'</td>'+
+      '<td class="mono" style="color:'+(plC!=null?(plC>=0?'var(--green)':'var(--red)'):'var(--text3)')+'">'+(plC!=null?((plC>=0?'+':'-')+_viewSym)+Math.abs(plC).toFixed(0):'—')+'</td>'+
+      '<td class="mono" style="color:'+(plM!=null?(plM>=0?'var(--green)':'var(--red)'):'var(--text3)')+'">'+(plM!=null?((plM>=0?'+':'-')+_viewSym)+Math.abs(plM).toFixed(0):'—')+'</td>'+
       '</tr>';
   }).join('');
   var tblEl=document.getElementById('dash-itembd-table');
@@ -16861,7 +16886,7 @@ function _renderDirectionAnalytics(trades){
   if(charts.dirPL)charts.dirPL.destroy();
   var _cvDP=document.getElementById('chart-direction-pl');
   var dPLData=[lPL!=null?parseFloat(lPL.toFixed(2)):0,sPL!=null?parseFloat(sPL.toFixed(2)):0];
-  if(_cvDP)charts.dirPL=safeChart(_cvDP.getContext('2d'),{type:'bar',data:{labels:['Long','Short'],datasets:plDs('Avg P/L',dPLData,[longs,shorts],c,'avg')},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:11}},grid:{display:false}},y:{ticks:{color:c.tick,font:{size:10},callback:function(v){return'$'+v;}},grid:{color:c.grid}}}},plugins:[barValueLabelsPlugin('barVL12859')]});
+  if(_cvDP)charts.dirPL=safeChart(_cvDP.getContext('2d'),{type:'bar',data:{labels:['Long','Short'],datasets:plDs('Avg P/L',dPLData,[longs,shorts],c,'avg')},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:11}},grid:{display:false}},y:{ticks:{color:c.tick,font:{size:10},callback:function(v){return _viewSym+v;}},grid:{color:c.grid}}}},plugins:[barValueLabelsPlugin('barVL12859')]});
 }
 // ── Entry-time-of-day breakdown (4-hour local-time blocks) ──────────
 function _renderTimeAnalytics(trades){
@@ -16885,7 +16910,7 @@ function _renderTimeAnalytics(trades){
     statsEl.innerHTML=
       '<div class="stat-card"><div class="stat-label">Trades with entry time</div><div class="stat-value">'+timedCount+'</div><div class="stat-sub">of '+trades.length+' in current filter</div></div>'+
       '<div class="stat-card '+(bestIdx>=0?'green':'')+'"><div class="stat-label">Best time block</div><div class="stat-value" style="font-size:15px">'+(bestIdx>=0?blockLabels[bestIdx]:'—')+'</div><div class="stat-sub">'+(bestIdx>=0?bestWR.toFixed(0)+'% win rate · '+buckets[bestIdx].length+' trades':'need 3+ timed trades in a block')+'</div></div>'+
-      '<div class="stat-card '+(worstIdx>=0?'red':'')+'"><div class="stat-label">Weakest time block</div><div class="stat-value" style="font-size:15px">'+(worstIdx>=0?blockLabels[worstIdx]:'—')+'</div><div class="stat-sub">'+(worstIdx>=0?'$'+worstPL.toFixed(0)+' avg P/L · '+buckets[worstIdx].length+' trades':'need 3+ timed trades in a block')+'</div></div>';
+      '<div class="stat-card '+(worstIdx>=0?'red':'')+'"><div class="stat-label">Weakest time block</div><div class="stat-value" style="font-size:15px">'+(worstIdx>=0?blockLabels[worstIdx]:'—')+'</div><div class="stat-sub">'+(worstIdx>=0?_viewSym+worstPL.toFixed(0)+' avg P/L · '+buckets[worstIdx].length+' trades':'need 3+ timed trades in a block')+'</div></div>';
   }
   var wrData=buckets.map(function(b){var wr=winRate(b);return wr!=null?parseFloat(wr.toFixed(1)):0;});
   var wrColors=buckets.map(function(b){var wr=winRate(b);return wr!=null&&wr>=50?c.green:c.red;});
@@ -16895,7 +16920,7 @@ function _renderTimeAnalytics(trades){
   var plData=buckets.map(function(b){var v=avgPLof(b);return v!=null?parseFloat(v.toFixed(2)):0;});
   if(charts.timePL)charts.timePL.destroy();
   var _cvTP=document.getElementById('chart-time-pl');
-  if(_cvTP)charts.timePL=safeChart(_cvTP.getContext('2d'),{type:'bar',data:{labels:blockLabels,datasets:plDs('Avg P/L',plData,buckets,c,'avg')},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:9}},grid:{display:false}},y:{ticks:{color:c.tick,font:{size:10},callback:function(v){return'$'+v;}},grid:{color:c.grid}}}},plugins:[barValueLabelsPlugin('barVL12893')]});
+  if(_cvTP)charts.timePL=safeChart(_cvTP.getContext('2d'),{type:'bar',data:{labels:blockLabels,datasets:plDs('Avg P/L',plData,buckets,c,'avg')},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:9}},grid:{display:false}},y:{ticks:{color:c.tick,font:{size:10},callback:function(v){return _viewSym+v;}},grid:{color:c.grid}}}},plugins:[barValueLabelsPlugin('barVL12893')]});
 }
 // ── Performance by Market Session (named, asset-aware — see getMarketSession) ────────
 // Unlike the raw 4h local-time blocks above, this groups by the actual named session
@@ -16929,7 +16954,7 @@ function _renderMarketSessionAnalytics(trades){
       '<div class="stat-card"><div class="stat-label">Trades with a session</div><div class="stat-value">'+timedCount+'</div><div class="stat-sub">of '+trades.length+' in current filter</div></div>'+
       '<div class="stat-card"><div class="stat-label">Most traded session</div><div class="stat-value" style="font-size:15px">'+(byVolume?escHtml(byVolume):'—')+'</div><div class="stat-sub">'+(byVolume?buckets[byVolume].length+' trades':'no trades')+'</div></div>'+
       '<div class="stat-card '+(bestKey?'green':'')+'"><div class="stat-label">Best session (win rate)</div><div class="stat-value" style="font-size:15px">'+(bestKey?escHtml(bestKey):'—')+'</div><div class="stat-sub">'+(bestKey?bestWR.toFixed(0)+'% win rate · '+buckets[bestKey].length+' trades':'need 3+ trades in a session')+'</div></div>'+
-      '<div class="stat-card '+(worstKey?'red':'')+'"><div class="stat-label">Weakest session (avg P/L)</div><div class="stat-value" style="font-size:15px">'+(worstKey?escHtml(worstKey):'—')+'</div><div class="stat-sub">'+(worstKey?'$'+worstPL.toFixed(0)+' avg · '+buckets[worstKey].length+' trades':'need 3+ trades in a session')+'</div></div>';
+      '<div class="stat-card '+(worstKey?'red':'')+'"><div class="stat-label">Weakest session (avg P/L)</div><div class="stat-value" style="font-size:15px">'+(worstKey?escHtml(worstKey):'—')+'</div><div class="stat-sub">'+(worstKey?_viewSym+worstPL.toFixed(0)+' avg · '+buckets[worstKey].length+' trades':'need 3+ trades in a session')+'</div></div>';
   }
   var wrData=keys.map(function(k){var wr=winRate(buckets[k]);return wr!=null?parseFloat(wr.toFixed(1)):0;});
   var wrColors=keys.map(function(k){var wr=winRate(buckets[k]);return wr!=null&&wr>=50?c.green:c.red;});
@@ -16939,7 +16964,7 @@ function _renderMarketSessionAnalytics(trades){
   var plData=keys.map(function(k){var v=avgPLof(buckets[k]);return v!=null?parseFloat(v.toFixed(2)):0;});
   if(charts.marketSessionPL)charts.marketSessionPL.destroy();
   var _cvMSP=document.getElementById('chart-marketsession-pl');
-  if(_cvMSP)charts.marketSessionPL=safeChart(_cvMSP.getContext('2d'),{type:'bar',data:{labels:keys,datasets:plDs('Avg P/L',plData,keys.map(function(k){return buckets[k];}),c,'avg')},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:9}},grid:{display:false}},y:{ticks:{color:c.tick,font:{size:10},callback:function(v){return'$'+v;}},grid:{color:c.grid}}}},plugins:[barValueLabelsPlugin('barVL12937')]});
+  if(_cvMSP)charts.marketSessionPL=safeChart(_cvMSP.getContext('2d'),{type:'bar',data:{labels:keys,datasets:plDs('Avg P/L',plData,keys.map(function(k){return buckets[k];}),c,'avg')},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:9}},grid:{display:false}},y:{ticks:{color:c.tick,font:{size:10},callback:function(v){return _viewSym+v;}},grid:{color:c.grid}}}},plugins:[barValueLabelsPlugin('barVL12937')]});
   var tblHtml=keys.map(function(k){
     var arr=buckets[k],wr=winRate(arr),rr=avgRRof(arr),tp=totalPLof(arr),badge=SESSION_BADGE_MAP[k]||'badge-gray';
     return '<tr>'+
@@ -16979,7 +17004,7 @@ function _renderHoldTimeAnalytics(trades){
     statsEl.innerHTML=
       '<div class="stat-card"><div class="stat-label">Trades with duration</div><div class="stat-value">'+timedCount+'</div><div class="stat-sub">of '+trades.length+' in current filter</div></div>'+
       '<div class="stat-card '+(bestIdx>=0?'green':'')+'"><div class="stat-label">Best hold-time bucket</div><div class="stat-value" style="font-size:15px">'+(bestIdx>=0?holdLabels[bestIdx]:'—')+'</div><div class="stat-sub">'+(bestIdx>=0?bestWR.toFixed(0)+'% win rate · '+buckets[bestIdx].length+' trades':'need 3+ timed trades in a bucket')+'</div></div>'+
-      '<div class="stat-card '+(worstIdx>=0?'red':'')+'"><div class="stat-label">Weakest hold-time bucket</div><div class="stat-value" style="font-size:15px">'+(worstIdx>=0?holdLabels[worstIdx]:'—')+'</div><div class="stat-sub">'+(worstIdx>=0?'$'+worstPL.toFixed(0)+' avg P/L · '+buckets[worstIdx].length+' trades':'need 3+ timed trades in a bucket')+'</div></div>';
+      '<div class="stat-card '+(worstIdx>=0?'red':'')+'"><div class="stat-label">Weakest hold-time bucket</div><div class="stat-value" style="font-size:15px">'+(worstIdx>=0?holdLabels[worstIdx]:'—')+'</div><div class="stat-sub">'+(worstIdx>=0?_viewSym+worstPL.toFixed(0)+' avg P/L · '+buckets[worstIdx].length+' trades':'need 3+ timed trades in a bucket')+'</div></div>';
   }
   var wrData=buckets.map(function(b){var wr=winRate(b);return wr!=null?parseFloat(wr.toFixed(1)):0;});
   var wrColors=buckets.map(function(b){var wr=winRate(b);return wr!=null&&wr>=50?c.green:c.red;});
@@ -16989,7 +17014,7 @@ function _renderHoldTimeAnalytics(trades){
   var plData=buckets.map(function(b){var v=avgPLof(b);return v!=null?parseFloat(v.toFixed(2)):0;});
   if(charts.holdPL)charts.holdPL.destroy();
   var _cvHP=document.getElementById('chart-hold-pl');
-  if(_cvHP)charts.holdPL=safeChart(_cvHP.getContext('2d'),{type:'bar',data:{labels:holdLabels,datasets:plDs('Avg P/L',plData,buckets,c,'avg')},options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:10},callback:function(v){return'$'+v;}},grid:{color:c.grid}},y:{ticks:{color:c.tick,font:{size:10}},grid:{display:false}}}},plugins:[barValueLabelsPlugin('barVL13043')]});
+  if(_cvHP)charts.holdPL=safeChart(_cvHP.getContext('2d'),{type:'bar',data:{labels:holdLabels,datasets:plDs('Avg P/L',plData,buckets,c,'avg')},options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:10},callback:function(v){return _viewSym+v;}},grid:{color:c.grid}},y:{ticks:{color:c.tick,font:{size:10}},grid:{display:false}}}},plugins:[barValueLabelsPlugin('barVL13043')]});
 }
 // ── Day-of-week breakdown (Sun–Sat, derived from entryTime) ──────────
 function _renderDowAnalytics(trades){
@@ -17013,7 +17038,7 @@ function _renderDowAnalytics(trades){
     statsEl.innerHTML=
       '<div class="stat-card"><div class="stat-label">Trades with a date</div><div class="stat-value">'+datedCount+'</div><div class="stat-sub">of '+trades.length+' in current filter</div></div>'+
       '<div class="stat-card '+(bestIdx>=0?'green':'')+'"><div class="stat-label">Best day</div><div class="stat-value" style="font-size:15px">'+(bestIdx>=0?dowLabels[bestIdx]:'—')+'</div><div class="stat-sub">'+(bestIdx>=0?bestWR.toFixed(0)+'% win rate · '+buckets[bestIdx].length+' trades':'need 3+ trades on a day')+'</div></div>'+
-      '<div class="stat-card '+(worstIdx>=0?'red':'')+'"><div class="stat-label">Weakest day</div><div class="stat-value" style="font-size:15px">'+(worstIdx>=0?dowLabels[worstIdx]:'—')+'</div><div class="stat-sub">'+(worstIdx>=0?'$'+worstPL.toFixed(0)+' avg P/L · '+buckets[worstIdx].length+' trades':'need 3+ trades on a day')+'</div></div>';
+      '<div class="stat-card '+(worstIdx>=0?'red':'')+'"><div class="stat-label">Weakest day</div><div class="stat-value" style="font-size:15px">'+(worstIdx>=0?dowLabels[worstIdx]:'—')+'</div><div class="stat-sub">'+(worstIdx>=0?_viewSym+worstPL.toFixed(0)+' avg P/L · '+buckets[worstIdx].length+' trades':'need 3+ trades on a day')+'</div></div>';
   }
   var wrData=buckets.map(function(b){var wr=winRate(b);return wr!=null?parseFloat(wr.toFixed(1)):0;});
   var wrColors=buckets.map(function(b){var wr=winRate(b);return wr!=null&&wr>=50?c.green:c.red;});
@@ -17023,7 +17048,7 @@ function _renderDowAnalytics(trades){
   var plData=buckets.map(function(b){var v=avgPLof(b);return v!=null?parseFloat(v.toFixed(2)):0;});
   if(charts.dowPL)charts.dowPL.destroy();
   var _cvDoP=document.getElementById('chart-dow-pl');
-  if(_cvDoP)charts.dowPL=safeChart(_cvDoP.getContext('2d'),{type:'bar',data:{labels:dowLabels,datasets:plDs('Avg P/L',plData,buckets,c,'avg')},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:10}},grid:{display:false}},y:{ticks:{color:c.tick,font:{size:10},callback:function(v){return'$'+v;}},grid:{color:c.grid}}}},plugins:[barValueLabelsPlugin('barVL13021')]});
+  if(_cvDoP)charts.dowPL=safeChart(_cvDoP.getContext('2d'),{type:'bar',data:{labels:dowLabels,datasets:plDs('Avg P/L',plData,buckets,c,'avg')},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:10}},grid:{display:false}},y:{ticks:{color:c.tick,font:{size:10},callback:function(v){return _viewSym+v;}},grid:{color:c.grid}}}},plugins:[barValueLabelsPlugin('barVL13021')]});
 }
 // ══ Sidebar stats ══════════════════════════════════
 // Tiny always-visible summary (trade count + win rate) shown in the nav sidebar on every
@@ -18449,6 +18474,7 @@ async function runMonteCarlo(){
   var startingEquity=parseFloat((document.getElementById('mc-equity')||{}).value)||5000;
   var _mcAllS=await dbGetAll('sessions');var _mcSelS=_mcAllS.find(function(x){return x.id===sesId;});
   var _mcS=ccySym(_mcSelS?sessionCcyOf(_mcSelS):(getCcyFilterVal('mc-sessiontype-filter')||'USD'));
+  var _mcLbl=document.getElementById('mc-ccy-sym');if(_mcLbl)_mcLbl.textContent=_mcS;
   var allTrades=await dbGetAll('trades');
   var allSess=await dbGetAll('sessions');
   var archivedIds=new Set(allSess.filter(function(s){return s.archived;}).map(function(s){return s.id;}));
@@ -20440,7 +20466,7 @@ function calcCalc(){
     return;
   }
   window._lastCalcFx={ccy:acctCcy,rate:fxm};
-  var qCcy=inst.quote||'USD';
+  var qCcy=(inst.pvp!=null)?'USD':(inst.quote||'USD'); // explicit pvp instruments (indices etc.) are already valued in USD
   var q2a=qCcy===acctCcy?1:(qCcy==='USD'?fxm:fxm/entry);
   var pvp=(inst.pvp!=null?inst.pvp:(inst.contract*pip))*q2a;
   var slDist=Math.abs(entry-slVal);
