@@ -4968,11 +4968,11 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
                 <span id="calc-balance-total" class="bal-split-total" title="Session's total capital (fixed)">$5,000</span>
               </div>
               <div id="calc-balance-err" style="display:none;font-size:10px;font-weight:600;color:var(--red);margin-top:4px;line-height:1.4"></div>
-              <div id="calc-ccy-row" style="display:flex;align-items:center;gap:8px;margin-top:8px">
+              <div id="calc-ccy-row" style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px">
                 <select id="calc-ccy" onchange="calcOnCcyChange()" title="Account currency (locked to the session's currency when a session is selected)" style="width:84px;flex:none;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-size:12px;padding:6px 8px"><option value="USD">USD</option><option value="CAD">CAD</option></select>
-                <div id="calc-fx-wrap" style="display:none;align-items:center;gap:6px;flex:1;min-width:0">
+                <div id="calc-fx-wrap" style="display:none;align-items:center;gap:6px;flex:1 1 170px;min-width:150px">
                   <span style="font-size:10px;color:var(--text3);white-space:nowrap">USD/CAD</span>
-                  <input type="number" id="calc-fxrate" step="any" min="0" placeholder="1.4000" oninput="calcCalc()" style="flex:1;min-width:0">
+                  <input type="number" id="calc-fxrate" step="any" min="0" placeholder="1.4000" oninput="calcCalc()" style="flex:1;min-width:80px">
                 </div>
               </div>
               <div id="calc-fx-hint" style="display:none;font-size:10px;color:var(--text3);margin-top:4px;line-height:1.4">Pip value, risk and notional are converted from USD to CAD at this rate (CAD per 1 USD). It defaults to the live rate &mdash; edit it to the historical rate when backtesting.</div>
@@ -14009,7 +14009,7 @@ async function _renderHistoryImpl(){
       var feeResult = assetFees ? calcTradeFees(assetFees, qty, entry, dur, pair, dir, _fopts) : null;
       var feeTotal  = (feeResult && feeResult.total > 0) ? feeResult.total : 0;
       cell.innerHTML = feeTotal > 0
-        ? '<span style="color:var(--amber)">-$'+feeTotal.toFixed(4)+'</span>'
+        ? '<span style="color:var(--amber)">-'+(cell.dataset.ccy==='CAD'?'C$':'$')+feeTotal.toFixed(4)+'</span>'
         : '<span style="color:var(--text3)">—</span>';
       // Populate matching netPL cell
       var netCells = netCellsByTradeId[tid] || [];
@@ -19429,12 +19429,12 @@ function calcRenderPartialTPs(){
   _calcPartialTPs.forEach(function(p,i){
     html+='<div class="partial-tp-row" id="calc-row-'+p.id+'">'
       +'<span class="partial-tp-label">#'+(i+1)+'</span>'
-      +'<input type="number" step="any" placeholder="TP price" value="'+escHtml(String(p.price||''))+'" oninput="_calcPtpSync(\''+p.id+'\',\'price\',this.value)" style="max-width:110px">'
-      +'<div style="position:relative;display:flex;align-items:center;max-width:70px;flex-shrink:0">'
+      +'<input type="number" step="any" placeholder="TP price" value="'+escHtml(String(p.price||''))+'" oninput="_calcPtpSync(\''+p.id+'\',\'price\',this.value)" style="max-width:110px;min-width:78px">'
+      +'<div style="position:relative;display:flex;align-items:center;max-width:70px;min-width:62px;flex-shrink:0">'
         +'<input type="number" step="any" min="0" max="100" placeholder="%" id="calc-ptp-pct-'+p.id+'" value="'+escHtml(String(p._derived&&p.pct!==''?+(+p.pct).toFixed(2):(p.pct||'')))+'" oninput="_calcPtpSync(\''+p.id+'\',\'pct\',this.value)" style="width:100%;padding-right:18px">'
         +'<span style="position:absolute;right:7px;font-size:11px;font-weight:700;color:var(--text3);pointer-events:none">%</span>'
       +'</div>'
-      +'<input type="number" step="any" min="0" placeholder="units" id="calc-ptp-units-'+p.id+'" value="'+escHtml(String(p.units||''))+'" oninput="_calcPtpSync(\''+p.id+'\',\'units\',this.value)" title="Enter units instead of %. Use % OR units on all partials, not both. With units, the total position = the sum of the units." style="max-width:84px;flex-shrink:0">'
+      +'<input type="number" step="any" min="0" placeholder="units" id="calc-ptp-units-'+p.id+'" value="'+escHtml(String(p.units||''))+'" oninput="_calcPtpSync(\''+p.id+'\',\'units\',this.value)" title="Enter units instead of %. Use % OR units on all partials, not both. With units, the total position = the sum of the units." style="max-width:84px;min-width:66px;flex-shrink:0">'
       +'<span id="calc-ptp-qty-'+p.id+'" style="font-size:10px;color:var(--text3);white-space:nowrap;flex-shrink:0">—</span>'
       +'<button class="btn btn-ghost btn-sm btn-icon" onclick="calcRemovePartialTP(\''+p.id+'\')" title="Remove partial" style="color:var(--red);flex-shrink:0">'
         +'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'
@@ -19607,8 +19607,23 @@ function calcFxMult(){
   var el=document.getElementById('calc-fxrate');var v=parseFloat(el&&el.value);
   return v>0?v:null;
 }
+function calcUpdateFxAgeNote(){
+  var h=document.getElementById('calc-fx-hint');if(!h)return;
+  if(!h.getAttribute('data-base'))h.setAttribute('data-base',h.textContent);
+  var t=(typeof _fxRateFetchedAt==='number'&&_fxRateFetchedAt)?_fxRateFetchedAt:null;
+  if(!t){var c=fxLoadRateCache();t=c&&c.fetchedAt?c.fetchedAt:null;}
+  var base=h.getAttribute('data-base');
+  if(!t){h.textContent=base+' No live rate has been fetched yet \u2014 enter the rate yourself.';return;}
+  var old=Date.now()-t>6*3600*1000;
+  h.innerHTML='';h.appendChild(document.createTextNode(base+' '));
+  var sp=document.createElement('span');sp.style.color=old?'var(--amber)':'var(--text3)';
+  sp.textContent='Latest live rate on file was fetched '+fxFormatAge(t)+(old?' \u2014 check it before sizing.':'.');
+  h.appendChild(sp);
+}
 function calcEnsureFxRate(){
   var el=document.getElementById('calc-fxrate');if(!el)return;
+  calcUpdateFxAgeNote();
+  setTimeout(calcUpdateFxAgeNote,2600);setTimeout(calcUpdateFxAgeNote,7100);
   function fill(){if(el.value)return;var r=acctFxRate();if(r){el.value=parseFloat(r.toFixed(4));calcCalc();}}
   fill();
   if(!el.value&&typeof fxDoFetch==='function'){try{fxDoFetch();}catch(e){}setTimeout(fill,2500);setTimeout(fill,7000);}
@@ -19767,9 +19782,10 @@ async function calcPopulateBacktestSessions(){
   // Auto-select the currently active session — if several are active today, pick the one
   // that was created first, matching the same convention used for the trade-log form and
   // history filters (createdAt, falling back to startDate for legacy sessions without it).
-  var cur=active.length
+  var _forced=_flowRestoreSessId?active.find(function(x){return x.id===_flowRestoreSessId;}):null;
+  var cur=_forced||(active.length
     ?active.slice().sort(function(a,b){return new Date(a.createdAt||a.startDate)-new Date(b.createdAt||b.startDate);})[0]
-    :null;
+    :null);
   if(cur){sel.value=cur.id;calcOnBacktestSessionChange();}
   else{
     // No active session matches — clear any stale auto-fill hint/values from a previous selection.
@@ -19808,6 +19824,7 @@ async function calcOnBacktestSessionChange(){
 // and so going "back" a step restores what was previously entered on the step ahead.
 var _pendingChecklistState = null; // carries checklist state from pre-checklist → calc → log
 var _flowActive = false;           // true while in pre-check → calc → log flow
+var _flowRestoreSessId = null;     // while set, the calculator's session list must keep THIS session selected (back-from-log restore)
 var _flowCalcSnapshot = null;      // snapshot of calc-filled log fields for re-applying on forward
 var _flowLogSnapshot = null;       // snapshot of log form fields when going back to calc mid-flow
 var _flowFxsDate = null;           // date picked on the economic-calendar step (fxs-date-input),
@@ -19950,6 +19967,8 @@ function flowBackToCalc(){
   // Go back to calculator from log trade — preserve log form, re-show calc with its values.
   // Assert flow state synchronously BEFORE nav() so there's no window where it could be lost.
   _flowActive = true;
+  _flowRestoreSessId = _flowCalcSnapshot ? _flowCalcSnapshot.sessId : null;
+  setTimeout(function(){_flowRestoreSessId=null;},3500);
   flowUpdateStepIndicators();
   var calcBanner = document.getElementById('calc-flow-banner');
   if(calcBanner) calcBanner.style.display = 'flex';
@@ -19958,24 +19977,38 @@ function flowBackToCalc(){
   // Restore calc field values after nav()/calcReset() have settled
   // calcSyncAssets() is async and fire-and-forget inside nav() — it populates instrument
   // lists and may reflow the calc UI. Defer field restore until it has settled.
-  setTimeout(function(){
-    calcSetMode('backtest');
-    if(_flowCalcSnapshot){
-      var s = _flowCalcSnapshot;
+  // The session list is rebuilt asynchronously after nav(), so wait until the snapshot's session is
+  // actually in it before selecting it (setting .value too early silently fell back to the FIRST
+  // session — which, with per-session currencies, would also switch the account currency).
+  (function _restoreCalcFromFlow(n){
+    if(n===0)calcSetMode('backtest');
+    var s=_flowCalcSnapshot;
+    if(!s)return;
+    var sessEl=document.getElementById('calc-backtest-session');
+    var have=!!(sessEl&&Array.prototype.some.call(sessEl.options,function(o){return o.value===s.sessId;}));
+    if(s.sessId&&!have&&n<40){setTimeout(function(){_restoreCalcFromFlow(n+1);},100);return;}
+    if(s.cls&&calcCurrentClass!==s.cls){calcSetClass(s.cls,document.querySelector('[onclick*="calcSetClass(\''+s.cls+'\'"]'));}
+    if(s.sym){var iEl=document.getElementById('calc-instrument');if(iEl&&Array.prototype.some.call(iEl.options,function(o){return o.value===s.sym;})){iEl.value=s.sym;calcOnInstrumentChange();}}
+    if(s.dir&&s.dir!==calcDirection)calcSetDir(s.dir);
+    if(sessEl&&have)sessEl.value=s.sessId;
+    var _applyFields=function(){
       var entryEl=document.getElementById('calc-entry');        if(entryEl&&s.entry)   entryEl.value=s.entry;
       var slEl   =document.getElementById('calc-sl');           if(slEl&&s.sl)         slEl.value=s.sl;
       var balEl  =document.getElementById('calc-balance');      if(balEl&&s.balance)   balEl.value=s.balance;
       var riskEl =document.getElementById('calc-risk-pct');     if(riskEl&&s.riskPct)  riskEl.value=s.riskPct;
-      var sessEl =document.getElementById('calc-backtest-session');if(sessEl&&s.sessId) sessEl.value=s.sessId;
-      // NOTE: was calcUpdate() (undefined — threw a silent ReferenceError here,
-      // so the calc fields got restored but never recalculated). The real
-      // recalculation function is calcCalc() (see the oninput="calcCalc()"
-      // handlers on the calc fields).
+      var fxEl   =document.getElementById('calc-fxrate');       if(fxEl&&s.fxRate)     fxEl.value=s.fxRate;
+      if(s.marginOn){
+        if(!calcUseMargin&&typeof calcToggleMarginMode==='function')calcToggleMarginMode();
+        var mA=document.getElementById('calc-margin-amt');if(mA&&s.marginAmt)mA.value=s.marginAmt;
+        var mR=document.getElementById('calc-margin-rate');if(mR&&s.marginRate)mR.value=s.marginRate;
+      }
+      if(s.partials&&s.partials.length){_calcPartialTPs=JSON.parse(JSON.stringify(s.partials));calcRenderPartialTPs();}
       calcCalc();
       // Re-arm the capital cap for the restored session without clobbering the balance above.
       calcRefreshMaxBalance();
-    }
-  }, 80);
+    };
+    Promise.resolve(have?calcOnBacktestSessionChange():null).then(function(){_applyFields();setTimeout(function(){if(sessEl&&s.sessId&&sessEl.value!==s.sessId){sessEl.value=s.sessId;calcOnBacktestSessionChange();}setTimeout(_applyFields,150);},900);});
+  })(0);
 }
 // Step 1 of the guided flow: open the economic calendar page (checklist review happens after)
 async function openPreChecklist() {
@@ -20189,7 +20222,13 @@ async function calcLogTrade(){
     sl: sl,
     balance: balance,
     riskPct: riskPct,
-    sessId: sessId
+    sessId: sessId,
+    cls: calcCurrentClass,                                   // asset class tab
+    sym: pairSym,                                            // instrument
+    dir: calcDirection,                                      // long / short
+    fxRate: (calcAcctCcy()==='CAD') ? calcFxMult() : null,   // USD/CAD rate the trade was sized with
+    partials: JSON.parse(JSON.stringify(_calcPartialTPs||[])),
+    marginOn: _cMarginOn, marginAmt: _cMarginAmt, marginRate: _cMarginRate
   };
   flowUpdateStepIndicators();
   // Carry the committed balance across so onSessionChange()/onSkippedChange() can't
