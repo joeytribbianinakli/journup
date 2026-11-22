@@ -10185,7 +10185,7 @@ async function deleteSession(id){
   var tradeCnt=sessTrades.length;
   var msg='Delete this session'+(tradeCnt?' and its '+tradeCnt+' trade'+(tradeCnt>1?'s':''):'')+'?\n\nNote: Cloudinary images are kept so restores work correctly.';
   if(!confirm(msg))return;
-  var safeName=(sess&&sess.name?sess.name.replace(/[^a-zA-Z0-9_-]/g,'-').slice(0,40):'session');
+  var safeName=(sess&&sess.name?sess.name.replace(/[^a-zA-Z0-9_-]/g,'-').slice(0,60):'session');
   // Skip snapshot for demo sessions — no real data worth preserving.
   // Check both the stored flag (new sessions) and trade ID pattern (sessions created before the flag was added).
   var looksLikeDemo=!!(sess&&sess.isDemo)||
@@ -24916,7 +24916,7 @@ function aiComputeMetrics(trades,sessions){
     winRate:winRate,totalPL:totalPL,avgWin:avgWin,avgLoss:avgLoss,avgRR:avgRR,
     avgCL:avgCL,riskMean:riskMean,riskStdev:riskStdev,
     ratingCounts:ratingCounts,errorCounts:errorCounts,
-    avgRefl:avgRefl,avgPlan:avgPlan,stratGroups:stratGroups,byCcy:_aiBy,
+    avgRefl:avgRefl,avgPlan:avgPlan,stratGroups:stratGroups,byCcy:_aiBy,sym:(taken.length&&taken.every(function(t){return tradeCcy(t)==='CAD';}))?'C$':'$',
     maxConsecLoss:maxConsecLoss,
     trades:taken,skipped:skipped
   };
@@ -24991,8 +24991,8 @@ function aiBuilderPrompt(m,sessionInfo,depth){
   lines.push('Wins: '+m.wins+' | Losses: '+m.losses);
   lines.push('Win rate: '+(m.winRate*100).toFixed(1)+'%');
   var _aiFmt=function(f){return Object.keys(m.byCcy).map(function(cc){return ccySym(cc)+f(m.byCcy[cc]).toFixed(2)+' '+cc;}).join(' | ');};
-  lines.push(m.byCcy?'Total P/L (sessions are in different currencies, not converted): '+_aiFmt(function(x){return x.totalPL;}):'Total P/L: $'+m.totalPL.toFixed(2));
-  lines.push(m.byCcy?'Avg win: '+_aiFmt(function(x){return x.avgWin;})+' || Avg loss: '+_aiFmt(function(x){return x.avgLoss;}):'Avg win: $'+(m.avgWin||0).toFixed(2)+' | Avg loss: $'+(m.avgLoss||0).toFixed(2));
+  lines.push(m.byCcy?'Total P/L (sessions are in different currencies, not converted): '+_aiFmt(function(x){return x.totalPL;}):'Total P/L: '+m.sym+m.totalPL.toFixed(2));
+  lines.push(m.byCcy?'Avg win: '+_aiFmt(function(x){return x.avgWin;})+' || Avg loss: '+_aiFmt(function(x){return x.avgLoss;}):'Avg win: '+m.sym+(m.avgWin||0).toFixed(2)+' | Avg loss: '+m.sym+(m.avgLoss||0).toFixed(2));
   if(m.avgRR!=null)lines.push('Avg actual RR: '+m.avgRR.toFixed(2)+'R');
   if(m.riskMean!=null)lines.push('Avg risk %: '+m.riskMean.toFixed(2)+'%'+(m.riskStdev!=null?' (stdev: '+m.riskStdev.toFixed(2)+'%)':''));
   if(m.avgCL!=null)lines.push('Checklist adherence: '+(m.avgCL*100).toFixed(0)+'%');
@@ -25027,7 +25027,7 @@ function aiBuilderPrompt(m,sessionInfo,depth){
     lines.push('Strategy breakdown:');
     strats.forEach(function(e){
       var s=e[1];
-      lines.push('  '+e[0]+': '+s.trades+' trades, '+(s.wins/s.trades*100).toFixed(0)+'% win rate, '+(m.byCcy?Object.keys(m.byCcy).map(function(cc){return ccySym(cc)+((s.plBy||{})[cc]||0).toFixed(2)+' '+cc;}).join(' | '):'$'+s.pl.toFixed(2))+' P/L');
+      lines.push('  '+e[0]+': '+s.trades+' trades, '+(s.wins/s.trades*100).toFixed(0)+'% win rate, '+(m.byCcy?Object.keys(m.byCcy).map(function(cc){return ccySym(cc)+((s.plBy||{})[cc]||0).toFixed(2)+' '+cc;}).join(' | '):m.sym+s.pl.toFixed(2))+' P/L');
     });
   }
   if(depth==='deep'){
@@ -25035,7 +25035,7 @@ function aiBuilderPrompt(m,sessionInfo,depth){
     var sample=m.trades.slice(0,20);
     lines.push('\nINDIVIDUAL TRADES (up to 20 most recent):');
     sample.forEach(function(t,i){
-      var row='Trade #'+(i+1)+': '+t.pair+' | '+(t.type||'?')+' | '+(t.winLoss===1?'WIN':'LOSS')+' | P/L: $'+(parseFloat(t.plDollar)||0).toFixed(2);
+      var row='Trade #'+(i+1)+': '+t.pair+' | '+(t.type||'?')+' | '+(t.winLoss===1?'WIN':'LOSS')+' | P/L: '+ccySym(tradeCcy(t))+(parseFloat(t.plDollar)||0).toFixed(2);
       if(t.actualRR!=null)row+=' | RR: '+parseFloat(t.actualRR).toFixed(2)+'R';
       if(t.strategy)row+=' | Strategy: '+t.strategy;
       if(tradeActiveErrors(t).length)row+=' | Error: '+tradeActiveErrors(t).join(', ');
@@ -25160,7 +25160,7 @@ function aiRenderResults(m,scores,aiText,sessionInfo,totalCount,typeF){
   html+='<div class="ai-result-card-header"><div class="ai-result-card-icon" style="background:var(--accent)"><svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><div class="ai-result-card-title">Session Overview'+(sessionInfo?' — '+escHtml(sessionInfo.name):'')+'</div></div>';
   html+='<div class="ai-result-card-body">';
   html+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">';
-  html+=m.byCcy?'<span class="ai-stat-mini">P/L: '+Object.keys(m.byCcy).map(function(cc){return _plSigned(m.byCcy[cc].totalPL,ccySym(cc))+' '+cc;}).join(' \u00b7 ')+'</span>':'<span class="ai-stat-mini" style="color:'+(m.totalPL>=0?'var(--green)':'var(--red)')+'">P/L: '+(m.totalPL>=0?'+':'')+'$'+m.totalPL.toFixed(2)+'</span>';
+  html+=m.byCcy?'<span class="ai-stat-mini">P/L: '+Object.keys(m.byCcy).map(function(cc){return _plSigned(m.byCcy[cc].totalPL,ccySym(cc))+' '+cc;}).join(' \u00b7 ')+'</span>':'<span class="ai-stat-mini" style="color:'+(m.totalPL>=0?'var(--green)':'var(--red)')+'">P/L: '+(m.totalPL>=0?'+':'')+m.sym+m.totalPL.toFixed(2)+'</span>';
   html+='<span class="ai-stat-mini">'+m.totalTrades+' trades</span>';
   html+='<span class="ai-stat-mini">'+(m.winRate*100).toFixed(0)+'% win rate</span>';
   if(m.avgRR!=null)html+='<span class="ai-stat-mini">'+m.avgRR.toFixed(2)+'R avg</span>';
