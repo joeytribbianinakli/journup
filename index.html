@@ -496,6 +496,24 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
 .ci-label{font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px}
 .ci-val{font-size:14px;font-weight:600;font-family:DM Mono,monospace}
 .ci-val.pos{color:var(--green)}.ci-val.neg{color:var(--red)}
+.ci-valrow{display:flex;align-items:baseline;justify-content:center;gap:5px;flex-wrap:wrap}
+#c-riskpct2,#c-plpct,#c-netpct{font-size:11px;font-weight:500}
+#c-fees-section{display:contents}
+#tab-0 #c-pl-block.has-fees{grid-column:1/-1;padding-top:8px;border-top:1px solid var(--border2)}
+#c-pl-block.has-fees .computed-item:not(:last-child){border-right-color:var(--border2)}
+/* Log Trade calc strip, wide screens: one line — [Risk $ + SL] | [Size + Value] | [Duration] | [Actual RR + Gross P/L (+ Fees | Net when fees exist)] */
+@media(min-width:1200px){
+  #tab-0 #computed-strip>div{display:flex;flex-wrap:nowrap;gap:0;align-items:stretch}
+  #tab-0 .computed-section{flex:2 1 0;width:auto;min-width:0;padding:0 14px}
+  #tab-0 .computed-section:first-child{padding-left:0}
+  #tab-0 .computed-section:last-child{padding-right:0}
+  #tab-0 .computed-section:not(:last-child){border-right:1px solid var(--border)}
+  #tab-0 .computed-section.cs-dur{flex:1 1 0}
+  #tab-0 #c-pl-block.has-fees{flex:4 1 0;grid-column:auto;padding-top:0;border-top:none}
+  #tab-0 .computed-section .computed-item{border-right:none}
+  #tab-0 #c-pl-block.has-fees .computed-section-items>.computed-item:nth-child(2),
+  #tab-0 #c-pl-block.has-fees #c-fees-section .computed-item:first-child{border-right:1px solid var(--border2)}
+}
 /* ── Checklist: pre-trade checklist item rows (page-pre-checklist / checklist editor) ── */
 .checklist-cols{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .cl-card{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-lg);padding:11px 13px}
@@ -667,7 +685,7 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
 .cond-box{background:rgba(77,127,255,.03);border:1px solid rgba(77,127,255,.15);border-radius:var(--radius);padding:10px 12px;margin-top:8px;display:none}
 .cond-box.visible{display:block}
 .cond-box-label{font-size:9px;font-weight:700;color:var(--accent);letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px}
-/* ── Tabs: Log Trade top-level tab bar (Trade info / Checklist / Analysis / Reflection) ── */
+/* ── Tabs: Log Trade top-level tab bar (Trade info / Checklist) ── */
 .form-tab-bar{display:flex;gap:2px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:3px;margin-bottom:16px}
 .form-tab{flex:1;padding:5px 8px;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;color:var(--text2);border:none;background:none;font-family:inherit;transition:all .12s;text-align:center}
 .form-tab:hover{color:var(--text)}
@@ -678,9 +696,78 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
    wrapper class rather than by toggling `disabled` on each control, because several fields
    (#f-acct, #f-riskpct, #f-num, #f-exit) are already readonly/conditionally disabled and a
    blanket toggle would destroy those states on unlock. The tab bar sits outside .form-step
-   so switching between Trade info / Checklist / Analysis / Reflection still works. */
+   so switching between Trade info / Checklist still works. */
 .log-readonly .form-step{pointer-events:none;opacity:.5;user-select:none}
 .log-readonly .form-step *{cursor:default!important}
+
+/* ── Log Trade: compact single-page form (Trade info now includes Analysis + Reflection; Checklist is the 2nd tab) ──
+   Layout only. Rows are merged and every field grows to share the full width (no centered column, no max-widths),
+   so there is no dead space left/right. Scoped to #tab-0 so the Checklist tab, Position calculator and modals
+   that reuse .frow/.frow-inline are untouched. */
+#tab-2,#tab-3{scroll-margin-top:64px}
+#tab-0 .form-section{margin-bottom:14px}
+#tab-0 .fsec-title{margin-bottom:8px;padding-bottom:5px}
+#tab-0 .fsec-title-tools{display:flex;align-items:center;justify-content:space-between}
+#tab-0 .fsec-tools{display:flex;gap:4px}
+#tab-0 .fsec-tools .btn{padding:2px 8px;height:auto;font-size:10px;font-weight:600;letter-spacing:.02em;text-transform:none}
+#tab-0 input[type=text],#tab-0 input[type=number],#tab-0 input[type=date],#tab-0 input[type=time],#tab-0 select{padding:5px 8px}
+#tab-0 textarea{padding:6px 9px;min-height:54px;line-height:1.5}
+#tab-0 #setup-notes{min-height:104px}
+#tab-0 .frow{gap:3px;margin-bottom:8px}
+#tab-0 .frow:last-child{margin-bottom:0}
+#tab-0 .frow-inline{gap:8px 10px;margin-bottom:8px}
+#tab-0 .frow-inline .frow{min-width:110px;margin-bottom:0}
+#tab-0 .skipped-row{padding:6px 10px;margin-bottom:10px!important}
+/* Classification: the three boxes share the whole row; their columns share each box */
+#tab-0 .fbox{padding:10px 12px}
+#tab-0 .fbox .frow{margin-bottom:10px}
+#tab-0 .fbox .frow:last-child{margin-bottom:0}
+#tab-0 .fbox .frow-inline{margin-bottom:10px}
+#tab-0 .fbox .frow-inline:last-child{margin-bottom:0}
+#tab-0 .fbox .frow-inline>.frow{margin-bottom:0}
+#tab-0 .form-section>.frow-inline>.fbox{flex:1 1 auto!important}
+#tab-0 .form-section>.frow-inline>.fbox>.frow-inline>.frow{flex:1 1 auto!important}
+#tab-0 .opt-group{gap:4px;margin-top:3px}
+#tab-0 .opt-pill{padding:2px 9px}
+/* Field rows: fields grow equally to fill the row */
+#tab-0 .fi-ident>.frow{margin-bottom:0}
+#tab-0 .fi-price>.frow{flex:1 1 120px;min-width:110px}
+#tab-0 .fi-price>.frow:first-child{flex:2 1 250px}
+#tab-0 .fi-price>.frow:nth-child(2),#tab-0 .fi-price>.frow:nth-child(3){flex:.8 1 100px}
+#tab-0 .fi-dt>.frow:nth-child(1),#tab-0 .fi-dt>.frow:nth-child(3){flex:1 1 110px}
+#tab-0 .fi-dt>.frow:nth-child(2),#tab-0 .fi-dt>.frow:nth-child(4){flex:2 1 260px}
+#tab-0 .fi-dt>.frow:nth-child(n+5){flex:1 1 140px}
+/* Optional / secondary inputs: uniform small fields in a grid */
+#tab-0 .fi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr))}
+#tab-0 .fi-grid>.frow{min-width:0}
+#tab-0 #f-target-price[data-auto="1"]{color:var(--text3)}
+#tab-0 #f-manual-fees-rows{display:contents}
+/* Fees & margin: auto-fit (not auto-fill) so the fields stretch across the full row instead of leaving empty columns on the right */
+#tab-0 #fees-margin-grid{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+#tab-0 #f-manual-fees-rows>:not(.frow){grid-column:1/-1}
+/* Trade / Risk management: one strip, two halves */
+#tab-0 .fbox-trade{display:flex;gap:0;padding:8px 12px}
+#tab-0 .fbox-trade>.frow{flex:1;flex-direction:row;align-items:center;justify-content:flex-start;gap:14px;margin-bottom:0}
+#tab-0 .fbox-trade>.frow+.frow{border-left:1px solid var(--border);padding-left:14px}
+#tab-0 .fbox-trade .opt-group{margin-top:0}
+/* Partial TPs, fees, computed strip */
+#tab-0 .partial-tp-section{margin-top:8px;padding-top:8px}
+#tab-0 .partial-tp-row{margin-bottom:5px;padding:6px 8px}
+#tab-0 .computed-strip{padding:9px 14px}
+#tab-0 .computed-strip>div{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:8px 18px}
+#tab-0 .computed-section{padding-bottom:0;border-bottom:none;margin-top:0!important}
+#tab-0 .cond-box{padding:8px 10px;margin-top:6px}
+/* Analysis: accordions flow in two columns; screenshot zones sit side by side */
+#tab-0 .analysis-cols{display:flex;gap:12px;align-items:flex-start}
+#tab-0 .analysis-col{flex:1 1 0;min-width:0}
+#tab-0 .analysis-col>.analysis-section,#tab-0 #analysis-extras>.analysis-section{margin-bottom:8px}
+@media(max-width:1150px){#tab-0 .analysis-cols{display:block}#tab-0 .analysis-col{display:contents}}
+#tab-0 .analysis-header{padding:7px 12px}
+#tab-0 .analysis-body{padding:10px 12px}
+#tab-0 .screenshots-group{padding:8px 10px;margin-bottom:8px}
+#tab-0 [id^="tf-zones-"]{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px}
+#tab-0 .tf-sub-section{margin-top:0;padding:6px 8px}
+#tab-0 .img-paste-zone{padding:10px;min-height:48px}
 #log-locked-banner{display:none;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px;padding:12px 14px;border:1px solid var(--amber);border-left-width:3px;border-radius:var(--radius);background:rgba(245,158,11,.08)}
 /* ── Filter bar: generic filter row shared by dashboard/history/trade-analytics pages ── */
 .filter-bar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
@@ -985,7 +1072,7 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
 .history-filter-trigger:hover{background:var(--bg3)}
 .hist-filter-toggle{gap:5px}
 .history-filter-body{padding:10px 14px 12px;border-top:1px solid var(--border)}
-.hist-filter-row{display:flex;gap:10px;flex-wrap:wrap}
+.hist-filter-row{display:flex;gap:10px;flex-wrap:wrap;flex:1 1 100%;min-width:0}
 .hist-filter-group{display:flex;flex-direction:column;gap:3px;min-width:110px;flex:1}
 .hist-filter-label{font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em}
 .hist-filter-group select{font-size:11px;padding:5px 28px 5px 8px;text-overflow:ellipsis;white-space:nowrap;overflow:hidden}
@@ -2577,11 +2664,9 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
           <button type="button" class="btn btn-primary btn-sm" onclick="logStartFullFlow()">Start full trade flow</button>
         </div>
       </div>
-      <div class="form-tab-bar">
+      <div class="form-tab-bar" id="log-tab-bar">
         <button class="form-tab active" onclick="switchTab(0,this)">Trade info</button>
         <button class="form-tab" onclick="switchTab(1,this)">Checklist</button>
-        <button class="form-tab" onclick="switchTab(2,this)">Analysis</button>
-        <button class="form-tab" onclick="switchTab(3,this)">Reflection</button>
         <button type="button" class="btn btn-ghost btn-icon btn-sm" style="margin-left:auto;flex-shrink:0" onclick="offerBreak()" title="Preview the post-trade break timer">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2"/><path d="M9 2h6"/></svg>
         </button>
@@ -2602,37 +2687,34 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
         <div class="form-section">
           <div class="fsec-title">Identity</div>
           <!-- Row 1: Trade #, Asset type, Logged at, Pair -->
-          <div class="frow-inline">
-            <div class="frow" style="max-width:80px">
+          <div class="frow-inline fi-ident">
+            <div class="frow" style="flex:.6 1 80px;min-width:70px">
               <label class="flabel">Trade #</label>
               <input type="text" id="f-num" readonly style="color:var(--text3);cursor:default;text-align:center;font-family:DM Mono,monospace;font-weight:600">
             </div>
-            <div class="frow" style="max-width:160px">
+            <div class="frow" style="flex:.9 1 110px;min-width:90px">
               <label class="flabel">Asset type</label>
               <input type="text" id="f-asset-type" readonly style="color:var(--text3);cursor:default">
             </div>
-            <div class="frow" style="max-width:170px">
+            <div class="frow" style="flex:1 1 130px;min-width:110px">
               <label class="flabel">Logged at <span style="font-size:9px;color:var(--text3);font-weight:400;letter-spacing:0;text-transform:none">(auto)</span></label>
               <input type="text" id="f-logged-at" readonly style="color:var(--text3);cursor:default;font-family:DM Mono,monospace;font-size:11px" placeholder="set on first save">
             </div>
-            <div class="frow" style="flex:1.2">
+            <div class="frow" style="flex:1.2 1 150px">
               <label class="flabel">Pair <span style="color:var(--red);margin-left:2px">*</span></label>
               <select id="f-pair" onchange="onPairChange()">
                 <option value="">— select pair —</option>
               </select>
             </div>
-          </div>
-          <!-- Row 2: User rating, Session, Strategy (same line; rating width matches Trade #) -->
-          <div class="frow-inline" style="margin-top:10px">
-            <div class="frow" style="max-width:80px">
+            <div class="frow" style="flex:1 1 150px;min-width:150px">
               <label class="flabel">User rating <span style="color:var(--text3);font-weight:400;text-transform:none;letter-spacing:0;font-size:9.5px" title="Optional while the trade is pending — required to close it">(req. to close)</span></label>
               <select id="f-rating"><option value="">— select —</option><option>⭐</option><option>⭐⭐</option><option>⭐⭐⭐</option><option>⭐⭐⭐⭐</option><option>⭐⭐⭐⭐⭐</option></select>
             </div>
-            <div class="frow" style="flex:1">
+            <div class="frow" style="flex:2 1 220px">
               <label class="flabel">Session <span style="color:var(--red);margin-left:2px">*</span></label>
-              <select id="f-session" onchange="onSessionChange()"><option value="">— select session —</option></select>
+              <select id="f-session" onchange="onSessionChange(true)"><option value="">— select session —</option></select>
             </div>
-            <div class="frow" style="flex:1">
+            <div class="frow" style="flex:2 1 220px">
               <label class="flabel">Strategy <span style="color:var(--red);margin-left:2px">*</span></label>
               <select id="f-strategy"></select>
             </div>
@@ -2739,22 +2821,18 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
             <label class="flabel" style="display:inline-flex;align-items:center">USD/CAD rate (CAD per 1 USD)<span class="th-info" tabindex="0">i<span class="th-info-tip">This session's account is in CAD. P/L on USD-quoted pairs (EUR/USD, gold, stocks...) is converted USD to CAD at this rate. It is filled from the position size calculator, or the live rate; edit it to the rate you actually used. It is saved with the trade.</span></span></label>
             <input type="number" id="f-fxrate" step="any" min="0" placeholder="e.g. 1.4000" oninput="onLogFxInput()">
           </div>
-          <!-- Row 1: Balance used | Risk % | Target RR -->
-          <div class="frow-inline">
+          <!-- Row 1: Balance used | Risk % | Target RR | Total Quantity | Stop Loss | Target price -->
+          <div class="frow-inline fi-price">
             <div class="frow"><label class="flabel" style="display:inline-flex;align-items:center">Balance used (<span id="f-acct-ccy">$</span>)<span class="th-info" tabindex="0">i<span class="th-info-tip">The number before "/" is the portion actually committed to this trade — carried over from the position size calculator, and locked here since it was already set when you sized this trade there. The number after "/" is your session's full capital and can't be changed here.</span></span></label><div class="bal-split"><div class="bal-split-input-wrap"><span class="bal-split-prefix" id="f-acct-prefix">$</span><input type="number" id="f-acct" value="5000" readonly style="color:var(--text3);cursor:default" title="Balance committed to this trade — auto-filled from selected session"></div><span class="bal-split-sep">/</span><span id="f-acct-total" class="bal-split-total" title="Session's total capital (fixed)">$5,000</span></div></div>
             <div class="frow"><label class="flabel">Risk (%) <span style="color:var(--red);margin-left:2px">*</span></label><input type="number" id="f-riskpct" value="1" step="0.1" readonly style="color:var(--text3);cursor:default;background:var(--bg);border-color:var(--border)" title="Carried over from the position size calculator"></div>
             <div class="frow"><label class="flabel">Target RR <span style="color:var(--red);margin-left:2px">*</span></label><input type="number" id="f-trr" step="0.1" placeholder="e.g. 3" readonly style="color:var(--text3);cursor:default;background:var(--bg);border-color:var(--border)" title="Carried over from the position size calculator"></div>
-          </div>
-          <!-- Row 2: Entry price | Stop Loss | Exit price | Quantity -->
-          <div class="frow-inline">
-            <div class="frow"><label class="flabel">Entry price <span style="color:var(--red);margin-left:2px">*</span></label><input type="number" id="f-entry" step="any" placeholder="e.g. 1.07477" oninput="recalc()"></div>
-            <div class="frow"><label class="flabel">Stop Loss <span style="color:var(--red);margin-left:2px">*</span></label><input type="number" id="f-sl-price" step="any" placeholder="e.g. 1.07200" oninput="recalc()"></div>
-            <div class="frow"><label class="flabel" id="exit-price-label">Exit price <span id="exit-price-hint" style="display:none;font-size:9px;color:var(--accent);font-weight:500">(remainder / last TP)</span></label><input type="number" id="f-exit" step="any" placeholder="e.g. 1.07714" oninput="recalc()"></div>
             <div class="frow">
               <label class="flabel" style="display:inline-flex;align-items:center">Total Quantity (units) <span style="color:var(--red);margin-left:2px">*</span><span class="th-info right" id="f-qty-plan-info" tabindex="0" style="display:none">i<span class="th-info-tip" id="f-qty-plan-tip" style="width:290px"></span></span></label>
               <input type="number" id="f-qty" step="any" placeholder="e.g. 100000" oninput="recalc();_validatePartialQty()">
               <div id="qty-partial-validation" style="display:none;font-size:10px;margin-top:4px;font-weight:600"></div>
             </div>
+            <div class="frow"><label class="flabel">Stop Loss <span style="color:var(--red);margin-left:2px">*</span></label><input type="number" id="f-sl-price" step="any" placeholder="e.g. 1.07200" oninput="recalc()"></div>
+            <div class="frow"><label class="flabel">Target price</label><input type="number" id="f-target-price" step="any" placeholder="auto" oninput="onTargetPriceInput()" title="Carried over from the position size calculator. When there is none, it is calculated from Entry, Stop Loss and Target RR until you type your own."></div>
           </div>
           <!-- Partial TPs -->
           <div class="partial-tp-section">
@@ -2771,8 +2849,9 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
               <textarea id="partial-tp-desc" rows="2" placeholder="e.g. Took 50% at 1R (key resistance), remaining 50% at TP1 zone..."></textarea>
             </div>
           </div>
-          <!-- Row 3: Entry time | Exit time | Win/Loss (auto) -->
-          <div class="frow-inline">
+          <!-- Row 2: Entry price | Entry time | Exit price | Exit time | Win/Loss (auto) | Market session (auto) -->
+          <div class="frow-inline fi-dt">
+            <div class="frow"><label class="flabel">Entry price <span style="color:var(--red);margin-left:2px">*</span></label><input type="number" id="f-entry" step="any" placeholder="e.g. 1.07477" oninput="recalc()"></div>
             <div class="frow">
               <label class="flabel">Entry time <span style="color:var(--text3);font-weight:400;text-transform:none;letter-spacing:0;font-size:9.5px">(required to close the trade)</span></label>
               <div class="dt-wrap">
@@ -2780,6 +2859,7 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
                 <input type="text" id="f-etime-time" placeholder="e.g. 1430" maxlength="4" style="max-width:90px" oninput="onTimeInput(this)" onblur="onTimeBlur(this)" onfocus="onTimeFocus(this)" autocomplete="off">
               </div>
             </div>
+            <div class="frow"><label class="flabel" id="exit-price-label">Exit price <span id="exit-price-hint" style="display:none;font-size:9px;color:var(--accent);font-weight:500">(remainder / last TP)</span></label><input type="number" id="f-exit" step="any" placeholder="e.g. 1.07714" oninput="recalc()"></div>
             <div class="frow">
               <label class="flabel">Exit time <span style="color:var(--red);margin-left:2px">*</span></label>
               <div class="dt-wrap">
@@ -2806,60 +2886,55 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
           <div class="opt-group" id="opt-criteria" style="display:none"></div>
           <!-- Fees & margin (optional) -->
           <div class="partial-tp-section" id="fees-margin-section">
-            <div style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">Fees &amp; margin <span style="font-size:9px;font-weight:500;color:var(--text3);text-transform:none;letter-spacing:0">(optional)</span></div>
-            <div class="frow-inline">
+            <div id="fees-margin-toggle" role="button" tabindex="0" aria-expanded="false" aria-controls="fees-margin-body" onclick="toggleFeesMargin()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleFeesMargin();}" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none">
+              <div style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:.08em;text-transform:uppercase">Fees &amp; margin <span style="font-size:9px;font-weight:500;color:var(--text3);text-transform:none;letter-spacing:0">(optional)</span></div>
+              <svg class="ah-toggle" id="fees-margin-chev" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+            <div id="fees-margin-body" style="display:none;margin-top:8px">
+            <div class="frow-inline fi-grid" id="fees-margin-grid">
               <div class="frow"><label class="flabel">Margin amount (<span class="log-ccy">$</span>)</label><input type="number" id="f-margin-amt" min="0" step="any" placeholder="from calculator" oninput="recalc()"></div>
               <div class="frow"><label class="flabel">Interest rate (% / year)</label><input type="number" id="f-margin-rate" min="0" step="any" placeholder="broker rate" oninput="recalc()"></div>
+              <div class="frow-inline fi-grid" id="f-manual-fees-rows"></div>
             </div>
             <div id="f-margin-calc-note" style="display:none;font-size:10px;color:var(--text3);line-height:1.5;margin:-4px 0 10px"></div>
             <div style="font-size:10px;color:var(--text3);margin-bottom:6px">Manual fees (<span class="log-ccy">$</span>): leave a field blank to keep the automatic estimate for that category.</div>
-            <div class="frow-inline" id="f-manual-fees-rows"></div>
+            </div>
           </div>
           <div class="computed-strip" id="computed-strip">
             <div>
-              <!-- Risk section -->
+              <!-- Risk section: Risk $ + SL Distance read as one group -->
               <div class="computed-section">
-                <div class="computed-section-label">Risk</div>
                 <div class="computed-section-items">
-                  <div class="computed-item"><div class="ci-label">Risk $</div><div class="ci-val" id="c-risk">—</div></div>
-                  <div class="computed-item"><div class="ci-label">Risk %</div><div class="ci-val" id="c-riskpct2">—</div></div>
+                  <div class="computed-item"><div class="ci-label">Risk $</div><div class="ci-valrow"><div class="ci-val" id="c-risk">—</div><div class="ci-val" id="c-riskpct2"></div></div></div>
                   <div class="computed-item"><div class="ci-label">SL Distance</div><div class="ci-val" id="c-sl-dist">—</div></div>
                 </div>
               </div>
-              <!-- Position section -->
-              <div class="computed-section" style="margin-top:10px">
-                <div class="computed-section-label">Pos.</div>
+              <!-- Position section: Position Size + Position Value read as one group -->
+              <div class="computed-section">
                 <div class="computed-section-items">
                   <div class="computed-item"><div class="ci-label">Position Size</div><div class="ci-val" id="c-qty">—</div></div>
                   <div class="computed-item"><div class="ci-label">Position Value</div><div class="ci-val" id="c-posval">—</div></div>
                 </div>
               </div>
-              <!-- RR section -->
-              <div class="computed-section" style="margin-top:10px">
-                <div class="computed-section-label">R:R</div>
+              <!-- Duration section -->
+              <div class="computed-section cs-dur">
                 <div class="computed-section-items">
-                  <div class="computed-item"><div class="ci-label">Actual RR</div><div class="ci-val" id="c-arr">—</div></div>
                   <div class="computed-item"><div class="ci-label">Duration</div><div class="ci-val" id="c-dur">—</div></div>
                 </div>
               </div>
-              <!-- Fees section -->
-              <div class="computed-section" id="c-fees-section" style="margin-top:10px;display:none">
-                <div class="computed-section-label">Fees</div>
+              <!-- P/L block: Actual RR + Gross P/L always; Total Fees + Net P/L join the same row when fees exist -->
+              <div class="computed-section" id="c-pl-block">
                 <div class="computed-section-items">
-                  <div class="computed-item">
-                    <div class="ci-label">Total Fees</div>
-                    <div class="ci-val" id="c-fees-total" style="color:var(--amber)">—</div>
-                    <div id="c-fees-breakdown" style="font-size:10px;color:var(--text3);margin-top:2px;line-height:1.5"></div>
+                  <div class="computed-item"><div class="ci-label">Actual RR</div><div class="ci-val" id="c-arr">—</div></div>
+                  <div class="computed-item"><div class="ci-label">Gross P/L (<span class="log-ccy">$</span>)<span id="c-partial-note" style="font-size:9px;font-weight:600;color:var(--accent);display:none"> · partials</span></div><div class="ci-valrow"><div class="ci-val" id="c-pl">—</div><div class="ci-val" id="c-plpct"></div></div></div>
+                  <div id="c-fees-section" style="display:none">
+                    <div class="computed-item">
+                      <div class="ci-label">Total Fees</div>
+                      <div class="ci-val" id="c-fees-total" style="color:var(--amber)">—</div>
+                      <div id="c-fees-breakdown" style="font-size:10px;color:var(--text3);margin-top:2px;line-height:1.5"></div>
+                    </div>
+                    <div class="computed-item"><div class="ci-label">Net P/L</div><div class="ci-valrow"><div class="ci-val" id="c-fees-net">—</div><div class="ci-val" id="c-netpct"></div></div></div>
                   </div>
-                  <div class="computed-item"><div class="ci-label">Net P/L</div><div class="ci-val" id="c-fees-net">—</div></div>
-                </div>
-              </div>
-              <!-- P/L section -->
-              <div class="computed-section" style="margin-top:10px">
-                <div class="computed-section-label">P / L <span id="c-partial-note" style="font-size:9px;font-weight:600;color:var(--accent);display:none"> · partials</span></div>
-                <div class="computed-section-items">
-                  <div class="computed-item"><div class="ci-label">Gross P/L (<span class="log-ccy">$</span>)</div><div class="ci-val" id="c-pl">—</div></div>
-                  <div class="computed-item"><div class="ci-label">P/L (%)</div><div class="ci-val" id="c-plpct">—</div></div>
                   <div class="computed-item" style="display:none"><div class="ci-label">Status</div><div class="ci-val" id="c-status">—</div></div>
                 </div>
               </div>
@@ -2868,7 +2943,7 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
         </div>
         <div class="form-section">
           <div class="fsec-title">Trade / Risk management</div>
-          <div class="fbox" style="flex:0 0 auto;max-width:220px">
+          <div class="fbox fbox-trade">
             <div class="frow">
               <label class="flabel">SL trailing</label>
               <div class="opt-group" id="opt-trail">
@@ -2877,7 +2952,7 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
               </div>
               <input type="hidden" id="f-trail-val" value="">
             </div>
-            <div class="frow" style="margin-top:12px">
+            <div class="frow">
               <label class="flabel">TP changed</label>
               <div class="opt-group">
                 <span class="opt-pill opt-gray" data-val="No" onclick="pickOpt(this,'f-tpchg-val');toggleTpDetail()">No</span>
@@ -2896,7 +2971,7 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
           <div class="cond-box" id="tp-change-box">
             <div class="cond-box-label">TP change details</div>
             <div class="frow"><label class="flabel">Why was TP changed?</label><textarea id="tpchg-notes" placeholder="e.g. Extended TP after seeing strong momentum..."></textarea></div>
-            <div class="frow-inline" style="margin-top:8px">
+            <div class="frow-inline fi-grid" style="margin-top:8px">
               <div class="frow"><label class="flabel">Original TP</label><input type="number" id="tpchg-orig" step="any" placeholder="e.g. 1.08000"></div>
               <div class="frow"><label class="flabel">New TP</label><input type="number" id="tpchg-new" step="any" placeholder="e.g. 1.08350"></div>
               <div class="frow"><label class="flabel">Direction</label>
@@ -2905,48 +2980,18 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
             </div>
           </div>
         </div>
-        <div style="display:flex;justify-content:space-between;gap:8px;padding-top:10px;border-top:1px solid var(--border)">
-          <button class="btn btn-ghost" onclick="clearForm()">Clear form</button>
-          <div style="display:flex;gap:8px">
-            <button class="btn btn-ghost btn-sm" onclick="switchTab(3,document.querySelector('.form-tab:nth-child(4)'));document.getElementById('tab-3').scrollIntoView({behavior:'smooth',block:'start'})" title="Jump to Save Trade">
-              <svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-              Jump to Save ↓
-            </button>
-            <button class="btn" onclick="switchTab(1,document.querySelector('.form-tab:nth-child(2)'))">Next: Checklist →</button>
+        <!-- Analysis (formerly its own tab) — same accordions/fields/ids, now a section of Trade info -->
+        <div class="form-section" id="tab-2">
+          <div class="fsec-title fsec-title-tools">
+            <span>Analysis</span>
+            <span class="fsec-tools">
+              <button type="button" class="btn btn-ghost btn-sm" onclick="analysisExpandAll()">Expand all</button>
+              <button type="button" class="btn btn-ghost btn-sm" onclick="analysisCollapseAll()">Collapse all</button>
+            </span>
           </div>
-        </div>
-      </div>
-      <!-- TAB 1: Checklist -->
-      <div class="form-step" id="tab-1">
-        <div id="cl-status" class="cl-status-badge cl-fail" style="margin-bottom:14px">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-          Checklist not complete
-        </div>
-        <div id="cl-rating-badge" class="cl-status-badge cl-fail" style="margin-bottom:14px;display:none"></div>
-        <div class="checklist-cols" id="cl-render-area"></div>
-        <div style="display:flex;justify-content:space-between;gap:8px;padding-top:10px;border-top:1px solid var(--border)">
-          <button class="btn btn-ghost" onclick="switchTab(0,document.querySelector('.form-tab:nth-child(1)'))">← Back</button>
-          <div style="display:flex;gap:8px">
-            <button class="btn btn-ghost btn-sm" onclick="clProceedGate(function(){switchTab(3,document.querySelector('.form-tab:nth-child(4)'));document.getElementById('tab-3').scrollIntoView({behavior:'smooth',block:'start'});})" title="Jump to Save Trade">
-              <svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-              Jump to Save ↓
-            </button>
-            <button class="btn" onclick="clProceedGate(function(){switchTab(2,document.querySelector('.form-tab:nth-child(3)'));})">Next: Analysis →</button>
-          </div>
-        </div>
-      </div>
-      <!-- TAB 2: Analysis -->
-      <div class="form-step" id="tab-2">
-        <div style="display:flex;justify-content:flex-end;gap:6px;margin-bottom:10px">
-          <button class="btn btn-ghost btn-sm" onclick="analysisExpandAll()">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/><polyline points="6 15 12 21 18 15"/></svg>
-            Expand all
-          </button>
-          <button class="btn btn-ghost btn-sm" onclick="analysisCollapseAll()">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/><polyline points="18 9 12 3 6 9"/></svg>
-            Collapse all
-          </button>
-        </div>        <!-- 1. Narrative -->
+          <div class="analysis-cols" id="analysis-cols">
+<div class="analysis-col" id="analysis-col-a">
+<!-- 1. Narrative -->
         <div class="analysis-section">
           <div class="analysis-header open" onclick="toggleAnalysis(this)">
             <div class="ah-bar green"></div><span class="ah-title">1. Narrative <span style="color:var(--red);margin-left:2px">*</span></span>
@@ -3007,6 +3052,47 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
             </div>
           </div>
         </div>
+        <!-- 5. Issues -->
+        <div class="analysis-section">
+          <div class="analysis-header open" onclick="toggleAnalysis(this)">
+            <div class="ah-bar red"></div><span class="ah-title">5. Issues</span>
+            <svg class="ah-toggle" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+          </div>
+          <div class="analysis-body open">
+            <div class="frow"><textarea id="issues-notes">1. </textarea></div>
+          </div>
+        </div>
+        <!-- Post-journal / News: wrapped so balanceAnalysisCols() can park them under whichever column ends sooner -->
+<div id="analysis-extras">
+        <div class="analysis-section">
+          <div class="analysis-header" onclick="toggleAnalysis(this)">
+            <div class="ah-bar gray"></div><span class="ah-title">Post-journal analysis</span>
+            <svg class="ah-toggle" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+          </div>
+          <div class="analysis-body">
+            <div class="frow"><textarea id="post-analysis">1. </textarea></div>
+            <div class="screenshots-group" style="margin-top:10px">
+              <div class="screenshots-group-hdr"><span class="screenshots-group-title">Screenshots (optional)</span><span style="font-size:10px;color:var(--text3)"><kbd>Ctrl+V</kbd></span></div>
+              <div class="img-grid" id="imgs-postanalysis"></div>
+              <div class="img-paste-zone" id="paste-zone-postanalysis" tabindex="0" onclick="focusPasteZone('postanalysis')" ondragover="onDragOver(event,'postanalysis')" ondragleave="onDragLeave(event,'postanalysis')" ondrop="onDrop(event,'postanalysis')">
+                <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                <p>Click here then <kbd>Ctrl+V</kbd> to paste · or drag &amp; drop</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="analysis-section">
+          <div class="analysis-header" onclick="toggleAnalysis(this)">
+            <div class="ah-bar gray"></div><span class="ah-title">News &amp; macro context</span>
+            <svg class="ah-toggle" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+          </div>
+          <div class="analysis-body">
+            <div class="frow"><textarea id="f-news">1. </textarea></div>
+          </div>
+        </div>
+</div>
+</div>
+<div class="analysis-col" id="analysis-col-b">
         <!-- 4. What led to trade -->
         <div class="analysis-section">
           <div class="analysis-header open" onclick="toggleAnalysis(this)">
@@ -3116,56 +3202,11 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
             <div class="frow"><textarea id="why-skipped-notes" placeholder="Describe why you chose not to take this trade...">1. </textarea></div>
           </div>
         </div>
-        <!-- 5. Issues -->
-        <div class="analysis-section">
-          <div class="analysis-header open" onclick="toggleAnalysis(this)">
-            <div class="ah-bar red"></div><span class="ah-title">5. Issues</span>
-            <svg class="ah-toggle" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
-          </div>
-          <div class="analysis-body open">
-            <div class="frow"><textarea id="issues-notes">1. </textarea></div>
+</div>
           </div>
         </div>
-        <!-- Post-journal / News -->
-        <div class="analysis-section">
-          <div class="analysis-header" onclick="toggleAnalysis(this)">
-            <div class="ah-bar gray"></div><span class="ah-title">Post-journal analysis</span>
-            <svg class="ah-toggle" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
-          </div>
-          <div class="analysis-body">
-            <div class="frow"><textarea id="post-analysis">1. </textarea></div>
-            <div class="screenshots-group" style="margin-top:10px">
-              <div class="screenshots-group-hdr"><span class="screenshots-group-title">Screenshots (optional)</span><span style="font-size:10px;color:var(--text3)"><kbd>Ctrl+V</kbd></span></div>
-              <div class="img-grid" id="imgs-postanalysis"></div>
-              <div class="img-paste-zone" id="paste-zone-postanalysis" tabindex="0" onclick="focusPasteZone('postanalysis')" ondragover="onDragOver(event,'postanalysis')" ondragleave="onDragLeave(event,'postanalysis')" ondrop="onDrop(event,'postanalysis')">
-                <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                <p>Click here then <kbd>Ctrl+V</kbd> to paste · or drag &amp; drop</p>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="analysis-section">
-          <div class="analysis-header" onclick="toggleAnalysis(this)">
-            <div class="ah-bar gray"></div><span class="ah-title">News &amp; macro context</span>
-            <svg class="ah-toggle" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
-          </div>
-          <div class="analysis-body">
-            <div class="frow"><textarea id="f-news">1. </textarea></div>
-          </div>
-        </div>
-        <div style="display:flex;justify-content:space-between;gap:8px;padding-top:10px;border-top:1px solid var(--border)">
-          <button class="btn btn-ghost" onclick="switchTab(1,document.querySelector('.form-tab:nth-child(2)'))">← Back</button>
-          <div style="display:flex;gap:8px">
-            <button class="btn btn-ghost btn-sm" onclick="switchTab(3,document.querySelector('.form-tab:nth-child(4)'));document.getElementById('tab-3').scrollIntoView({behavior:'smooth',block:'start'})" title="Jump to Save Trade">
-              <svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-              Jump to Save ↓
-            </button>
-            <button class="btn" onclick="switchTab(3,document.querySelector('.form-tab:nth-child(4)'))">Next: Reflection →</button>
-          </div>
-        </div>
-      </div>
-      <!-- TAB 3: Reflection -->
-      <div class="form-step" id="tab-3">
+        <!-- Reflection (formerly its own tab) — same fields/ids, now a section of Trade info -->
+        <div id="tab-3">
         <div class="form-section">
           <div class="fsec-title" style="display:flex;align-items:center;justify-content:space-between">
             <span>Emotions</span>
@@ -3200,11 +3241,30 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
             <div class="frow"><label class="flabel">What went well <span style="color:var(--red);margin-left:2px">*</span></label><textarea id="l-good">1. </textarea></div>
           </div>
         </div>
+        </div>
         <div style="display:flex;justify-content:space-between;gap:8px;padding-top:10px;border-top:1px solid var(--border)">
-          <button class="btn btn-ghost" onclick="switchTab(2,document.querySelector('.form-tab:nth-child(3)'))">← Back</button>
+          <button class="btn btn-ghost" onclick="clearForm()">Clear form</button>
           <div style="display:flex;gap:8px">
-            <button class="btn btn-ghost" onclick="clearForm()">Clear form</button>
+            <button class="btn" onclick="switchTab(1)">Next: Checklist →</button>
             <button class="btn btn-primary" onclick="saveTrade()">
+              <svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+              Save trade
+            </button>
+          </div>
+        </div>
+      </div>
+      <!-- TAB 1: Checklist -->
+      <div class="form-step" id="tab-1">
+        <div id="cl-status" class="cl-status-badge cl-fail" style="margin-bottom:14px">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          Checklist not complete
+        </div>
+        <div id="cl-rating-badge" class="cl-status-badge cl-fail" style="margin-bottom:14px;display:none"></div>
+        <div class="checklist-cols" id="cl-render-area"></div>
+        <div style="display:flex;justify-content:space-between;gap:8px;padding-top:10px;border-top:1px solid var(--border)">
+          <button class="btn btn-ghost" onclick="switchTab(0)">← Back</button>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-primary" onclick="clProceedGate(function(){saveTrade();})" title="Save trade">
               <svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
               Save trade
             </button>
@@ -7497,7 +7557,7 @@ async function populateErrorFilterSelect(){
     +types.map(function(s){return'<option value="'+escHtml(s)+'">'+escHtml(s)+'</option>'}).join('');
   if(cur==='__clean__'||types.indexOf(cur)!==-1)sel.value=cur;
 }
-// ══ Emotion tags (Reflection tab) ══════════════════════════════
+// ══ Emotion tags (Reflection section) ══════════════════════════════
 // Same idea as Error type(s) above — a small settings-backed vocabulary the user can
 // extend — but applied to three independent multi-select fields (before/after/complete)
 // that all draw from ONE shared tag list, so adding "Confident" once makes it available
@@ -10149,8 +10209,166 @@ function _applyAcctValue(acctEl,equity){
   _setAcctTotalDisplay(equity);
   acctEl.value=(_logAcctOverride!=null?_logAcctOverride:equity);
 }
+// Position size (in units) for a pair, using exactly the calculator's sizing maths (calcCalc():
+// risk $ = balance x risk %, converted to the account currency, divided by the per-unit risk
+// of the stop distance, then capped to balance — or balance + margin amount — and rounded the
+// same way). Pure: reads no calculator DOM, so the Log Trade form can size a trade without it.
+// Returns null when the pair/inputs can't be sized (caller then falls back gracefully).
+// noCap=true sizes as the calculator does with "Use margin" ON and no margin amount (no balance
+// ceiling) and reports the resulting position value in info.posValue, so the caller can work out
+// how much would have to be borrowed.
+function _logCalcUnits(sym,entry,sl,balance,riskPct,ctx,marginAmt,marginRate,noCap,info){
+  var inst=null;
+  Object.keys(CALC_INSTRUMENTS||{}).forEach(function(k){
+    if(!inst)inst=(CALC_INSTRUMENTS[k]||[]).find(function(i){return i.sym===sym;})||null;
+  });
+  if(!inst)inst=(typeof CALC_KNOWN_SPECS!=='undefined'&&CALC_KNOWN_SPECS[sym])||null;
+  if(!inst||!(entry>0)||!(sl>0)||!(balance>0)||!(riskPct>0))return null;
+  var acctCcy=(ctx&&ctx.ccy==='CAD')?'CAD':'USD';
+  var fxm=1;
+  if(acctCcy==='CAD'){fxm=(ctx.rate>0)?ctx.rate:null;if(fxm===null)return null;}
+  var riskDollar=balance*(riskPct/100);
+  var pip=inst.pip;
+  var qCcy=(inst.pvp!=null)?'USD':(inst.quote||'USD');
+  var q2a=qCcy===acctCcy?1:(qCcy==='USD'?fxm:fxm/entry);
+  var pvp=(inst.pvp!=null?inst.pvp:(inst.contract*pip))*q2a;
+  var slDist=Math.abs(entry-sl);
+  if(slDist===0)return null;
+  var slTicks=slDist/pip;
+  var bType=inst.breakdownType||'lots';
+  var posLimit=balance;
+  if(marginAmt!=null&&!isNaN(marginAmt))posLimit=balance+Math.max(0,marginAmt);
+  else if(marginRate>0)posLimit=Infinity;
+  if(noCap)posLimit=Infinity;
+  var size,posValue;
+  if(bType==='lots'){
+    size=riskDollar/(slTicks*pvp);
+    posValue=size*inst.contract*entry*q2a;
+    if(posValue>posLimit){size=posLimit/(inst.contract*entry*q2a);posValue=size*inst.contract*entry*q2a;}
+  } else if(bType==='crypto'){
+    size=riskDollar/(slDist*q2a);
+    posValue=size*entry*q2a;
+    if(posValue>posLimit){size=posLimit/(entry*q2a);posValue=size*entry*q2a;}
+  } else if(bType==='shares'){
+    size=riskDollar/(slDist*q2a);
+    var shares=Math.floor(size);
+    if(shares*entry*q2a>posLimit)shares=Math.floor(posLimit/(entry*q2a));
+    size=shares;posValue=shares*entry*q2a;
+  } else if(bType==='contracts'||bType==='oz'){
+    size=riskDollar/(inst.tickVal*q2a*(slDist/pip));
+    posValue=size*inst.contract*entry*q2a;
+    if(posValue>posLimit){size=posLimit/(inst.contract*entry*q2a);posValue=size*inst.contract*entry*q2a;}
+  } else return null;
+  if(info)info.posValue=posValue;
+  var units=(bType==='lots')?Math.round(size*(inst.contract||1)):Math.round(size*(inst.contract||1)*1e6)/1e6;
+  return(isFinite(units)&&units>0)?units:null;
+}
+// Scales the logged partial TP rows to a new total quantity, keeping each row's % (a row
+// with no % yet takes it from its current qty / the old total) and refilling its qty from it.
+// When the rows add up to 100%, the last row absorbs rounding so the sum equals the total.
+function _rescalePartialsToQty(newTotal,oldTotal){
+  if(!_partialTPs.length||!(newTotal>0))return;
+  _partialTPs.forEach(function(p){
+    var pct=parseFloat(p.pct);
+    if(!(pct>0)){var q=parseFloat(p.qty);if(q>0&&oldTotal>0)pct=q/oldTotal*100;}
+    if(pct>0){p.pct=parseFloat(pct.toFixed(4));p.qty=parseFloat((newTotal*pct/100).toFixed(8));}
+  });
+  var pctSum=_partialTPs.reduce(function(s,p){return s+(parseFloat(p.pct)||0);},0);
+  if(Math.abs(pctSum-100)<0.01){
+    var others=_partialTPs.slice(0,-1).reduce(function(s,p){return s+(parseFloat(p.qty)||0);},0);
+    _partialTPs[_partialTPs.length-1].qty=parseFloat((newTotal-others).toFixed(8));
+  }
+  renderPartialTPs();
+}
+// Editing a saved trade and moving it to a *different* session (user picked another one in the
+// Session dropdown): the trade's Balance used and Total Quantity were sized against the old
+// session's capital and can't carry over. Balance used is reset to the new session's equity at
+// the time of this trade (same chain editTrade() uses), Total Quantity is re-sized from the
+// trade's own entry / SL / risk % with the calculator's maths, and any logged partial rows keep
+// their % and get their qty refilled from the new total (as does the planned-partials hint).
+// Picking the trade's original session again restores the saved quantity / partial quantities.
+async function _onEditedTradeSessionMoved(sess){
+  try{
+    var _id=editingId;
+    var trade=await dbGet('trades',_id);
+    if(!trade||editingId!==_id)return;
+    var acctEl=document.getElementById('f-acct'),qtyEl=document.getElementById('f-qty');
+    if(!acctEl||!qtyEl)return;
+    var skipped=!!(document.getElementById('f-skipped')&&document.getElementById('f-skipped').checked);
+    var allT=await dbGetAll('trades');
+    var startEq=parseFloat(sess.startingEquity)||5000;
+    var thisTime=new Date(trade.entryTime||trade.savedAt||0).getTime();
+    var priorPL=allT.filter(function(x){
+      return x.sessionId===sess.id&&x.id!==_id&&!!x.skipped===skipped&&
+             new Date(x.entryTime||x.savedAt||0).getTime()<thisTime;
+    }).reduce(function(sum,x){return sum+(parseFloat(x.plDollar)||0);},0);
+    var equity=parseFloat((startEq+priorPL).toFixed(2));
+    if(editingId!==_id)return;
+    _setAcctTotalDisplay(equity);
+    acctEl.value=equity;
+    var oldTotal=parseFloat(qtyEl.value)||0;
+    if(sess.id===trade.sessionId){
+      // Back to the original session — restore the saved quantity and partial quantities
+      if(trade.qty!=null)qtyEl.value=trade.qty;
+      _syncFeesMarginOpen();
+      _plannedPartials=trade.plannedPartials||null;renderPlannedPartials();
+      var _sv=trade.partialTPs||[];
+      if(_partialTPs.length&&_sv.length===_partialTPs.length){
+        _partialTPs.forEach(function(p,i){p.qty=_sv[i].qty;p.pct=_sv[i].pct;});
+        renderPartialTPs();
+      } else if(_partialTPs.length){_rescalePartialsToQty(parseFloat(trade.qty)||0,oldTotal);}
+    } else {
+      var pair=document.getElementById('f-pair').value;
+      var entry=parseFloat(document.getElementById('f-entry').value)||0;
+      var sl=parseFloat(document.getElementById('f-sl-price').value)||0;
+      var riskPct=parseFloat(document.getElementById('f-riskpct').value)||0;
+      // Sized like the calculator with "Use margin" ON: if the new balance can't cover the full
+      // position (e.g. $1k can't buy EUR/USD 1:1), leverage is used instead of shrinking it.
+      // (Margin amount / interest rate fields are left exactly as the person entered them.)
+      var _inf={};
+      var units=_logCalcUnits(pair,entry,sl,equity,riskPct,_acctCtx,null,null,true,_inf);
+      if(units==null&&typeof calcSyncAssets==='function'){
+        // Calculator pair specs are built from Assets & pairs — make sure they're loaded, retry once
+        try{await calcSyncAssets();}catch(e){}
+        _inf={};
+        units=_logCalcUnits(pair,entry,sl,equity,riskPct,_acctCtx,null,null,true,_inf);
+      }
+      if(editingId!==_id)return;
+      var sym=ccySym(_acctCtx.ccy)+equity.toLocaleString(undefined,{maximumFractionDigits:2});
+      var borrow=0;
+      if(units!=null){
+        qtyEl.value=units;
+        // Position value above the balance is covered by leverage. The Margin amount field is
+        // never touched here — it only holds what the person enters themselves.
+        borrow=(_inf.posValue>equity)?Math.ceil((_inf.posValue-equity)*100)/100:0;
+        _rescalePartialsToQty(units,oldTotal);
+        if(_plannedPartials&&_plannedPartials.tps&&_plannedPartials.tps.length){
+          var _po=parseFloat(_plannedPartials.totalUnits)||0;
+          var _ints=Math.abs(_po-Math.round(_po))<1e-9;
+          _plannedPartials=JSON.parse(JSON.stringify(_plannedPartials));
+          _plannedPartials.totalUnits=units;
+          _plannedPartials.tps.forEach(function(t){
+            var u=units*(parseFloat(t.pct)||0)/100;
+            t.units=_ints?Math.round(u):Math.round(u*1e6)/1e6;
+          });
+          renderPlannedPartials();
+        }
+        toast('Session changed — Balance used set to '+sym+' and Total Quantity re-sized to '+units.toLocaleString(undefined,{maximumFractionDigits:6})+' units'+(borrow>0?' using leverage (position value exceeds balance by '+ccySym(_acctCtx.ccy)+borrow.toLocaleString(undefined,{maximumFractionDigits:2})+').':'.'),'warn');
+      } else {
+        // Couldn't size it (e.g. CAD session with no USD/CAD rate yet, or entry/SL missing)
+        qtyEl.value='';
+        _plannedPartials=null;renderPlannedPartials();
+        toast('Session changed — Balance used set to '+sym+', but Total Quantity could not be calculated (check entry, SL and the USD/CAD rate).','warn');
+      }
+    }
+    recalc();
+    if(typeof _validatePartialQty==='function')_validatePartialQty();
+  }catch(e){console.error(e);}
+}
 // Auto-populate account size from selected session
-async function onSessionChange(){
+// userChanged===true only when the person picked a session in the dropdown (never for the
+// programmatic calls from populateSessionSelects()).
+async function onSessionChange(userChanged){
   var sesId=document.getElementById('f-session').value;
   if(!sesId)return;
   var sessions=await dbGetAll('sessions');
@@ -10169,6 +10387,7 @@ async function onSessionChange(){
     var riskEl=document.getElementById('f-riskpct');
     if(!editingId&&riskEl&&sess.defaultRisk!=null){riskEl.value=sess.defaultRisk;}
     recalc();
+    if(userChanged===true&&editingId)await _onEditedTradeSessionMoved(sess);
   }
 }
 // Helper: compute whether a session is currently active based on dates
@@ -10265,6 +10484,7 @@ async function renderSessionsList(){
     return'<div class="session-item'+(s.archived?' archived':'')+'" style="cursor:pointer" onclick="editSessionById(\''+s.id+'\')"><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600">'+escHtml(s.name)+activeBadge+archivedBadge+reviewBadge+'</div><div class="session-meta">'+escHtml(dateStr)+' · '+count+' trades'+equityStr+resumeHint+(s.notes?' · '+escHtml(s.notes.slice(0,50)):'')+'</div>'+'</div>'
       +'<div style="display:flex;gap:6px">'
       +reviewBtn
+      +'<button class="btn btn-ghost btn-sm" style="color:var(--accent)" onclick="event.stopPropagation();viewSessionTrades(\''+s.id+'\')" title="Open this session in Trade history">View trades</button>'
       +'<button class="btn btn-ghost btn-sm" style="color:var(--purple)" onclick="event.stopPropagation();openRetroView(\''+s.id+'\')" title="View/add retrospective">Retro</button>'
       +'<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();editSessionById(\''+s.id+'\')">Edit</button>'
       +'<button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteSession(\''+s.id+'\')">Delete</button></div></div>';
@@ -10286,6 +10506,51 @@ async function renderSessionsList(){
       +'</div>'
       +list.map(renderRow).join('');
   }).join('');
+}
+// ── Sessions page → "View trades" ────────────────────────────────────────────
+// Opens Trade history with the Session filter set to the chosen session. It drives the same
+// filter plumbing a manual change would (syncGlobalFilter + the per-page pref savers), so the
+// choice survives populateSessionSelects()/restoreHistFilterPrefs() that nav('history') runs.
+// Also makes sure nothing else in the History filters can hide that session's trades:
+// demo mode is matched to the session, Session type / Currency are only touched if they'd
+// exclude it, and the narrowing filters (pair, direction, strategy, result, asset type,
+// search, starred-only) go back to "all"; Trade type goes back to its default "Taken".
+async function viewSessionTrades(sessionId){
+  try{
+    var sessions=await dbGetAllCached('sessions');
+    var ses=sessions.find(function(x){return x.id===sessionId;});
+    if(!ses)return;
+    if(ses.archived){toast('Archived sessions are hidden from History — unarchive it to view its trades','err');return;}
+    function setFilter(id,val,saver){
+      var el=document.getElementById(id);if(!el)return;
+      el.value=val;
+      syncGlobalFilter(id);
+      saver(id);
+    }
+    // Demo sessions only show in History while demo mode is on (and real ones only while it's off)
+    var wantDemo=!!ses.isDemo;
+    if(!!_dashDemoMode!==wantDemo){_dashDemoMode=wantDemo;_histDemoMode=wantDemo;_syncDemoButtons(wantDemo);}
+    // Session type / Currency: leave alone unless the current value would hide this session
+    var tEl=document.getElementById('flt-sessiontype');
+    if(tEl&&tEl.value&&tEl.value!==sessionTypeOf(ses))setFilter('flt-sessiontype',sessionTypeOf(ses),saveSessionTypeFilterPref);
+    var cEl=document.getElementById('flt-ccy');
+    if(cEl&&cEl.value&&cEl.value!==sessionCcyOf(ses))setFilter('flt-ccy','',saveSessionTypeFilterPref);
+    // Clear anything that would show only a subset of the session's trades
+    ['flt-pair','flt-strategy','flt-asset-type','flt-type','flt-result'].forEach(function(id){setFilter(id,'',saveHistFilterPref);});
+    setFilter('flt-skipped','taken',saveHistFilterPref);
+    var srch=document.getElementById('flt-search');if(srch)srch.value='';
+    if(_histStarredOnly)toggleHistStarredOnly();
+    _histPage=1;
+    // Rebuild the Session dropdown for the (possibly new) type/currency/demo state, then pick the session
+    await populateSessionSelects();
+    var hF=document.getElementById('flt-session');
+    if(!hF)return;
+    hF.value=sessionId;
+    if(hF.value!==sessionId){toast('Could not find that session in the History filters','err');return;}
+    syncGlobalFilter('flt-session');
+    saveHistFilterPref('flt-session');
+    nav('history',document.querySelector('.nav-item[onclick*="nav(\'history\'"]'));
+  }catch(err){toast('Could not open trades: '+err.message,'err');console.error(err);}
 }
 async function populateSessionSelects(restoreSessionId){
   // Re-assert any globally-synced "Session type" value across every page's session-type
@@ -10497,6 +10762,7 @@ function nav(id,btn){
   if(id==='dashboard')renderDashboard();
   if(id==='log'){
     applyLogLock();
+    if(typeof renderLedChips==='function')renderLedChips();
     // Hide flow banner only on direct navigation — calcLogTrade will re-show it when in flow
     if(!_flowActive){
       var fb = document.getElementById('log-flow-banner');
@@ -10559,12 +10825,20 @@ function startNewTrade(){
 }
 // ══ Tab switching ══════════════════════════════════
 function switchTab(idx,btn){
+  // Log Trade has two tabs: Trade info (0) and Checklist (1). Analysis (2) and Reflection (3)
+  // now live inside Trade info as sections, but the old indexes still work for every caller
+  // (save validation, shortcuts): 2 / 3 open Trade info and scroll to that section.
+  var pane=(idx===1)?1:0;
   document.querySelectorAll('.form-step').forEach(function(s){s.classList.remove('active')});
-  document.querySelectorAll('.form-tab').forEach(function(t){t.classList.remove('active')});
-  document.getElementById('tab-'+idx).classList.add('active');
+  document.querySelectorAll('#log-tab-bar .form-tab').forEach(function(t){t.classList.remove('active')});
+  document.getElementById('tab-'+pane).classList.add('active');
+  var bar=document.querySelectorAll('#log-tab-bar .form-tab');
+  if(bar[pane])bar[pane].classList.add('active');
   if(idx===2&&typeof renderLedChips==='function')renderLedChips(); // refresh Long/Short-dependent chip labels
-  if(btn)btn.classList.add('active');
-  else{var t=document.querySelector('.form-tab:nth-child('+(idx+1)+')');if(t)t.classList.add('active');}
+  if(idx===2||idx===3){
+    var sec=document.getElementById('tab-'+idx);
+    if(sec)requestAnimationFrame(function(){sec.scrollIntoView({behavior:'smooth',block:'start'});});
+  }
 }
 // ── TF Pill selector (HTF/MTF/LTF) ────────────────────────────
 // Each screenshot group (HTF/MTF/LTF) starts as a row of timeframe pills; picking one collapses
@@ -11083,6 +11357,31 @@ function analysisCollapseAll(){
     hdr.classList.remove('open');hdr.nextElementSibling.classList.remove('open');
   });
 }
+// ══ Analysis column balancing ═════════════════════
+// Wide layout: column A = 1 Narrative / 2 Setup / 3 Plan / 5 Issues, column B = 4 What led to the trade
+// (with the HTF/MTF/LTF screenshots). Post-journal + News ride along under whichever column is
+// currently shorter. Narrow layout: one flow in the original order (…5, Post-journal, News, 4).
+function balanceAnalysisCols(){
+  var wrap=document.getElementById('analysis-cols'),a=document.getElementById('analysis-col-a'),
+      b=document.getElementById('analysis-col-b'),ex=document.getElementById('analysis-extras');
+  if(!wrap||!a||!b||!ex)return;
+  if(window.matchMedia('(max-width:1150px)').matches){if(ex.parentNode!==a)a.appendChild(ex);return;}
+  if(!wrap.getClientRects().length)return;                 // tab/modal hidden — measure when shown
+  if(ex.contains(document.activeElement))return;           // never yank a field the user is typing in
+  var exH=ex.offsetHeight+8,inA=ex.parentNode===a;
+  var hA=a.offsetHeight-(inA?exH:0),hB=b.offsetHeight-(inA?0:exH);
+  var toB=inA?(hB<hA-16):!(hA<hB-16);                      // 16px hysteresis stops flip-flopping
+  if(toB&&ex.parentNode!==b)b.insertBefore(ex,document.getElementById('why-skipped-section')||null);
+  else if(!toB&&ex.parentNode!==a)a.appendChild(ex);
+}
+(function(){
+  var a=document.getElementById('analysis-col-a'),b=document.getElementById('analysis-col-b'),pend=false;
+  if(!a||!b)return;
+  function sched(){if(pend)return;pend=true;requestAnimationFrame(function(){pend=false;balanceAnalysisCols();});}
+  if(window.ResizeObserver){var ro=new ResizeObserver(sched);ro.observe(a);ro.observe(b);}
+  window.addEventListener('resize',sched);
+  sched();
+})();
 // ══ Bias chips ════════════════════════════════════
 // Per-timeframe directional bias (narrative section only, group is always 'narrative' in
 // current markup though the code is generic). Each chip cycles neutral → bull → bear → neutral
@@ -11665,9 +11964,37 @@ function computePartialPL(entry, sl, qty, type, acct, riskDollar, pair){
 // TPs are in use, otherwise computes straight from entry/exit/qty. Fee display is intentionally
 // NOT computed synchronously here — it's kicked off via the debounced recalcFeesAsync() below
 // since fee lookups need an IDB read and shouldn't block typing.
+// ── Target price: carried from the calculator (or typed) = manual; otherwise calculated from Entry, SL and Target RR ──
+var _targetAuto = true;
+function _decimalsOf(v){ var m = String(v == null ? '' : v).match(/\.(\d+)/); return m ? m[1].length : 0; }
+function _syncTargetPrice(){
+  var el = document.getElementById('f-target-price'); if(!el) return;
+  if(_targetAuto === false){ el.removeAttribute('data-auto'); return; }
+  var eStr = (document.getElementById('f-entry')||{}).value, sStr = (document.getElementById('f-sl-price')||{}).value;
+  var e = parseFloat(eStr), sl = parseFloat(sStr), rr = parseFloat((document.getElementById('f-trr')||{}).value);
+  if(e > 0 && sl > 0 && e !== sl && rr > 0){
+    var dec = Math.min(8, Math.max(_decimalsOf(eStr), _decimalsOf(sStr), 2));
+    var tp = e + (e > sl ? 1 : -1) * Math.abs(e - sl) * rr;
+    el.value = String(parseFloat(tp.toFixed(dec)));
+    el.setAttribute('data-auto','1');
+  } else { el.value = ''; el.removeAttribute('data-auto'); }
+}
+function onTargetPriceInput(){
+  var el = document.getElementById('f-target-price'); if(!el) return;
+  if(el.value === ''){ _targetAuto = true; _syncTargetPrice(); }
+  else { _targetAuto = false; el.removeAttribute('data-auto'); }
+}
+// Set a known target price (calculator hand-off / saved trade) and stop auto-calculating; no value = back to auto
+function _setTargetPrice(v){
+  var el = document.getElementById('f-target-price'); if(!el) return;
+  var n = parseFloat(v);
+  if(n > 0){ el.value = n; _targetAuto = false; el.removeAttribute('data-auto'); }
+  else { el.value = ''; _targetAuto = true; }
+}
 function recalc(){
   var entry=parseFloat(document.getElementById('f-entry').value)||0;
   var slPrice=parseFloat(document.getElementById('f-sl-price').value)||0;
+  _syncTargetPrice();
   // Auto-detect direction from Entry vs SL — SL below entry can only be a Long, SL above
   // entry can only be a Short, so there's no reason to make the user click the pill
   // themselves once both prices are in. Only touches the pill when it would actually
@@ -11692,7 +12019,7 @@ function recalc(){
   var riskDollar=acct*(riskpct/100);
   function set(id,val,cls){var el=document.getElementById(id);if(!el)return;el.textContent=val;el.className='ci-val'+(cls?' '+cls:'');}
   set('c-risk','$'+riskDollar.toFixed(2));
-  set('c-riskpct2',riskpct.toFixed(2)+'%');
+  set('c-riskpct2','('+riskpct.toFixed(2)+'%)');
   // SL distance
   var slDist=0;
   if(entry&&slPrice){
@@ -11744,7 +12071,7 @@ function recalc(){
     var wld=document.getElementById('f-winloss-display');if(wld){wld.value=winLossDisplay+' (partial)';wld.style.color=isWin?'var(--green)':(pl2<0?'var(--red)':'var(--amber)');}
     var wlh=document.getElementById('f-winloss');if(wlh)wlh.value=isWin?'1':(pl2<0?'0':'0.5');
     set('c-pl',(pl2>=0?'+':'')+pl2.toFixed(2),cls2);
-    set('c-plpct',(plPct>=0?'+':'')+plPct.toFixed(2)+'%',cls2);
+    set('c-plpct','('+(plPct>=0?'+':'')+plPct.toFixed(2)+'%)',cls2);
     set('c-status',winLossDisplay,cls2);
   } else if(entry&&exit){
     var diff=type==='Long'?exit-entry:entry-exit;
@@ -11757,11 +12084,11 @@ function recalc(){
       var plPct=(pl2/acct)*100;
       var cls2=pl2>=0?'pos':'neg';
       set('c-pl',(pl2>=0?'+':'')+pl2.toFixed(2),cls2);
-      set('c-plpct',(plPct>=0?'+':'')+plPct.toFixed(2)+'%',cls2);
+      set('c-plpct','('+(plPct>=0?'+':'')+plPct.toFixed(2)+'%)',cls2);
       set('c-status',winLossDisplay,cls2);
-    } else {set('c-pl','—');set('c-plpct','—');set('c-status',winLossDisplay,isWin?'pos':'neg');}
+    } else {set('c-pl','—');set('c-plpct','');set('c-status',winLossDisplay,isWin?'pos':'neg');}
   } else {
-    set('c-pl','—');set('c-plpct','—');set('c-status','—');
+    set('c-pl','—');set('c-plpct','');set('c-status','—');
     var wld2=document.getElementById('f-winloss-display');if(wld2){wld2.value='';wld2.style.color='';}
     var wlh2=document.getElementById('f-winloss');if(wlh2)wlh2.value='';
   }
@@ -11826,7 +12153,26 @@ function _syncManualFeeRows(){
   var t = (document.getElementById('f-asset-type')||{}).value || '';
   if(t !== _manualFeeRowsType || (t && _pendingManualFees)) _renderManualFeeRows(t);
 }
+function _setFeesMarginOpen(open){
+  var b = document.getElementById('fees-margin-body'); if(!b) return;
+  b.style.display = open ? '' : 'none';
+  var t = document.getElementById('fees-margin-toggle'); if(t) t.setAttribute('aria-expanded', open ? 'true' : 'false');
+  var c = document.getElementById('fees-margin-chev'); if(c) c.style.transform = open ? 'rotate(180deg)' : '';
+}
+function toggleFeesMargin(){
+  var b = document.getElementById('fees-margin-body'); if(!b) return;
+  _setFeesMarginOpen(b.style.display === 'none');
+}
+// Expand Fees & margin only when it already holds values (edit, calculator pre-fill, draft restore); never collapses it.
+function _syncFeesMarginOpen(){
+  var has = false;
+  ['f-margin-amt','f-margin-rate'].forEach(function(id){ var el = document.getElementById(id); if(el && el.value !== '') has = true; });
+  if(_pendingManualFees){ Object.keys(_pendingManualFees).forEach(function(k){ if(_pendingManualFees[k] != null && _pendingManualFees[k] !== '') has = true; }); }
+  document.querySelectorAll('#f-manual-fees-rows input').forEach(function(el){ if(el.value !== '') has = true; });
+  if(has) _setFeesMarginOpen(true);
+}
 function _resetFeesMarginInputs(){
+  _setFeesMarginOpen(false);
   var a = document.getElementById('f-margin-amt'); if(a) a.value = '';
   var r = document.getElementById('f-margin-rate'); if(r) r.value = '';
   _pendingManualFees = null;
@@ -11867,13 +12213,13 @@ function recalcFeesAsync(entry, qty, durMin, direction){
     var assetTypeName = (document.getElementById('f-asset-type')||{}).value || '';
     if(!assetTypeName || !entry || !qty){
       var sec = document.getElementById('c-fees-section');
-      if(sec) sec.style.display = 'none';
+      _feesSecShow(false);
       _lastCalcFees = null;
       _updateMarginNote(null, 0);
       return;
     }
     _getAssetFeesForType(assetTypeName).then(function(fees){
-      if(!fees){ var sec=document.getElementById('c-fees-section'); if(sec)sec.style.display='none'; _lastCalcFees=null; return; }
+      if(!fees){ var sec=document.getElementById('c-fees-section'); _feesSecShow(false); _lastCalcFees=null; return; }
       var pairVal = (document.getElementById('f-pair')||{}).value || '';
       var feeOpts = _collectFeeOpts(entry, qty, pairVal);
       var feeResult = calcTradeFees(fees, qty, entry, durMin, pairVal, direction, feeOpts);
@@ -11884,6 +12230,10 @@ function recalcFeesAsync(entry, qty, durMin, direction){
   }, 80);
 }
 var _lastCalcFees = null; // expose for saveTrade()
+function _feesSecShow(show){
+  var sec = document.getElementById('c-fees-section'); if(sec) sec.style.display = show ? '' : 'none';
+  var blk = document.getElementById('c-pl-block'); if(blk) blk.classList.toggle('has-fees', !!show);
+}
 function _renderFeeStrip(feeResult, entry){
   var sec = document.getElementById('c-fees-section');
   var totalEl = document.getElementById('c-fees-total');
@@ -11891,11 +12241,11 @@ function _renderFeeStrip(feeResult, entry){
   var bkEl = document.getElementById('c-fees-breakdown');
   if(!sec) return;
   if(!feeResult || feeResult.total === 0){
-    sec.style.display = 'none';
+    _feesSecShow(false);
     _lastCalcFees = null;
     return;
   }
-  sec.style.display = '';
+  _feesSecShow(true);
   if(totalEl) totalEl.textContent = '-$' + feeResult.total.toFixed(4);
   if(totalEl) totalEl.style.color = 'var(--amber)';
   // Net P/L: read current gross P/L
@@ -11908,6 +12258,13 @@ function _renderFeeStrip(feeResult, entry){
     var netVal = grossVal - feeResult.total;
     netEl.textContent = (netVal >= 0 ? '+' : '') + netVal.toFixed(2);
     netEl.className = 'ci-val ' + (netVal >= 0 ? 'pos' : 'neg');
+    var netPctEl = document.getElementById('c-netpct');
+    if(netPctEl){
+      var _acctN = parseFloat((document.getElementById('f-acct')||{}).value) || 5000;
+      var netPct = (netVal / _acctN) * 100;
+      netPctEl.textContent = '(' + (netPct >= 0 ? '+' : '') + netPct.toFixed(2) + '%)';
+      netPctEl.className = 'ci-val ' + (netVal >= 0 ? 'pos' : 'neg');
+    }
   }
   // Breakdown as quiet small gray text
   if(bkEl){
@@ -12177,15 +12534,15 @@ async function saveTrade(){
   }
   // Tab 2 (Analysis) — mandatory: setup notes, led-to-trade, plan if/then
   var setupNotes=document.getElementById('setup-notes').value.trim();
-  if(!setupNotes){toast('Setup description is required (Analysis tab)','err');switchTab(2,null);return;}
+  if(!setupNotes){toast('Setup description is required (Analysis section)','err');switchTab(2,null);return;}
   var ledToTrade=document.getElementById('led-to-trade').value.trim();
-  if(!_getLedChipsForSave().length&&!_ledTextMeaningful(ledToTrade)){toast('"What led to the trade" is required — pick at least one chip or add details (Analysis tab)','err');switchTab(2,null);return;}
+  if(!_getLedChipsForSave().length&&!_ledTextMeaningful(ledToTrade)){toast('"What led to the trade" is required — pick at least one chip or add details (Analysis section)','err');switchTab(2,null);return;}
   var planIf=document.getElementById('plan-if').value.trim();
-  if(!planIf){toast('Trade plan "if" is required (Analysis tab)','err');switchTab(2,null);return;}
+  if(!planIf){toast('Trade plan "if" is required (Analysis section)','err');switchTab(2,null);return;}
   var planIfThen=document.getElementById('plan-if-then').value.trim();
-  if(!planIfThen){toast('Trade plan "then" is required (Analysis tab)','err');switchTab(2,null);return;}
+  if(!planIfThen){toast('Trade plan "then" is required (Analysis section)','err');switchTab(2,null);return;}
   var biasIsSet=Object.keys(biasState.narrative||{}).some(function(tf){return biasState.narrative[tf]&&biasState.narrative[tf]!=='neutral';});
-  if(!biasIsSet){toast('Narrative bias is required — set at least one TF (Analysis tab)','err');switchTab(2,null);return;}
+  if(!biasIsSet){toast('Narrative bias is required — set at least one TF (Analysis section)','err');switchTab(2,null);return;}
   // Tab 3 (Reflection) — before/after-entry emotions are always required (you already know
   // how you felt going in, whether or not the trade has closed yet). "After trade completed"
   // is required only when this save actually represents a completed trade (see the combined
@@ -12193,17 +12550,17 @@ async function saveTrade(){
   // all filled in, 0 for a still-pending trade) — you can't honestly answer that one yet
   // while the trade is still running.
   var emoBefore=document.getElementById('emo-before').value.trim();
-  if(!emoBefore){toast('Emotion before trade is required (Reflection tab)','err');switchTab(3,null);return;}
+  if(!emoBefore){toast('Emotion before trade is required (Reflection section)','err');switchTab(3,null);return;}
   var emoAfter=document.getElementById('emo-after').value.trim();
-  if(!emoAfter){toast('Emotion after placing trade is required (Reflection tab)','err');switchTab(3,null);return;}
+  if(!emoAfter){toast('Emotion after placing trade is required (Reflection section)','err');switchTab(3,null);return;}
   var emoComplete=document.getElementById('emo-complete').value.trim();
-  if(_exitFieldsCount===4&&!emoComplete){toast('Emotion after trade completed is required to close out this trade (Reflection tab)','err');switchTab(3,null);return;}
+  if(_exitFieldsCount===4&&!emoComplete){toast('Emotion after trade completed is required to close out this trade (Reflection section)','err');switchTab(3,null);return;}
   var mistakes=document.getElementById('l-mistakes').value.trim();
-  if(!mistakes){toast('Mistakes field is required (Reflection tab)','err');switchTab(3,null);return;}
+  if(!mistakes){toast('Mistakes field is required (Reflection section)','err');switchTab(3,null);return;}
   var lessons=document.getElementById('l-lessons').value.trim();
-  if(!lessons){toast('Lessons learned is required (Reflection tab)','err');switchTab(3,null);return;}
+  if(!lessons){toast('Lessons learned is required (Reflection section)','err');switchTab(3,null);return;}
   var good=document.getElementById('l-good').value.trim();
-  if(!good){toast('"What went well" is required (Reflection tab)','err');switchTab(3,null);return;}
+  if(!good){toast('"What went well" is required (Reflection section)','err');switchTab(3,null);return;}
   // ── Blob-image warning ──
   // Any newly-added screenshot that has no cloudUrl will be stored as a raw base64
   // blob directly in IndexedDB (see the dbPut('images',...) loop below). Warn the user
@@ -12306,7 +12663,7 @@ async function saveTrade(){
     ccy:_acctCtx.ccy,fxRate:_acctCtx.ccy==='CAD'?_acctCtx.rate:null,
     plannedPartials:_plannedPartials||null,
     entryPrice:entry,stopLoss:sl,exitPrice:exit,qty:actualQty,
-    targetRR:trr,actualRR:(arr!=null)?parseFloat(arr.toFixed(3)):null,
+    targetRR:trr,targetPrice:(parseFloat((document.getElementById('f-target-price')||{}).value)||null),actualRR:(arr!=null)?parseFloat(arr.toFixed(3)):null,
     plDollar:parseFloat(pl.toFixed(2)),plPct:parseFloat(plPct.toFixed(4)),
     entryTime:edt,exitTime:xdt,
     durationMin:durMs>0?Math.round(durMs/60000):null,
@@ -12399,6 +12756,7 @@ async function clearForm(skipCancelEdit){
   var textIds=['f-entry','f-sl-price','f-sl','f-exit','f-qty','trail-notes','trail-count','trail-final-sl','tpchg-notes','tpchg-orig','tpchg-new',
     'plan-if-then','plan-elseif-then','tp-rr-a'];
   textIds.forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
+  _setTargetPrice(null);
   // Restore pre-filled defaults for analysis/reflection textareas
   var prefilledDefaults={'setup-notes':'1. Range: \n2. Idea: \n3. TP: \n4. Other info: ','led-to-trade':'1. ','issues-notes':'1. ','post-analysis':'1. ','f-news':'1. ',
     'emo-before':'','emo-after':'','emo-complete':'','l-mistakes':'1. ','l-lessons':'1. ','l-good':'1. ',
@@ -12518,7 +12876,7 @@ async function editTrade(id){
     var _acctEl=document.getElementById('f-acct');
     if(_acctEl&&editingId===_idClosure){_setAcctTotalDisplay(_preTradeEquity);_acctEl.value=_preTradeEquity;recalc();}
   })(trade,id);
-  s('f-riskpct',trade.riskpct);s('f-entry',trade.entryPrice);s('f-sl-price',trade.stopLoss||'');s('f-exit',trade.exitPrice||'');s('f-qty',trade.qty);s('f-trr',trade.targetRR);
+  _setTargetPrice(trade.targetPrice);s('f-riskpct',trade.riskpct);s('f-entry',trade.entryPrice);s('f-sl-price',trade.stopLoss||'');s('f-exit',trade.exitPrice||'');s('f-qty',trade.qty);s('f-trr',trade.targetRR);
   if(trade.entryTime){setDT('f-etime-date','f-etime-time',trade.entryTime);}
   if(trade.exitTime){setDT('f-xtime-date','f-xtime-time',trade.exitTime);}
   if(trade.trailDetail){s('trail-notes',trade.trailDetail.notes);s('trail-trigger',trade.trailDetail.trigger);s('trail-count',trade.trailDetail.count);s('trail-final-sl',trade.trailDetail.finalSl);}
@@ -12597,6 +12955,7 @@ async function editTrade(id){
   }
   s('f-margin-amt',trade.marginAmount);s('f-margin-rate',trade.marginRate);
   _pendingManualFees=trade.manualFees||null;
+  _syncFeesMarginOpen();
   recalc();
   var eb=document.getElementById('edit-banner');eb.classList.add('visible');
   document.getElementById('edit-banner-text').textContent='Editing: #'+trade.num+' — '+trade.pair;
@@ -12684,6 +13043,11 @@ async function deleteTrade(id){
 // a saved config of {key, visible} — see getHistColConfig/saveHistColConfig below.
 // To add a new column: add an entry here with a unique `key`, then add that key
 // to DEFAULT_HIST_COL_KEYS if it should be visible out of the box.
+// History P/L cells: when Session = "All sessions", show a small gray currency badge (C / US) before the amount.
+function _histCcyBadge(isCad){
+  if(document.getElementById('flt-session').value)return '';
+  return '<span style="font-size:9px;font-weight:700;color:var(--text3);background:var(--bg4);border-radius:3px;padding:1px 5px;margin-right:6px;vertical-align:middle">'+(isCad?'CA':'US')+'</span>';
+}
 var ALL_HISTORY_COLS=[
   {key:'num',       label:'Trade #',   sortVal:function(t){return parseInt(t.num)||0;},           render:function(t){return'<td style="font-weight:600;color:var(--text);font-family:DM Mono,monospace">#'+escHtml(t.num||'')+'</td>';}},
   {key:'sessionName',label:'Session',  sortVal:function(t){return(t._sessionName||'').toLowerCase();},render:function(t){return'<td style="font-size:11px;color:var(--text3);max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+escHtml(t._sessionName||'')+'">'+escHtml(t._sessionName||'—')+'</td>';}},
@@ -12691,7 +13055,7 @@ var ALL_HISTORY_COLS=[
   {key:'assetType', label:'Asset',     sortVal:function(t){return t.assetType||'';},              render:function(t){return'<td style="color:var(--text2)">'+escHtml(t.assetType||'—')+'</td>';}},
   {key:'type',      label:'Direction', sortVal:function(t){return t.type||'';},                   render:function(t){var typ=t.type||'';return'<td>'+(typ?'<span class="badge '+(typ==='Long'?'badge-green':'badge-red')+'">'+typ+'</span>':'—')+'</td>';}},
   {key:'result',    label:'Result',    sortVal:function(t){return t.winLoss||0;},                 render:function(t){if(!t.exitPrice)return'<td><span class="badge badge-amber">Pending</span></td>';var win=t.winLoss===1;return'<td><span class="badge '+(win?'badge-green':'badge-red')+'">'+(win?'Win':'Loss')+'</span></td>';}},
-  {key:'plDollar',  label:'P/L ($)',   sortVal:function(t){return parseFloat(t.plDollar)||0;},    render:function(t){var pl=parseFloat(t.plDollar)||0;var ptag=(t.partialTPs&&t.partialTPs.length)?'<span style="font-size:8px;font-weight:700;vertical-align:middle;background:rgba(77,127,255,.12);color:var(--accent);border-radius:3px;padding:1px 4px;margin-left:4px">P</span>':'';return'<td class="mono" style="color:'+(pl>=0?'var(--green)':'var(--red)')+'">'+((pl>=0?'+':'')+pl.toFixed(2))+(t.ccy==='CAD'?' <span style="font-size:9px;color:var(--text3)">CAD</span>':'')+ptag+'</td>';}},
+  {key:'plDollar',  label:'P/L ($)',   sortVal:function(t){return parseFloat(t.plDollar)||0;},    render:function(t){var pl=parseFloat(t.plDollar)||0;var ptag=(t.partialTPs&&t.partialTPs.length)?'<span style="font-size:8px;font-weight:700;vertical-align:middle;background:rgba(77,127,255,.12);color:var(--accent);border-radius:3px;padding:1px 4px;margin-left:4px">P</span>':'';return'<td class="mono" style="color:'+(pl>=0?'var(--green)':'var(--red)')+'">'+_histCcyBadge(tradeCcy(t)==='CAD')+((pl>=0?'+':'-')+Math.abs(pl).toFixed(2))+ptag+'</td>';}},
   {key:'plPct',     label:'P/L (%)',   sortVal:function(t){return parseFloat(t.plPct)||0;},       render:function(t){var p=parseFloat(t.plPct)||0;return'<td class="mono" style="color:'+(p>=0?'var(--green)':'var(--red)')+'">'+((p>=0?'+':'')+p.toFixed(2))+'%</td>';}},
   {key:'actualRR',  label:'RR',        sortVal:function(t){return t.actualRR!=null?parseFloat(t.actualRR):-999;},render:function(t){return'<td class="mono">'+(t.actualRR!=null?parseFloat(t.actualRR).toFixed(2)+'R':'—')+'</td>';}},
   {key:'entryTime', label:'Date',      sortVal:function(t){return t.entryTime||t.savedAt||'';},   render:function(t){if(!t.entryTime)return'<td style="color:var(--text3);font-size:12px">—</td>';var timeStr=t.entryTime.length>10?' <span style="color:var(--text3);font-size:10px">'+to12h(t.entryTime.slice(11,16))+'</span>':'';return'<td style="color:var(--text3);font-size:12px;white-space:nowrap">'+t.entryTime.slice(0,10)+timeStr+'</td>';}},
@@ -14022,12 +14386,12 @@ async function _renderHistoryImpl(){
           // No fees configured — show gross P/L directly
           if(grossPL === 0){ nc.innerHTML='<span style="color:var(--text3)">—</span>'+ptag; continue; }
           var pctStr0 = acctBal ? '<span style="color:'+(grossPL>=0?'var(--green)':'var(--red)')+';font-size:11px;margin-left:3px">('+(grossPL>=0?'+':'')+((grossPL/acctBal)*100).toFixed(2)+'%)</span>' : '';
-          nc.innerHTML='<span style="color:'+(grossPL>=0?'var(--green)':'var(--red)')+'">'+( grossPL>=0?'+':'')+grossPL.toFixed(2)+'</span>'+(nc.dataset.ccy==='CAD'?' <span style="font-size:9px;color:var(--text3)">CAD</span>':'')+pctStr0+ptag;
+          nc.innerHTML=_histCcyBadge(nc.dataset.ccy==='CAD')+'<span style="color:'+(grossPL>=0?'var(--green)':'var(--red)')+'">'+( grossPL>=0?'+':'-')+Math.abs(grossPL).toFixed(2)+'</span>'+pctStr0+ptag;
           continue;
         }
         var netPL = parseFloat((grossPL - feeTotal).toFixed(2));
         var pctStr = acctBal ? '<span style="color:'+(netPL>=0?'var(--green)':'var(--red)')+';font-size:11px;margin-left:3px">('+(netPL>=0?'+':'')+((netPL/acctBal)*100).toFixed(2)+'%)</span>' : '';
-        nc.innerHTML='<span style="color:'+(netPL>=0?'var(--green)':'var(--red)')+'">'+( netPL>=0?'+':'')+netPL.toFixed(2)+'</span>'+(nc.dataset.ccy==='CAD'?' <span style="font-size:9px;color:var(--text3)">CAD</span>':'')+pctStr+ptag;
+        nc.innerHTML=_histCcyBadge(nc.dataset.ccy==='CAD')+'<span style="color:'+(netPL>=0?'var(--green)':'var(--red)')+'">'+( netPL>=0?'+':'-')+Math.abs(netPL).toFixed(2)+'</span>'+pctStr+ptag;
       }
     }
     syncHistTopScrollbar(); // fee/net-P/L text can change column widths — recheck overflow
@@ -18233,7 +18597,7 @@ async function loadShortcutsConfig(){
   _scConfig=(Array.isArray(saved)&&saved.length)?saved:DEFAULT_SHORTCUTS.slice();
 }
 function _scStepTab(dir){
-  var tabs=document.querySelectorAll('.form-tab');
+  var tabs=document.querySelectorAll('#log-tab-bar .form-tab');
   var curIdx=0;
   tabs.forEach(function(t,i){if(t.classList.contains('active'))curIdx=i;});
   var nextIdx=Math.min(tabs.length-1,Math.max(0,curIdx+dir));
@@ -20206,6 +20570,7 @@ async function calcLogTrade(){
   var pairSym=inst?inst.sym:'';
   var tradeType=calcDirection==='short'?'Short':'Long';
   var capturedRR=calcLastRR;
+  var capturedTP=(_calcPartialTPs&&_calcPartialTPs.length)?0:(parseFloat((document.getElementById('calc-tp')||{}).value)||0);
   // Margin settings (only when "Use margin" is ON) — read now, before nav() resets the calculator
   var _cMarginAmt='',_cMarginRate='',_cMarginOn=!!calcUseMargin;
   if(_cMarginOn){
@@ -20261,6 +20626,7 @@ async function calcLogTrade(){
   var qtyEl  =document.getElementById('f-qty');       if(qtyEl)   qtyEl.value   = calcLastUnits;
   _plannedPartials=_planSnap;renderPlannedPartials();
   var trrEl  =document.getElementById('f-trr');       if(trrEl&&capturedRR) trrEl.value = capturedRR;
+  if(capturedTP>0) _setTargetPrice(capturedTP);
   // Pre-fill entry date from the economic-calendar step's date — time is left as-is since
   // that page only ever collects a date.
   var etimeDateEl=document.getElementById('f-etime-date');
@@ -20294,6 +20660,7 @@ async function calcLogTrade(){
   if(_cMarginOn){
     var _fmaEl=document.getElementById('f-margin-amt');if(_fmaEl)_fmaEl.value=_cMarginAmt;
     var _fmrEl=document.getElementById('f-margin-rate');if(_fmrEl)_fmrEl.value=_cMarginRate;
+    _syncFeesMarginOpen();
   }
   recalc();
   toast('Trade pre-filled from calculator','ok');
@@ -20307,7 +20674,7 @@ function captureLogFormSnapshot(){
   [
     // Tab 0 — trade info
     'f-pair','f-asset-type','f-session','f-strategy','f-rating','f-error-val',
-    'f-entry','f-sl-price','f-exit','f-qty','f-acct','f-riskpct','f-trr','f-winloss',
+    'f-entry','f-sl-price','f-target-price','f-exit','f-qty','f-acct','f-riskpct','f-trr','f-winloss',
     'f-etime-date','f-etime-time','f-etime-time-24',
     'f-xtime-date','f-xtime-time','f-xtime-time-24',
     'partial-tp-desc','f-margin-amt','f-margin-rate',
@@ -20339,6 +20706,7 @@ function captureLogFormSnapshot(){
   snap._ledChips   = {sel:JSON.parse(JSON.stringify(_ledChipSel)),orphans:JSON.parse(JSON.stringify(_ledChipOrphans))};
   snap._partialTPs = JSON.parse(JSON.stringify(_partialTPs));
   snap._manualFees = _collectManualFees();
+  snap._targetAuto = _targetAuto;
   return snap;
 }
 // Write a captureLogFormSnapshot() object back onto the Log Trade form's fields, opt-pills, and in-memory state
@@ -20349,7 +20717,7 @@ function restoreLogFormSnapshot(snap){
   // Allow empty string restore so cleared fields aren't left with stale values.
   [
     'f-pair','f-session','f-strategy','f-rating','f-error-val',
-    'f-entry','f-sl-price','f-exit','f-qty','f-acct','f-riskpct','f-trr','f-winloss',
+    'f-entry','f-sl-price','f-target-price','f-exit','f-qty','f-acct','f-riskpct','f-trr','f-winloss',
     'f-etime-date','f-etime-time','f-etime-time-24',
     'f-xtime-date','f-xtime-time','f-xtime-time-24',
     'partial-tp-desc','f-margin-amt','f-margin-rate',
@@ -20367,7 +20735,11 @@ function restoreLogFormSnapshot(snap){
     var el=document.getElementById(id);
     if(el && snap[id] !== undefined) el.value=snap[id];
   });
+  _targetAuto = (snap._targetAuto === false) ? false : true;
+  if(_targetAuto){ var _tpEl = document.getElementById('f-target-price'); if(_tpEl) _tpEl.value = ''; }
+  _syncTargetPrice();
   _pendingManualFees = snap._manualFees || null;
+  _syncFeesMarginOpen();
   _syncManualFeeRows();
   // Checkboxes
   if(snap['f-skipped_checked']!==undefined){
