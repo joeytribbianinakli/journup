@@ -9111,6 +9111,7 @@ function setSessionTypePillUI(type){
 // Every session has an account currency (USD or CAD). Sessions saved before this existed
 // have no `currency` field and are USD. Position sizing, risk and P/L are all expressed in it.
 function sessionCcyOf(s){return(s&&s.currency)==='CAD'?'CAD':'USD';}
+function ccyTag(c){return c==='CAD'?' CAD':' USD';} // " CAD" / " USD" suffix for single dollar figures
 function ccySym(c){return '$';} // CAD and USD both use "$"; the USD / CAD suffix says which currency
 function getSmCcy(){var el=document.getElementById('sm-ccy');return el&&el.value==='CAD'?'CAD':'USD';}
 function onSessionCcyChange(){
@@ -10202,7 +10203,7 @@ function logStartFullFlow(){
 // hand-off) while the badge always shows the session's actual full capital.
 function _setAcctTotalDisplay(total){
   var el=document.getElementById('f-acct-total');
-  if(el)el.textContent=ccySym(_acctCtx.ccy)+(parseFloat(total)||0).toLocaleString(undefined,{maximumFractionDigits:2});
+  if(el)el.textContent=ccySym(_acctCtx.ccy)+(parseFloat(total)||0).toLocaleString(undefined,{maximumFractionDigits:2})+ccyTag(_acctCtx.ccy);
 }
 function _applyAcctValue(acctEl,equity){
   if(!acctEl)return;
@@ -10334,7 +10335,7 @@ async function _onEditedTradeSessionMoved(sess){
         units=_logCalcUnits(pair,entry,sl,equity,riskPct,_acctCtx,null,null,true,_inf);
       }
       if(editingId!==_id)return;
-      var sym=ccySym(_acctCtx.ccy)+equity.toLocaleString(undefined,{maximumFractionDigits:2});
+      var sym=ccySym(_acctCtx.ccy)+equity.toLocaleString(undefined,{maximumFractionDigits:2})+ccyTag(_acctCtx.ccy);
       var borrow=0;
       if(units!=null){
         qtyEl.value=units;
@@ -10353,7 +10354,7 @@ async function _onEditedTradeSessionMoved(sess){
           });
           renderPlannedPartials();
         }
-        toast('Session changed — Balance used set to '+sym+' and Total Quantity re-sized to '+units.toLocaleString(undefined,{maximumFractionDigits:6})+' units'+(borrow>0?' using leverage (position value exceeds balance by '+ccySym(_acctCtx.ccy)+borrow.toLocaleString(undefined,{maximumFractionDigits:2})+').':'.'),'warn');
+        toast('Session changed — Balance used set to '+sym+' and Total Quantity re-sized to '+units.toLocaleString(undefined,{maximumFractionDigits:6})+' units'+(borrow>0?' using leverage (position value exceeds balance by '+ccySym(_acctCtx.ccy)+borrow.toLocaleString(undefined,{maximumFractionDigits:2})+ccyTag(_acctCtx.ccy)+').':'.'),'warn');
       } else {
         // Couldn't size it (e.g. CAD session with no USD/CAD rate yet, or entry/SL missing)
         qtyEl.value='';
@@ -11900,10 +11901,10 @@ function updateLogCcyUI(){
   var fr=document.getElementById('f-fx-row'),fi=document.getElementById('f-fxrate');
   if(fr)fr.style.display=_acctCtx.ccy==='CAD'?'':'none';
   if(fi&&document.activeElement!==fi)fi.value=(_acctCtx.ccy==='CAD'&&_acctCtx.rate>0)?String(parseFloat(_acctCtx.rate.toFixed(5))):'';
-  var a=document.getElementById('f-acct-ccy');if(a)a.textContent=S;
+  var a=document.getElementById('f-acct-ccy');if(a)a.textContent=_acctCtx.ccy;
   var b=document.getElementById('f-acct-prefix');if(b)b.textContent=S;
-  document.querySelectorAll('.log-ccy').forEach(function(e){e.textContent=S;});
-  var c=document.getElementById('f-acct-total');if(c&&/^[^0-9]*[0-9]/.test(c.textContent))c.textContent=c.textContent.replace(/^[^0-9]+/,S);
+  document.querySelectorAll('.log-ccy').forEach(function(e){e.textContent=_acctCtx.ccy;});
+  var c=document.getElementById('f-acct-total');if(c&&/^[^0-9]*[0-9]/.test(c.textContent))c.textContent=c.textContent.replace(/^[^0-9]+/,S).replace(/\s*(USD|CAD)$/,'')+ccyTag(_acctCtx.ccy);
 }
 // Compute blended P/L when partials exist.
 // Returns {pl, plPct, arr, winLoss, effectiveExitPrice} or null if insufficient data.
@@ -14562,7 +14563,8 @@ function _dmUpdateNavButtons(){
 async function openDetail(id,opts){
   opts=opts||{};
   var trade=await dbGet('trades',id);if(!trade)return;
-  var _dS=ccySym(tradeCcy(trade)); // detail view shows this trade's own currency symbol
+  var _dC=tradeCcy(trade);
+  var _dS=ccySym(_dC); // detail view shows this trade's own currency symbol
   var _clTemplateForDetail=await getChecklist();
   // Map trade-num -> id so any "#<num>" typed in a notes field (see linkifyTradeRefs)
   // that matches a real trade renders as a clickable link below.
@@ -14725,7 +14727,7 @@ async function openDetail(id,opts){
   var leftHtml=
     '<div class="detail-section-title" style="margin-top:0;padding-top:0;border-top:none">Result</div>'
     +'<div class="detail-grid">'
-    +'<div class="detail-item"><div class="di-label">Gross P/L ('+_dS+')</div><div class="di-val mono" style="color:'+plColor+'">'+plStr+'</div></div>'
+    +'<div class="detail-item"><div class="di-label">Gross P/L ('+_dC+')</div><div class="di-val mono" style="color:'+plColor+'">'+plStr+'</div></div>'
     +'<div class="detail-item"><div class="di-label">P/L (%)</div><div class="di-val mono" style="color:'+plColor+'">'+(trade.plPct>=0?'+':'')+trade.plPct.toFixed(2)+'%</div></div>'
     +'<div class="detail-item"><div class="di-label">Actual RR</div><div class="di-val mono">'+(trade.actualRR!=null?trade.actualRR.toFixed(2)+'R':'—')+'</div></div>'
     +'<div class="detail-item"><div class="di-label">Target RR</div><div class="di-val mono">'+(trade.targetRR?trade.targetRR+'R':'—')+'</div></div>'
@@ -14736,10 +14738,10 @@ async function openDetail(id,opts){
     +'<div class="detail-item"><div class="di-label">Entry</div><div class="di-val mono">'+trade.entryPrice+'</div></div>'
     +'<div class="detail-item"><div class="di-label">Exit</div><div class="di-val mono">'+trade.exitPrice+'</div></div>'
     +'<div class="detail-item"><div class="di-label">SL</div><div class="di-val mono">'+(trade.stopLoss||'—')+'</div></div>'
-    +'<div class="detail-item"><div class="di-label">Risk</div><div class="di-val mono">'+_dS+trade.riskDollar+' / '+trade.riskpct+'%</div></div>'
+    +'<div class="detail-item"><div class="di-label">Risk</div><div class="di-val mono">'+_dS+trade.riskDollar+' '+_dC+' / '+trade.riskpct+'%</div></div>'
     +'<div class="detail-item"><div class="di-label">Qty (units)</div><div class="di-val mono">'+(trade.qty||'—')+'</div></div>'
     +'<div class="detail-item"><div class="di-label">Position size</div><div class="di-val mono">'+(function(){var q=parseFloat(trade.qty),e=parseFloat(trade.entryPrice);return(q&&e)?'$'+calcFmt(q*e,2):'—';})()+'</div></div>'
-    +'<div class="detail-item"><div class="di-label">Balance ('+_dS+') used</div><div class="di-val mono">'+(trade.acct?_dS+parseFloat(trade.acct).toLocaleString():'—')+'</div></div>'
+    +'<div class="detail-item"><div class="di-label">Balance ('+_dC+') used</div><div class="di-val mono">'+(trade.acct?_dS+parseFloat(trade.acct).toLocaleString():'—')+'</div></div>'
     +'</div>'
     +'<div class="detail-section-title">Timing</div>'
     +'<div class="detail-grid">'
@@ -14856,9 +14858,9 @@ async function openDetail(id,opts){
     var netColor = netPL >= 0 ? 'var(--green)' : 'var(--red)';
     inj.innerHTML =
       '<div style="font-size:10px;color:var(--text3);padding:4px 0 2px;line-height:1.5">'
-      +'Fees (est.): -'+_dS+feeResult.total.toFixed(4)
+      +'Fees (est.): -'+_dS+feeResult.total.toFixed(4)+' '+_dC
       +'</div>'
-      +'<div class="detail-item"><div class="di-label">Net P/L ('+_dS+')</div><div class="di-val mono" style="color:'+netColor+'">'+(netPL>=0?'+':'')+netPL.toFixed(2)+'</div></div>';
+      +'<div class="detail-item"><div class="di-label">Net P/L ('+_dC+')</div><div class="di-val mono" style="color:'+netColor+'">'+(netPL>=0?'+':'')+netPL.toFixed(2)+'</div></div>';
   });
 }
 function closeDetail(e){
@@ -19775,7 +19777,7 @@ function _calcUpdatePartialBreakdown(size,bType,mult,posValue){
     var pctTxt=calcFmt(pct,pct%1===0?0:1);
     if(qEl)qEl.textContent='≈'+_calcFmtQty(qty_i,qDec)+' ('+pctTxt+'%)';
     if(bEl){
-      bEl.innerHTML='<span style="color:var(--text2)">'+_calcFmtQty(units_i,uDec)+' units</span> · '+ccySym(calcAcctCcy())+calcFmt(notional_i,2)+' notional';
+      bEl.innerHTML='<span style="color:var(--text2)">'+_calcFmtQty(units_i,uDec)+' units</span> · '+ccySym(calcAcctCcy())+calcFmt(notional_i,2)+' '+calcAcctCcy()+' notional';
       bEl.style.display='block';
     }
   });
@@ -20003,7 +20005,7 @@ function calcEnsureFxRate(){
 }
 function calcApplyCcyUI(){
   var c=calcAcctCcy(),S=ccySym(c);
-  document.querySelectorAll('.calc-ccy').forEach(function(e){e.textContent=S;});
+  document.querySelectorAll('.calc-ccy').forEach(function(e){e.textContent=c;});
   var pf=document.getElementById('calc-bal-prefix');if(pf)pf.textContent=S;
   var w=document.getElementById('calc-fx-wrap'),h=document.getElementById('calc-fx-hint');
   if(w)w.style.display=c==='CAD'?'flex':'none';
@@ -20036,7 +20038,7 @@ function calcUpdateBalanceTotalDisplay(){
   var el=document.getElementById('calc-balance-total');
   if(!el)return;
   var total=(_calcMaxBalance!=null?_calcMaxBalance:calcGetDefaultCapital());
-  el.textContent=ccySym(calcAcctCcy())+total.toLocaleString(undefined,{maximumFractionDigits:2});
+  el.textContent=ccySym(calcAcctCcy())+total.toLocaleString(undefined,{maximumFractionDigits:2})+ccyTag(calcAcctCcy());
 }
 // Recompute the session capital cap *without* touching the balance field. Used when the
 // guided flow restores a previously-entered balance (calcOnBacktestSessionChange would
@@ -20067,7 +20069,7 @@ function calcValidateBalance(){
   var over=(_calcMaxBalance!=null&&!isNaN(v)&&v>_calcMaxBalance+0.005);
   if(err){
     if(over){
-      err.textContent='Balance used can\u2019t exceed the session\u2019s available capital of '+ccySym(calcAcctCcy())+_calcMaxBalance.toLocaleString(undefined,{maximumFractionDigits:2})+'.';
+      err.textContent='Balance used can\u2019t exceed the session\u2019s available capital of '+ccySym(calcAcctCcy())+_calcMaxBalance.toLocaleString(undefined,{maximumFractionDigits:2})+ccyTag(calcAcctCcy())+'.';
       err.style.display='block';
     } else {err.style.display='none';}
   }
@@ -20090,7 +20092,7 @@ function calcSetDefaultCapital(ev){
   localStorage.setItem('tj-calc-capital',v);
   setSetting('tj-calc-capital',v).then(function(){ghAutoSyncConfig();});
   calcUpdateBalanceTotalDisplay();
-  toast('Default capital set to '+ccySym(calcAcctCcy())+v.toLocaleString(),'ok');
+  toast('Default capital set to '+ccySym(calcAcctCcy())+v.toLocaleString()+ccyTag(calcAcctCcy()),'ok');
 }
 // ── Calculator mode: quick / backtest ─────────────────────────────
 var _calcMode='backtest';
@@ -20187,7 +20189,7 @@ async function calcOnBacktestSessionChange(){
   if(riskEl){riskEl.value=riskPct;}
   calcUpdateBalanceTotalDisplay();
   calcValidateBalance();
-  if(hint){hint.textContent='Balance '+ccySym(sessionCcyOf(sess))+equity.toLocaleString()+' · Risk '+riskPct+'%'+(isSkipped?' (base equity — skipped)':' (running equity, after fees)')+' auto-filled';hint.style.display='block';}
+  if(hint){hint.textContent='Balance '+ccySym(sessionCcyOf(sess))+equity.toLocaleString()+ccyTag(sessionCcyOf(sess))+' · Risk '+riskPct+'%'+(isSkipped?' (base equity — skipped)':' (running equity, after fees)')+' auto-filled';hint.style.display='block';}
   calcCalc();
 }
 // ══ Guided Trade-Logging Flow (pre-checklist → position-size calc → log form) ══
@@ -25416,7 +25418,7 @@ function aiBuilderPrompt(m,sessionInfo,depth){
     var sample=m.trades.slice(0,20);
     lines.push('\nINDIVIDUAL TRADES (up to 20 most recent):');
     sample.forEach(function(t,i){
-      var row='Trade #'+(i+1)+': '+t.pair+' | '+(t.type||'?')+' | '+(t.winLoss===1?'WIN':'LOSS')+' | P/L: '+ccySym(tradeCcy(t))+(parseFloat(t.plDollar)||0).toFixed(2);
+      var row='Trade #'+(i+1)+': '+t.pair+' | '+(t.type||'?')+' | '+(t.winLoss===1?'WIN':'LOSS')+' | P/L: '+ccySym(tradeCcy(t))+(parseFloat(t.plDollar)||0).toFixed(2)+ccyTag(tradeCcy(t));
       if(t.actualRR!=null)row+=' | RR: '+parseFloat(t.actualRR).toFixed(2)+'R';
       if(t.strategy)row+=' | Strategy: '+t.strategy;
       if(tradeActiveErrors(t).length)row+=' | Error: '+tradeActiveErrors(t).join(', ');
