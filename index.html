@@ -9111,7 +9111,7 @@ function setSessionTypePillUI(type){
 // Every session has an account currency (USD or CAD). Sessions saved before this existed
 // have no `currency` field and are USD. Position sizing, risk and P/L are all expressed in it.
 function sessionCcyOf(s){return(s&&s.currency)==='CAD'?'CAD':'USD';}
-function ccySym(c){return c==='CAD'?'C$':'$';}
+function ccySym(c){return '$';} // CAD and USD both use "$"; the USD / CAD suffix says which currency
 function getSmCcy(){var el=document.getElementById('sm-ccy');return el&&el.value==='CAD'?'CAD':'USD';}
 function onSessionCcyChange(){
   var sym=document.getElementById('sm-ccy-sym');if(sym)sym.textContent=ccySym(getSmCcy());
@@ -9133,7 +9133,7 @@ function _plSigned(v,sym){return(v>=0?'+':'-')+sym+Math.abs(v).toLocaleString(un
 function plCellText(arr,tp){
   if(!isMixedCcy(arr))return(tp>=0?"+":"")+tp.toFixed(2);
   var b=plByCcy(arr);
-  return _plSigned(b.USD,'$')+' \u00b7 '+_plSigned(b.CAD,'C$');
+  return _plSigned(b.USD,'$')+' USD \u00b7 '+_plSigned(b.CAD,'$')+' CAD';
 }
 // Stacked USD / CAD lines for a stat card; fees (optional) are per-currency totals to net off.
 function plSplitHtml(arr,fees){
@@ -9143,9 +9143,9 @@ function plSplitHtml(arr,fees){
     return'<div style="color:var(--'+(v>=0?'green':'red')+');font-size:17px;line-height:1.3">'+_plSigned(v,ccySym(c))+' <span style="font-size:10px;color:var(--text3)">'+c+'</span></div>';
   }).join('');
 }
-// Symbol for the dollar figures on the dashboard/analytics: C$ when everything in view is CAD, else $.
+// Symbol for the dollar figures on the dashboard/analytics: always $ (currency is shown by the USD / CAD suffix).
 var _viewSym='$';
-function setViewSym(arr){_viewSym=(arr&&arr.length&&arr.every(function(t){return tradeCcy(t)==='CAD';}))?'C$':'$';document.querySelectorAll('.view-ccy').forEach(function(e){e.textContent=_viewSym;});}
+function setViewSym(arr){_viewSym=(arr&&arr.length&&arr.every(function(t){return tradeCcy(t)==='CAD';}))?'$':'$';document.querySelectorAll('.view-ccy').forEach(function(e){e.textContent=_viewSym;});}
 // Dollar bar charts (Avg/Total P/L by category). Single currency: the usual green/red bars.
 // Mixed USD+CAD: two grouped bars per category (one per currency) so nothing is added across currencies.
 function plDs(label,plData,arrs,c,kind){
@@ -9156,17 +9156,17 @@ function plDs(label,plData,arrs,c,kind){
     var sm=x.reduce(function(q,t){return q+(t.plDollar||0);},0);
     return parseFloat((kind==='total'?sm:sm/x.length).toFixed(2));});};
   return[{label:label+' (USD $)',data:f('USD'),backgroundColor:c.accent,borderRadius:4,_mixed:true},
-         {label:label+' (CAD C$)',data:f('CAD'),backgroundColor:c.amber,borderRadius:4,_mixed:true}];
+         {label:label+' (CAD $)',data:f('CAD'),backgroundColor:c.amber,borderRadius:4,_mixed:true}];
 }
 function avgPLtxt(arr,v){
   if(v==null)return'\u2014';
   if(!isMixedCcy(arr))return _viewSym+v.toFixed(0);
   var b=plByCcy(arr);
-  return['USD','CAD'].filter(function(c){return b.n[c];}).map(function(c){return ccySym(c)+(b[c]/b.n[c]).toFixed(0);}).join('\u00b7');
+  return['USD','CAD'].filter(function(c){return b.n[c];}).map(function(c){return ccySym(c)+(b[c]/b.n[c]).toFixed(0)+' '+c;}).join(' \u00b7 ');
 }
 function calPlFmtM(arr,v){
   if(!isMixedCcy(arr))return calPlFmt(v);
-  var b=plByCcy(arr);return _plSigned(b.USD,'$')+' \u00b7 '+_plSigned(b.CAD,'C$');
+  var b=plByCcy(arr);return _plSigned(b.USD,'$')+' USD \u00b7 '+_plSigned(b.CAD,'$')+' CAD';
 }
 // Day total used only for colour/sign decisions: a day with trades in BOTH currencies is only
 // green/red if both currencies agree, otherwise neutral (their dollars can't be added).
@@ -9182,7 +9182,7 @@ function calExtremeTxt(arr,which,unit){
     var g={};
     x.forEach(function(t){var d=new Date(t.entryTime||t.savedAt);var k=unit==='month'?d.getFullYear()+'-'+d.getMonth():calDateKey(d);g[k]=(g[k]||0)+(t.plDollar||0);});
     var vals=Object.keys(g).map(function(k){return g[k];});
-    out.push(_plSigned(which==='best'?Math.max.apply(null,vals):Math.min.apply(null,vals),ccySym(cc)));
+    out.push(_plSigned(which==='best'?Math.max.apply(null,vals):Math.min.apply(null,vals),ccySym(cc))+' '+cc);
   });
   return out.join(' \u00b7 ');
 }
@@ -9195,7 +9195,7 @@ function pairExtremesMixed(buckets,keys,which){
       var v=x.reduce(function(a,t){return a+(t.plDollar||0);},0);
       if(best===null||(which==='best'?v>best:v<best)){best=v;bk=k;}
     });
-    if(bk!==null){names.push(cc+': '+bk);subs.push(_plSigned(best,ccySym(cc)));}
+    if(bk!==null){names.push(cc+': '+bk);subs.push(_plSigned(best,ccySym(cc))+' '+cc);}
   });
   return{names:names.join(' \u00b7 '),sub:subs.join(' \u00b7 ')};
 }
@@ -10442,6 +10442,12 @@ function getSessionReviewStatus(sessionId,trades){
 async function markSessionReviewed(sessionId,value){
   var trades=await dbGetAll('trades');
   var sTrades=trades.filter(function(t){return t.sessionId===sessionId;});
+  var _n=sTrades.length;
+  if(!_n)return;
+  var _msg=value
+    ?'Mark all '+_n+' trade'+(_n===1?'':'s')+' in this session as reviewed?'
+    :'Mark all '+_n+' trade'+(_n===1?'':'s')+' in this session as NOT reviewed?\n\nThis resets the review status of every trade in the session.';
+  if(!confirm(_msg))return;
   for(var i=0;i<sTrades.length;i++){
     if(!!sTrades[i].reviewed!==value){sTrades[i].reviewed=value;await dbPut('trades',sTrades[i]);}
   }
@@ -10459,10 +10465,13 @@ async function renderSessionsList(){
   var netEquityMap={};
   for(var _s of sessions){ netEquityMap[_s.id]=await computeSessionNetEquityAsync(_s,trades); }
   function renderRow(s){
-    var count=trades.filter(function(t){return t.sessionId===s.id}).length;
+    var _sT=trades.filter(function(t){return t.sessionId===s.id});
+    var count=_sT.length;
+    var skippedCnt=_sT.filter(function(t){return !!t.skipped;}).length;
+    var takenCnt=count-skippedCnt;
     var dateStr=s.startDate+(s.endDate?' → '+s.endDate:'');
     var netEq=netEquityMap[s.id]!==undefined?netEquityMap[s.id]:(s.currentEquity||s.startingEquity);
-    var equityStr=s.startingEquity?(' · Equity: '+ccySym(sessionCcyOf(s))+netEq.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+' (start: '+ccySym(sessionCcyOf(s))+s.startingEquity.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+')'):'';
+    var equityStr=s.startingEquity?(' · Equity: '+ccySym(sessionCcyOf(s))+netEq.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+' (start: '+ccySym(sessionCcyOf(s))+s.startingEquity.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+')'+' '+sessionCcyOf(s)):'';
     var active=isSessionActive(s);
     var activeBadge=active&&!s.archived?'<span class="sess-badge sess-badge-active">● Active</span>':'';
     var archivedBadge=s.archived?'<span class="sess-badge sess-badge-archived">Archived</span>':'';
@@ -10481,7 +10490,7 @@ async function renderSessionsList(){
       reviewBadge='<span class="sess-badge sess-badge-unreviewed">Not reviewed</span>';
       reviewBtn='<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();markSessionReviewed(\''+s.id+'\',true)" title="Mark every trade in this session as reviewed">Mark reviewed</button>';
     }
-    return'<div class="session-item'+(s.archived?' archived':'')+'" style="cursor:pointer" onclick="editSessionById(\''+s.id+'\')"><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600">'+escHtml(s.name)+activeBadge+archivedBadge+reviewBadge+'</div><div class="session-meta">'+escHtml(dateStr)+' · '+count+' trades'+equityStr+resumeHint+(s.notes?' · '+escHtml(s.notes.slice(0,50)):'')+'</div>'+'</div>'
+    return'<div class="session-item'+(s.archived?' archived':'')+'" style="cursor:pointer" onclick="editSessionById(\''+s.id+'\')"><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600">'+escHtml(s.name)+activeBadge+archivedBadge+reviewBadge+'</div><div class="session-meta">'+escHtml(dateStr)+' · '+count+' trade'+(count===1?'':'s')+' (<span style="color:var(--green)">'+takenCnt+' taken</span> · <span style="color:var(--amber)">'+skippedCnt+' skipped</span>)'+equityStr+resumeHint+(s.notes?' · '+escHtml(s.notes.slice(0,50)):'')+'</div>'+'</div>'
       +'<div style="display:flex;gap:6px">'
       +reviewBtn
       +'<button class="btn btn-ghost btn-sm" style="color:var(--accent)" onclick="event.stopPropagation();viewSessionTrades(\''+s.id+'\')" title="Open this session in Trade history">View trades</button>'
@@ -14373,7 +14382,7 @@ async function _renderHistoryImpl(){
       var feeResult = assetFees ? calcTradeFees(assetFees, qty, entry, dur, pair, dir, _fopts) : null;
       var feeTotal  = (feeResult && feeResult.total > 0) ? feeResult.total : 0;
       cell.innerHTML = feeTotal > 0
-        ? '<span style="color:var(--amber)">-'+(cell.dataset.ccy==='CAD'?'C$':'$')+feeTotal.toFixed(4)+'</span>'
+        ? '<span style="color:var(--amber)">-'+'$'+feeTotal.toFixed(4)+(cell.dataset.ccy==='CAD'?' CAD':'')+'</span>'
         : '<span style="color:var(--text3)">—</span>';
       // Populate matching netPL cell
       var netCells = netCellsByTradeId[tid] || [];
@@ -15348,7 +15357,7 @@ async function _renderDashboardImpl(){
       if(_pv)_pv.innerHTML=plSplitHtml(trades,_feesBy);
       var _nU=_bU>0?((_pb.USD-_feesBy.USD)/_bU*100):0,_nC=_bC>0?((_pb.CAD-_feesBy.CAD)/_bC*100):0,_sb=document.getElementById('dash-pl-sub');
       if(_sb)_sb.textContent='USD '+(_nU>=0?'+':'')+_nU.toFixed(2)+'% \u00b7 CAD '+(_nC>=0?'+':'')+_nC.toFixed(2)+'%';
-      if(_fl)_fl.textContent='est. fees: '+(_feesBy.USD?'-$'+_feesBy.USD.toFixed(2):'')+(_feesBy.USD&&_feesBy.CAD?' · ':'')+(_feesBy.CAD?'-C$'+_feesBy.CAD.toFixed(2):'');
+      if(_fl)_fl.textContent='est. fees: '+(_feesBy.USD?'-$'+_feesBy.USD.toFixed(2)+' USD':'')+(_feesBy.USD&&_feesBy.CAD?' · ':'')+(_feesBy.CAD?'-$'+_feesBy.CAD.toFixed(2)+' CAD':'');
       return;
     }
     var netPL = totalPL - totalFees;
@@ -15407,7 +15416,7 @@ async function _renderDashboardImpl(){
     });
     var _cc=chartColors();
     var _mk=function(lab,data,col){return{label:lab,data:data,borderColor:col,backgroundColor:'transparent',borderWidth:2,pointRadius:curvePointRadius(data.length),pointHoverRadius:curvePointHoverRadius(data.length),fill:false,tension:0.3};};
-    _eqDS=[_mk('USD equity ($)',eU,_cc.accent),_mk('CAD equity (C$)',eC,_cc.amber)];
+    _eqDS=[_mk('USD equity ($)',eU,_cc.accent),_mk('CAD equity ($)',eC,_cc.amber)];
     _cumDS=[_mk('USD cum. %',pU,_cc.accent),_mk('CAD cum. %',pC,_cc.amber)];
   }
   // Cumulative P/L chart
@@ -15504,7 +15513,7 @@ async function _renderDashboardImpl(){
   var eqBgColor=eqTrending?chartColors().greenBg:chartColors().redBg;
   if(eqData.length){
     var eqLabel=document.getElementById('dash-equity-label');
-    if(eqLabel)eqLabel.textContent=_eqMixed?('Current: $'+eU[eU.length-1].toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+' \u00b7 C$'+eC[eC.length-1].toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})):'Current: '+_viewSym+eqData[eqData.length-1].toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+    if(eqLabel)eqLabel.textContent=_eqMixed?('Current: $'+eU[eU.length-1].toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+' USD \u00b7 $'+eC[eC.length-1].toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+' CAD'):'Current: '+_viewSym+eqData[eqData.length-1].toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
   }
   if(charts.equity)charts.equity.destroy();
   var _cvEquity=document.getElementById('chart-equity');
@@ -25288,7 +25297,7 @@ function aiComputeMetrics(trades,sessions){
     winRate:winRate,totalPL:totalPL,avgWin:avgWin,avgLoss:avgLoss,avgRR:avgRR,
     avgCL:avgCL,riskMean:riskMean,riskStdev:riskStdev,
     ratingCounts:ratingCounts,errorCounts:errorCounts,
-    avgRefl:avgRefl,avgPlan:avgPlan,stratGroups:stratGroups,byCcy:_aiBy,sym:(taken.length&&taken.every(function(t){return tradeCcy(t)==='CAD';}))?'C$':'$',
+    avgRefl:avgRefl,avgPlan:avgPlan,stratGroups:stratGroups,byCcy:_aiBy,sym:(taken.length&&taken.every(function(t){return tradeCcy(t)==='CAD';}))?'$':'$',
     maxConsecLoss:maxConsecLoss,
     trades:taken,skipped:skipped
   };
