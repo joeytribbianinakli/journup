@@ -115,6 +115,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);fon
 .streak-mini-day.hit{background:var(--amber);border-color:var(--amber)}
 .streak-mini-day.today{outline:2px solid var(--accent);outline-offset:1px}
 @media(max-width:700px){.habit-streak-banner{padding:11px 14px}.streak-mini-strip{order:3;width:100%;justify-content:space-between}.streak-mini-day{width:100%;height:12px}}
+/* Mobile: the 14 day boxes share the strip equally. (width:100% + flex-shrink:0 made each box strip-wide, so they spilled out of the card.) */
+@media(max-width:700px){.streak-mini-day{width:auto;flex:1 1 0;min-width:0}}
+/* Mobile: single-column checklist editor. Two columns pushed the right-hand cards off-screen and squeezed every item name field to a few pixels. */
+@media(max-width:700px){#cl-editor-grid{grid-template-columns:minmax(0,1fr)!important}}
 /* Streak-specific toast: slightly warmer + a small pop so the reward reads as
    distinct from routine "Saved ✓" confirmations (it's a bonus, not a status message) ── */
 .toast-dot.streak{background:var(--amber);box-shadow:0 0 0 3px rgba(232,160,48,.18)}
