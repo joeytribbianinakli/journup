@@ -878,6 +878,19 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
 .detail-overlay.review-mode .detail-modal{max-width:none;width:100vw;height:100vh;border-radius:0;display:flex;flex-direction:column}
 .detail-overlay.review-mode .detail-modal-header{flex-shrink:0}
 .detail-overlay.review-mode .detail-modal-body{flex:1;min-height:0;max-height:none;height:auto;padding:0}
+/* Mobile: the detail-modal header (title + badge row + 7 action buttons) is wider than a phone screen and
+   the modal clips overflow, which pushed the star / reviewed / Edit / close buttons off the right edge.
+   Let it wrap instead: title and badges on top (badges wrap too), button cluster on its own row, right-aligned. */
+@media(max-width:700px){
+  .detail-modal-header{flex-wrap:wrap;row-gap:8px;padding:12px 14px}
+  .detail-modal-header>div:first-child{flex:1 1 100%;min-width:0}
+  .detail-modal-header>div:last-child{flex:1 1 100%;justify-content:flex-end;flex-wrap:wrap}
+  #dm-badges{flex-wrap:wrap}
+  /* The wrapped header is taller, so shrink the body by the same amount; otherwise the modal (capped at 90vh)
+     overflows and the bottom of the body is cut off behind a second scrollbar. Not applied in full-screen review mode. */
+  .detail-overlay:not(.review-mode) .detail-modal .detail-modal-body{max-height:calc(90vh - 160px)}
+  .detail-overlay:not(.review-mode) .detail-modal.has-images .detail-modal-body{height:calc(90vh - 160px);max-height:calc(90vh - 160px)}
+}
 .detail-overlay.review-mode .detail-panels{height:100%}
 .detail-overlay.review-mode .detail-panel-left{padding:28px 32px}
 .detail-overlay.review-mode .detail-panel-right{padding:22px}
@@ -10205,6 +10218,26 @@ function _setAcctTotalDisplay(total){
   var el=document.getElementById('f-acct-total');
   if(el)el.textContent=ccySym(_acctCtx.ccy)+(parseFloat(total)||0).toLocaleString(undefined,{maximumFractionDigits:2})+ccyTag(_acctCtx.ccy);
 }
+// Balance before a given trade, built exactly the way rebalanceSession() builds the stored `acct`:
+// each earlier trade's gross P/L minus its estimated fees (rounded to cents at every step), compounded
+// from the session's starting equity. Taken and skipped trades run on separate chains (`skipped` picks
+// which). The edit form uses this so its balance — and the riskDollar derived from it on save — matches
+// what is already stored, instead of drifting by the fees on every no-change edit.
+async function _priorNetEquity(allT,sessionId,excludeId,thisTime,skipped,startEq){
+  var prior=allT.filter(function(x){
+    return x.sessionId===sessionId&&x.id!==excludeId&&!!x.skipped===!!skipped&&
+           new Date(x.entryTime||x.savedAt||0).getTime()<thisTime;
+  });
+  prior.sort(function(a,b){return new Date(a.entryTime||a.savedAt||0)-new Date(b.entryTime||b.savedAt||0);});
+  var eq=startEq;
+  for(var i=0;i<prior.length;i++){
+    var fr=null;
+    try{fr=await computeTradeFeesAsync(prior[i]);}catch(e){}
+    var fee=fr?(parseFloat(fr.total)||0):0;
+    eq=parseFloat((eq+parseFloat(((parseFloat(prior[i].plDollar)||0)-fee).toFixed(2))).toFixed(2));
+  }
+  return eq;
+}
 function _applyAcctValue(acctEl,equity){
   if(!acctEl)return;
   _setAcctTotalDisplay(equity);
@@ -10299,11 +10332,7 @@ async function _onEditedTradeSessionMoved(sess){
     var allT=await dbGetAll('trades');
     var startEq=parseFloat(sess.startingEquity)||5000;
     var thisTime=new Date(trade.entryTime||trade.savedAt||0).getTime();
-    var priorPL=allT.filter(function(x){
-      return x.sessionId===sess.id&&x.id!==_id&&!!x.skipped===skipped&&
-             new Date(x.entryTime||x.savedAt||0).getTime()<thisTime;
-    }).reduce(function(sum,x){return sum+(parseFloat(x.plDollar)||0);},0);
-    var equity=parseFloat((startEq+priorPL).toFixed(2));
+    var equity=await _priorNetEquity(allT,sess.id,_id,thisTime,skipped,startEq);
     if(editingId!==_id)return;
     _setAcctTotalDisplay(equity);
     acctEl.value=equity;
@@ -11301,12 +11330,8 @@ function onSkippedChange(){
             if(!_trade){recalc();return;}
             var _startEq=parseFloat(sess.startingEquity)||5000;
             var _thisTime=new Date(_trade.entryTime||_trade.savedAt||0).getTime();
-            var _prior=_allT.filter(function(x){
-              return x.sessionId===sesId&&x.id!==editingId&&x.skipped&&
-                     new Date(x.entryTime||x.savedAt||0).getTime()<_thisTime;
-            });
-            var _priorPL=_prior.reduce(function(sum,x){return sum+(parseFloat(x.plDollar)||0);},0);
-            acctEl.value=parseFloat((_startEq+_priorPL).toFixed(2));
+            var _netEq=await _priorNetEquity(_allT,sesId,_trade.id,_thisTime,true,_startEq);
+            if(editingId===_trade.id)acctEl.value=_netEq;
           }catch(e){}
           recalc();
         })();
@@ -11326,12 +11351,8 @@ function onSkippedChange(){
             if(!_trade){recalc();return;}
             var _startEq=parseFloat(sess.startingEquity)||5000;
             var _thisTime=new Date(_trade.entryTime||_trade.savedAt||0).getTime();
-            var _prior=_allT.filter(function(x){
-              return x.sessionId===sesId&&x.id!==editingId&&!x.skipped&&
-                     new Date(x.entryTime||x.savedAt||0).getTime()<_thisTime;
-            });
-            var _priorPL=_prior.reduce(function(sum,x){return sum+(parseFloat(x.plDollar)||0);},0);
-            acctEl.value=parseFloat((_startEq+_priorPL).toFixed(2));
+            var _netEq=await _priorNetEquity(_allT,sesId,_trade.id,_thisTime,false,_startEq);
+            if(editingId===_trade.id)acctEl.value=_netEq;
           }catch(e){}
           recalc();
         })();
@@ -12869,17 +12890,12 @@ async function editTrade(id){
       var _allS=await dbGetAll('sessions');
       var _sess=_allS.find(function(x){return x.id===_tradeClosure.sessionId;});
       var _startEq=_sess?(parseFloat(_sess.startingEquity)||5000):5000;
-      // All trades in the same session, excluding the one being edited
+      // All trades in the same session, excluding the one being edited, in entry-time order
       var _allT=await dbGetAll('trades');
-      var _sessTrades=_allT.filter(function(x){return x.sessionId===_tradeClosure.sessionId&&x.id!==_idClosure;});
-      // Sort by entry time (same order the equity curve uses)
       var _thisTime=new Date(_tradeClosure.entryTime||_tradeClosure.savedAt||0).getTime();
-      var _sessTrades=_sessTrades.filter(function(x){
-        return new Date(x.entryTime||x.savedAt||0).getTime()<_thisTime;
-      });
-      // Skipped trades are hypothetical — exclude their P/L from the real equity chain
-      var _priorPL=_sessTrades.reduce(function(sum,x){return x.skipped?sum:sum+(parseFloat(x.plDollar)||0);},0);
-      _preTradeEquity=parseFloat((_startEq+_priorPL).toFixed(2));
+      // Skipped trades are hypothetical — exclude their P/L from the real equity chain.
+      // Net of estimated fees, same chain as rebalanceSession() (see _priorNetEquity).
+      _preTradeEquity=await _priorNetEquity(_allT,_tradeClosure.sessionId,_idClosure,_thisTime,false,_startEq);
     }catch(e){
       _preTradeEquity=parseFloat(_tradeClosure.acct)||5000;
     }
@@ -15294,7 +15310,8 @@ async function _renderDashboardImpl(){
   setViewSym(trades);
   var n=trades.length,wins=trades.filter(function(t){return t.winLoss===1});
   var _dLoss=trades.filter(function(t){return t.winLoss===0}).length,_dBE2=trades.filter(function(t){return t.winLoss===0.5}).length,_dOpen=trades.filter(function(t){return t.winLoss==null}).length;
-  var wr=n?((wins.length/n)*100).toFixed(1):'0';
+  var _dClosed=n-_dOpen; // completed trades only (open/pending trades have no result yet)
+  var wr=_dClosed?((wins.length/_dClosed)*100).toFixed(1):'0';
   var totalPL=trades.reduce(function(a,t){return a+(t.plDollar||0)},0);
   var rrT=trades.filter(function(t){return t.actualRR!=null&&t.actualRR!==0}),avgRR=rrT.length?rrT.reduce(function(a,t){return a+t.actualRR},0)/rrT.length:null;
   var gWin=wins.reduce(function(a,t){return a+t.plDollar},0);
@@ -15324,7 +15341,7 @@ async function _renderDashboardImpl(){
   var plColor=totalPL>=0?'green':'red';
   var plSign=totalPL>=0?'+':'';
   document.getElementById('dash-stat-total').innerHTML='<div class="stat-label">Total trades</div><div class="stat-value">'+n+'</div><div class="stat-sub">'+wins.length+' win'+(wins.length===1?'':'s')+' · '+_dLoss+' loss'+(_dLoss===1?'':'es')+' · '+_dBE2+' BE'+(_dOpen?' · '+_dOpen+' open':'')+'</div>';
-  document.getElementById('dash-stat-winrate').innerHTML='<div class="stat-label">Win rate</div><div class="stat-value '+(parseFloat(wr)>=50?'pos':'neg')+'">'+wr+'%</div><div class="stat-sub">'+wins.length+'/'+n+' trades</div>';
+  document.getElementById('dash-stat-winrate').innerHTML='<div class="stat-label">Win rate</div><div class="stat-value '+(parseFloat(wr)>=50?'pos':'neg')+'">'+wr+'%</div><div class="stat-sub">'+wins.length+'/'+_dClosed+' closed trades</div>';
   var _plMixed=isMixedCcy(trades);
   if(_plMixed){
     var _bU=0,_bC=0;allSessForBase.forEach(function(x){if(sessionCcyOf(x)==='CAD')_bC+=(x.startingEquity||5000);else _bU+=(x.startingEquity||5000);});
@@ -17446,7 +17463,8 @@ async function _updateSidebarStatsImpl(){
   var archivedIds=new Set(sessions.filter(function(s){return s.archived;}).map(function(s){return s.id;}));
   trades=trades.filter(function(t){return !archivedIds.has(t.sessionId);});
   var wins=trades.filter(function(t){return t.winLoss===1});
-  document.getElementById('sidebar-stats').innerHTML=trades.length+' trades<br>'+(trades.length?((wins.length/trades.length*100).toFixed(0)+'% win rate'):'');
+  var _sbClosed=trades.filter(function(t){return t.winLoss!=null;}).length; // completed trades only
+  document.getElementById('sidebar-stats').innerHTML=trades.length+' trades<br>'+(_sbClosed?((wins.length/_sbClosed*100).toFixed(0)+'% win rate'):'');
 }
 // ══ Backup ════════════════════════════════════════
 // MAINTENANCE NOTE: whenever a new data JSON file/store is added, or the shape of an
@@ -17516,8 +17534,11 @@ function recomputeTradeFields(t){
   if(entry&&exit&&qty){
     var diff=typ==='Long'?exit-entry:entry-exit;
     var pl=toAccountPL(diff*qty,t.pair,entry,t);
+    var _prevPl=parseFloat(t.plDollar),_prevPct=parseFloat(t.plPct);
     t.plDollar=parseFloat(pl.toFixed(2));
-    t.plPct=acct?parseFloat((pl/acct*100).toFixed(4)):0;
+    // A stored plPct is net of fees (rebalanceSession() writes it that way) while `pl` above is gross,
+    // so when the P/L itself is unchanged keep the stored value instead of overwriting it with a gross figure.
+    t.plPct=(isFinite(_prevPl)&&isFinite(_prevPct)&&Math.abs(_prevPl-t.plDollar)<=0.01)?_prevPct:(acct?parseFloat((pl/acct*100).toFixed(4)):0);
     t.winLoss=diff>0?1:(diff<0?0:0.5);
     // Prefer the SL-distance ratio for RR (currency-agnostic, matches saveTrade()'s
     // logic) — only fall back to pl/riskDollar when no usable SL is present. This
