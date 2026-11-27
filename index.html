@@ -14618,6 +14618,10 @@ async function openDetail(id,opts){
   // Customize-fields preference (which detail fields/sections the user hid) — see dmApplyFieldPrefs().
   try{var _hp=await getSetting('dmHiddenFields',[]);_dmHiddenPrefs=Array.isArray(_hp)?_hp:[];}catch(e){_dmHiddenPrefs=[];}
   if(!opts.keepNav){try{dmCustClose();}catch(e){}}
+  var _dmSess=null;try{if(trade.sessionId)_dmSess=await dbGet('sessions',trade.sessionId);}catch(e){}
+  var _pf=function(n){return Number(n).toLocaleString(undefined,{maximumFractionDigits:6});};
+  // Untouched Lessons fields hold just the '1. ' list starter — treat that as empty, like Issues/Post-journal/News already do.
+  var _lsn=function(v){return(v&&String(v).trim()!=='1.')?v:'';};
   var _clTemplateForDetail=await getChecklist();
   // Map trade-num -> id so any "#<num>" typed in a notes field (see linkifyTradeRefs)
   // that matches a real trade renders as a clickable link below.
@@ -14786,14 +14790,15 @@ async function openDetail(id,opts){
     +'<div class="detail-item" data-dmf="plPct"><div class="di-label">P/L (%)</div><div class="di-val mono" style="color:'+plColor+'">'+(trade.plPct>=0?'+':'')+trade.plPct.toFixed(2)+'%</div></div>'
     +'<div class="detail-item" data-dmf="actualRR"><div class="di-label">Actual RR</div><div class="di-val mono">'+(trade.actualRR!=null?trade.actualRR.toFixed(2)+'R':'—')+'</div></div>'
     +'<div class="detail-item" data-dmf="targetRR"><div class="di-label">Target RR</div><div class="di-val mono">'+(trade.targetRR?trade.targetRR+'R':'—')+'</div></div>'
-    +'<div id="dm-fees-inject" style="grid-column:1/-1"></div>'
+    +'<div id="dm-fees-inject" style="display:contents"></div>'
     +'</div>'
     +'<div class="detail-section-title" data-dms="priceSize">Price &amp; size</div>'
     +'<div class="detail-grid">'
     +'<div class="detail-item" data-dmf="entry"><div class="di-label">Entry</div><div class="di-val mono">'+trade.entryPrice+'</div></div>'
-    +'<div class="detail-item" data-dmf="exit"><div class="di-label">Exit</div><div class="di-val mono">'+trade.exitPrice+'</div></div>'
+    +'<div class="detail-item" data-dmf="exit"><div class="di-label">Exit</div><div class="di-val mono">'+(trade.exitPrice||'—')+'</div></div>'
     +'<div class="detail-item" data-dmf="sl"><div class="di-label">SL</div><div class="di-val mono">'+(trade.stopLoss||'—')+'</div></div>'
-    +'<div class="detail-item" data-dmf="risk"><div class="di-label">Risk</div><div class="di-val mono">'+_dS+trade.riskDollar+' / '+trade.riskpct+'%</div></div>'
+    +'<div class="detail-item" data-dmf="targetPrice"><div class="di-label">Target price</div><div class="di-val mono">'+(trade.targetPrice||'—')+'</div></div>'
+    +'<div class="detail-item" data-dmf="risk"><div class="di-label">Risk</div><div class="di-val mono">'+(trade.riskDollar!=null&&trade.riskDollar!==''?_dS+trade.riskDollar:'—')+(trade.riskpct!=null&&trade.riskpct!==''?' / '+trade.riskpct+'%':'')+'</div></div>'
     +'<div class="detail-item" data-dmf="qty"><div class="di-label">Qty (units)</div><div class="di-val mono">'+(trade.qty||'—')+'</div></div>'
     +'<div class="detail-item" data-dmf="posSize"><div class="di-label">Position size</div><div class="di-val mono">'+(function(){var q=parseFloat(trade.qty),e=parseFloat(trade.entryPrice);return(q&&e)?'$'+calcFmt(q*e,2):'—';})()+'</div></div>'
     +'<div class="detail-item" data-dmf="balance"><div class="di-label">Balance ('+_dC+') used</div><div class="di-val mono">'+(trade.acct?_dS+parseFloat(trade.acct).toLocaleString():'—')+'</div></div>'
@@ -14807,8 +14812,10 @@ async function openDetail(id,opts){
     +'</div>'
     +'<div class="detail-section-title" data-dms="setupExec">Setup &amp; execution</div>'
     +'<div class="detail-grid">'
+    +'<div class="detail-item" data-dmf="journalSession"><div class="di-label">Journal session</div><div class="di-val">'+(_dmSess&&_dmSess.name?escHtml(_dmSess.name):'—')+'</div></div>'
     +'<div class="detail-item" data-dmf="assetType"><div class="di-label">Asset type</div><div class="di-val">'+(trade.assetType||'—')+'</div></div>'
     +'<div class="detail-item" data-dmf="ltf"><div class="di-label">LTF entry</div><div class="di-val">'+(trade.ltf||'—')+'</div></div>'
+    +'<div class="detail-item" data-dmf="timeframes"><div class="di-label">Timeframes (HTF / MTF / LTF)</div><div class="di-val">'+((trade.htfTf||trade.mtfTf||trade.ltfTf)?escHtml((trade.htfTf||'—')+' / '+(trade.mtfTf||'—')+' / '+(trade.ltfTf||'—')):'—')+'</div></div>'
     +'<div class="detail-item" data-dmf="model"><div class="di-label">Model</div><div class="di-val">'+(trade.model||'—')+'</div></div>'
     +'<div class="detail-item" data-dmf="method"><div class="di-label">Entry method</div><div class="di-val">'+(trade.method||'—')+'</div></div>'
     +'<div class="detail-item" data-dmf="slPlace"><div class="di-label">SL placed at</div><div class="di-val">'+(trade.tpSlPlace||'—')+'</div></div>'
@@ -14818,6 +14825,8 @@ async function openDetail(id,opts){
     +'<div class="detail-item" data-dmf="slTrailing"><div class="di-label">SL trailing</div><div class="di-val">'+(trade.tpTrail||'No')+(trade.trailDetail?' ('+trade.trailDetail.trigger+')':'')+'</div></div>'
     +(trade.trailDetail&&trade.trailDetail.notes?'<div class="detail-item" data-dmf="slTrailDesc" style="grid-column:1/-1"><div class="di-label">SL trail description</div><div class="di-val js-pre">'+linkifyTradeRefs(escHtml(trade.trailDetail.notes),_numToId)+'</div></div>':'')
     +'<div class="detail-item" data-dmf="tpChanged"><div class="di-label">TP changed</div><div class="di-val">'+(trade.tpTpChg||'No')+(trade.tpChangeDetail?' → '+trade.tpChangeDetail.dir:'')+'</div></div>'
+    +(trade.tpChangeDetail&&(trade.tpChangeDetail.orig||trade.tpChangeDetail.newTp)?'<div class="detail-item" data-dmf="tpChgLevels"><div class="di-label">TP change (original → new)</div><div class="di-val mono">'+escHtml(String(trade.tpChangeDetail.orig||'—'))+' → '+escHtml(String(trade.tpChangeDetail.newTp||'—'))+'</div></div>':'')
+    +(trade.tpChangeDetail&&trade.tpChangeDetail.notes?'<div class="detail-item" data-dmf="tpChgNotes" style="grid-column:1/-1"><div class="di-label">TP change description</div><div class="di-val js-pre">'+linkifyTradeRefs(escHtml(trade.tpChangeDetail.notes),_numToId)+'</div></div>':'')
     +(trade.partialTPs&&trade.partialTPs.length?
       '<div class="detail-item" data-dmf="partialTPs" style="grid-column:1/-1"><div class="di-label">Partial TPs ('+trade.partialTPs.length+')</div>'
       +'<div class="di-val" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:3px">'
@@ -14829,6 +14838,12 @@ async function openDetail(id,opts){
     :'')
     +(trade.partialTPs&&trade.partialTPs.length&&trade.partialDesc?
       '<div class="detail-item" data-dmf="partialHow" style="grid-column:1/-1"><div class="di-label">Partial TPs — how taken</div><div class="di-val js-pre">'+linkifyTradeRefs(escHtml(trade.partialDesc),_numToId)+'</div></div>'
+    :'')
+    +(trade.plannedPartials&&trade.plannedPartials.tps&&trade.plannedPartials.tps.length?
+      '<div class="detail-item" data-dmf="plannedPartials" style="grid-column:1/-1"><div class="di-label">Planned partials (calculator)</div>'
+      +'<div class="di-val" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:3px">'
+      +trade.plannedPartials.tps.map(function(p,i){return'<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;font-family:DM Mono,monospace;background:rgba(255,255,255,.04);border:1px solid var(--border);color:var(--text2)"><span style="font-size:9px;font-weight:700;opacity:.7">TP'+(i+1)+'</span> @ '+escHtml(String(p.price))+' · '+_pf(p.pct)+'% · '+_pf(p.units)+' units'+(p.r!=null?' · '+_pf(p.r)+'R':'')+'</span>';}).join('')
+      +'</div></div>'
     :'')
     +'</div>'
     +'<div class="detail-section-title" data-dms="review">Review</div>'
@@ -14851,7 +14866,7 @@ async function openDetail(id,opts){
       +(trade.emoAfter?'<div class="detail-item" data-dmf="emoAfter"><div class="di-label">After trade</div><div class="di-val js-pre">'+escHtml(trade.emoAfter)+'</div></div>':'')
       +(trade.emoComplete?'<div class="detail-item" data-dmf="emoComplete"><div class="di-label">Session complete</div><div class="di-val js-pre">'+escHtml(trade.emoComplete)+'</div></div>':'')
       +'</div>':'')
-    +(trade.mistakes||trade.lessons||trade.good?'<div class="detail-section-title" data-dms="lessons">Lessons</div><div class="detail-grid">'+noteRow('Mistakes',trade.mistakes,'lessonMistakes')+noteRow('Lessons learned',trade.lessons,'lessonLearned')+noteRow('What went well',trade.good,'lessonWell')+'</div>':'')
+    +(_lsn(trade.mistakes)||_lsn(trade.lessons)||_lsn(trade.good)?'<div class="detail-section-title" data-dms="lessons">Lessons</div><div class="detail-grid">'+noteRow('Mistakes',_lsn(trade.mistakes),'lessonMistakes')+noteRow('Lessons learned',_lsn(trade.lessons),'lessonLearned')+noteRow('What went well',_lsn(trade.good),'lessonWell')+'</div>':'')
     +(trade.news&&trade.news!='1. '?'<div class="detail-section-title" data-dms="news">News</div><div class="js-pre">'+linkifyTradeRefs(escHtml(trade.news),_numToId)+'</div>':'')
     +'<div data-dms="_end" style="height:16px"></div>';
   var dmModalEl=document.getElementById('detail-modal');
@@ -14908,14 +14923,22 @@ async function openDetail(id,opts){
   computeTradeFeesAsync(trade).then(function(feeResult){
     var inj = document.getElementById('dm-fees-inject');
     if(!inj) return;
-    if(!feeResult || feeResult.total === 0){ inj.innerHTML = ''; return; }
+    if(!feeResult || feeResult.total === 0){
+      // No fees set up for this trade's asset type (Settings > Assets). Closed trades still show the ticked
+      // Fees / Net P/L fields as '—' / gross, like every other empty field, so ticking them in the customize panel always has an effect.
+      if(pendingTrade){ inj.innerHTML = ''; return; }
+      var _g0 = parseFloat(trade.plDollar) || 0;
+      inj.innerHTML =
+        '<div class="detail-item" data-dmf="fees"><div class="di-label">Fees (est.)</div><div class="di-val mono">\u2014</div></div>'
+        +'<div class="detail-item" data-dmf="netPL"><div class="di-label">Net P/L ('+_dC+')</div><div class="di-val mono" style="color:'+(_g0>=0?'var(--green)':'var(--red)')+'">'+(_g0>=0?'+':'')+_g0.toFixed(2)+'</div></div>';
+      try{dmApplyFieldPrefs();}catch(e){}
+      return;
+    }
     var grossPL = parseFloat(trade.plDollar) || 0;
     var netPL = parseFloat((grossPL - feeResult.total).toFixed(2));
     var netColor = netPL >= 0 ? 'var(--green)' : 'var(--red)';
     inj.innerHTML =
-      '<div data-dmf="fees" style="font-size:10px;color:var(--text3);padding:4px 0 2px;line-height:1.5">'
-      +'Fees (est.): -'+_dS+feeResult.total.toFixed(4)+' '+_dC
-      +'</div>'
+      '<div class="detail-item" data-dmf="fees"><div class="di-label">Fees (est.)</div><div class="di-val mono">-'+_dS+feeResult.total.toFixed(4)+'</div></div>'
       +'<div class="detail-item" data-dmf="netPL"><div class="di-label">Net P/L ('+_dC+')</div><div class="di-val mono" style="color:'+netColor+'">'+(netPL>=0?'+':'')+netPL.toFixed(2)+'</div></div>';
     try{dmApplyFieldPrefs();}catch(e){}
   });
@@ -14931,9 +14954,9 @@ async function openDetail(id,opts){
 var _dmHiddenPrefs=[];
 var DM_FIELD_CATALOG=[
   {key:'result',title:'Result',fields:[['grossPL','Gross P/L'],['plPct','P/L (%)'],['actualRR','Actual RR'],['targetRR','Target RR'],['fees','Fees (est.)'],['netPL','Net P/L']]},
-  {key:'priceSize',title:'Price & size',fields:[['entry','Entry'],['exit','Exit'],['sl','SL'],['risk','Risk'],['qty','Qty (units)'],['posSize','Position size'],['balance','Balance used']]},
+  {key:'priceSize',title:'Price & size',fields:[['entry','Entry'],['exit','Exit'],['sl','SL'],['targetPrice','Target price'],['risk','Risk'],['qty','Qty (units)'],['posSize','Position size'],['balance','Balance used']]},
   {key:'timing',title:'Timing',fields:[['entryTime','Entry date/time'],['exitTime','Exit date/time'],['duration','Duration'],['session','Market session']]},
-  {key:'setupExec',title:'Setup & execution',fields:[['assetType','Asset type'],['ltf','LTF entry'],['model','Model'],['method','Entry method'],['slPlace','SL placed at'],['tpPlace','TP placed at'],['exitCriteria','Exit criteria'],['tpCriteria','TP criteria'],['slTrailing','SL trailing'],['slTrailDesc','SL trail description'],['tpChanged','TP changed'],['partialTPs','Partial TPs'],['partialHow','Partial TPs \u2014 how taken']]},
+  {key:'setupExec',title:'Setup & execution',fields:[['journalSession','Journal session'],['assetType','Asset type'],['ltf','LTF entry'],['timeframes','Timeframes (HTF / MTF / LTF)'],['model','Model'],['method','Entry method'],['slPlace','SL placed at'],['tpPlace','TP placed at'],['exitCriteria','Exit criteria'],['tpCriteria','TP criteria'],['slTrailing','SL trailing'],['slTrailDesc','SL trail description'],['tpChanged','TP changed'],['tpChgLevels','TP change (original \u2192 new)'],['tpChgNotes','TP change description'],['partialTPs','Partial TPs'],['partialHow','Partial TPs \u2014 how taken'],['plannedPartials','Planned partials (calculator)']]},
   {key:'review',title:'Review',fields:[['mistakeError','Mistake/error'],['userRating','User rating']]},
   {key:'bias',title:'Narrative bias'},
   {key:'checklist',title:'Unmet checklist items'},
