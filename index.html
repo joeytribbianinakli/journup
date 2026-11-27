@@ -926,6 +926,18 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
 .dm-cust-sec-row{font-weight:700;color:var(--text)}
 .dm-cust-fields{padding-left:22px}
 .dm-cust-sec.off .dm-cust-fields{opacity:.45}
+/* Highlighted detail fields (picked in the customize drawer): amber tint + left accent bar, amber label.
+   The value turns amber too unless it already carries its own meaning color (green/red P/L, etc.).
+   Negative margins offset the padding so highlighted items stay aligned with their neighbours. */
+.detail-item.dm-hl{background:rgba(232,160,48,.09);border-left:2px solid var(--amber);border-radius:4px;padding:3px 6px 3px 6px;margin:-3px 0 -3px -8px}
+.detail-item.dm-hl .di-label{color:var(--amber)}
+.detail-item.dm-hl .di-val:not([style*="color"]){color:var(--amber);font-weight:600}
+.dm-cust-frow{display:flex;align-items:center;gap:6px}
+.dm-cust-frow .dm-cust-row{flex:1;min-width:0}
+.dm-hl-btn{flex:none;display:inline-flex;align-items:center;justify-content:center;width:24px;height:22px;border-radius:5px;border:1px solid transparent;background:none;color:var(--text3);cursor:pointer;opacity:.55;transition:opacity .12s,color .12s,background .12s}
+.dm-hl-btn:hover{opacity:1;background:var(--bg3)}
+.dm-hl-btn.on{opacity:1;color:var(--amber);background:rgba(232,160,48,.12);border-color:rgba(232,160,48,.35)}
+.dm-cust-sec.off .dm-hl-btn{pointer-events:none}
 /* ── Modal overlay: generic .modal-overlay/.modal-box wrapper reused by every modal in the app (theme modal, detail modal, etc.) ── */
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:300;display:none;align-items:center;justify-content:center;padding:16px}
 .modal-overlay.open{display:flex}
@@ -6598,7 +6610,7 @@ document.addEventListener('DOMContentLoaded',function(){
     <div class="dm-cust" id="dm-cust">
       <div class="dm-cust-panel">
         <div class="dm-cust-head">
-          <div><div class="dm-cust-title">Customize trade details</div><div class="dm-cust-sub">Untick what you don't need when reviewing. Applies to every trade; fields with no data are already hidden.</div></div>
+          <div><div class="dm-cust-title">Customize trade details</div><div class="dm-cust-sub">Untick what you don't need when reviewing. Click the marker beside a field to highlight it in yellow. Applies to every trade; fields with no data are already hidden.</div></div>
           <button class="btn btn-ghost btn-sm btn-icon" title="Close" onclick="dmCustClose()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
         </div>
         <div class="dm-cust-body" id="dm-cust-body"></div>
@@ -12971,6 +12983,7 @@ function cancelEdit(goBack){
 async function clearForm(skipCancelEdit){
   _plannedPartials=null;if(typeof renderPlannedPartials==='function')renderPlannedPartials();
   if(!skipCancelEdit)cancelEdit();
+  try{_resetEditTextareaHeights();}catch(e){}
   // The calculator's committed-balance hand-off belongs to one specific trade — once the
   // form is blanked it no longer applies, so #f-acct goes back to tracking session equity.
   _logAcctOverride=null;
@@ -13044,6 +13057,47 @@ async function clearForm(skipCancelEdit){
   if(fla){fla.value='';fla.placeholder='set on first save';}
   // Auto-select latest session
   await populateSessionSelects();
+}
+// ── Edit trade: grow filled text fields so their whole text shows ──
+// When a trade is opened for editing, every Log Trade textarea holding text is grown (never
+// shrunk) to fit its content, up to _EDIT_TA_MAX_H px (beyond that it scrolls as usual).
+// Fields inside hidden tabs / collapsed boxes have no size yet, so a ResizeObserver fits each
+// one the first time it becomes visible. clearForm() undoes it (restoring any original inline
+// height) so a fresh trade starts with the normal compact fields.
+var _EDIT_TA_MAX_H=420;
+var _editTaObserver=null;
+function _fitEditTextarea(el){
+  if(!el||!el.offsetWidth)return false; // not visible yet
+  if(!el.hasAttribute('data-autofit-orig'))el.setAttribute('data-autofit-orig',el.style.height||'');
+  el.style.height=el.getAttribute('data-autofit-orig');
+  var natural=el.offsetHeight;
+  var cs=getComputedStyle(el);
+  var borders=(parseFloat(cs.borderTopWidth)||0)+(parseFloat(cs.borderBottomWidth)||0);
+  var needed=el.scrollHeight+(cs.boxSizing==='border-box'?borders:-((parseFloat(cs.paddingTop)||0)+(parseFloat(cs.paddingBottom)||0)));
+  if(needed>natural+1)el.style.height=Math.min(needed,Math.max(natural,_EDIT_TA_MAX_H))+'px';
+  return true;
+}
+function _resetEditTextareaHeights(){
+  if(_editTaObserver){try{_editTaObserver.disconnect();}catch(e){}_editTaObserver=null;}
+  document.querySelectorAll('#page-log textarea[data-autofit-orig]').forEach(function(el){
+    el.style.height=el.getAttribute('data-autofit-orig');
+    el.removeAttribute('data-autofit-orig');
+  });
+}
+function _fitEditTextareas(){
+  try{
+    _resetEditTextareaHeights();
+    var tas=Array.prototype.filter.call(document.querySelectorAll('#page-log textarea'),function(el){return el.value&&el.value.trim()!=='';});
+    if(!tas.length)return;
+    if(typeof ResizeObserver==='undefined'){tas.forEach(_fitEditTextarea);return;}
+    var obs=new ResizeObserver(function(entries){
+      entries.forEach(function(en){
+        if(en.contentRect.width>0&&_fitEditTextarea(en.target))obs.unobserve(en.target);
+      });
+    });
+    _editTaObserver=obs;
+    tas.forEach(function(el){obs.observe(el);});
+  }catch(e){console.warn('fit edit textareas failed',e);}
 }
 // ══ Edit trade ════════════════════════════════════
 async function editTrade(id){
@@ -13184,6 +13238,7 @@ async function editTrade(id){
   }
   var logBtn=document.querySelector('.nav-item[onclick*="nav(\'log\'"]');
   nav('log',logBtn);closeDetail();
+  _fitEditTextareas();
 }
 // ══ Session equity helper ═════════════════════════
 // Recalculates currentEquity for one or more session IDs from scratch.
@@ -14773,6 +14828,8 @@ async function openDetail(id,opts){
   var _dS=ccySym(_dC); // detail view shows this trade's own currency symbol
   // Customize-fields preference (which detail fields/sections the user hid) — see dmApplyFieldPrefs().
   try{var _hp=await getSetting('dmHiddenFields',[]);_dmHiddenPrefs=Array.isArray(_hp)?_hp:[];}catch(e){_dmHiddenPrefs=[];}
+  // Highlighted fields (yellow), picked in the customize drawer.
+  try{var _hl=await getSetting('dmHighlightFields',null);_dmHighlightPrefs=Array.isArray(_hl)?_hl:DM_HIGHLIGHT_DEFAULT.slice();}catch(e){_dmHighlightPrefs=DM_HIGHLIGHT_DEFAULT.slice();}
   if(!opts.keepNav){try{dmCustClose();}catch(e){}}
   var _dmSess=null;try{if(trade.sessionId)_dmSess=await dbGet('sessions',trade.sessionId);}catch(e){}
   var _pf=function(n){return Number(n).toLocaleString(undefined,{maximumFractionDigits:6});};
@@ -14847,6 +14904,16 @@ async function openDetail(id,opts){
   };
   var plStr=(trade.plDollar>=0?'+':'')+trade.plDollar.toFixed(2);
   var plColor=win?'var(--green)':(_dBE?'var(--amber)':'var(--red)');
+  // "(3.37%)" suffix for the Gross / Net P/L amounts in the Result section ('' when the % is unknown)
+  var _dmPctTxt=function(p){p=parseFloat(p);return isFinite(p)?'('+p.toFixed(2)+'%)':'';};
+  // Net P/L % uses the same base as the trade's own P/L %: balance used, else derived from gross $ / gross %
+  var _dmNetPct=function(net){
+    var a=parseFloat(trade.acct);
+    if(a>0)return net/a*100;
+    var g=parseFloat(trade.plDollar),gp=parseFloat(trade.plPct);
+    if(isFinite(g)&&isFinite(gp)&&g!==0&&gp!==0)return net/(g/gp*100)*100;
+    return NaN;
+  };
   // Images — all screenshots are collected into a single flat list (_dmImgList) so the
   // lightbox can step through every image on this trade with the keyboard, regardless of
   // which zone/group it came from.
@@ -14942,11 +15009,11 @@ async function openDetail(id,opts){
   var leftHtml=
     '<div class="detail-section-title" data-dms="result" style="margin-top:0;padding-top:0;border-top:none">Result</div>'
     +'<div class="detail-grid">'
-    +'<div class="detail-item" data-dmf="grossPL"><div class="di-label">Gross P/L ('+_dC+')</div><div class="di-val mono" style="color:'+plColor+'">'+plStr+'</div></div>'
-    +'<div class="detail-item" data-dmf="plPct"><div class="di-label">P/L (%)</div><div class="di-val mono" style="color:'+plColor+'">'+(trade.plPct>=0?'+':'')+trade.plPct.toFixed(2)+'%</div></div>'
+    +'<div class="detail-item" data-dmf="grossPL"><div class="di-label">Gross P/L ('+_dC+')</div><div class="di-val mono" style="color:'+plColor+'">'+plStr+_dmPctTxt(trade.plPct)+'</div></div>'
+    // Fees + Net P/L sit right after Gross P/L; filled in async below (placeholders keep the grid from shifting)
+    +'<div id="dm-fees-inject" style="display:contents">'+(pendingTrade?'':'<div class="detail-item" data-dmf="fees"><div class="di-label">Fees (est.)</div><div class="di-val mono">…</div></div><div class="detail-item" data-dmf="netPL"><div class="di-label">Net P/L ('+_dC+')</div><div class="di-val mono">…</div></div>')+'</div>'
     +'<div class="detail-item" data-dmf="actualRR"><div class="di-label">Actual RR</div><div class="di-val mono">'+(trade.actualRR!=null?trade.actualRR.toFixed(2)+'R':'—')+'</div></div>'
     +'<div class="detail-item" data-dmf="targetRR"><div class="di-label">Target RR</div><div class="di-val mono">'+(trade.targetRR?trade.targetRR+'R':'—')+'</div></div>'
-    +'<div id="dm-fees-inject" style="display:contents"></div>'
     +'</div>'
     +'<div class="detail-section-title" data-dms="priceSize">Price &amp; size</div>'
     +'<div class="detail-grid">'
@@ -14954,7 +15021,7 @@ async function openDetail(id,opts){
     +'<div class="detail-item" data-dmf="exit"><div class="di-label">Exit</div><div class="di-val mono">'+(trade.exitPrice||'—')+'</div></div>'
     +'<div class="detail-item" data-dmf="sl"><div class="di-label">SL</div><div class="di-val mono">'+(trade.stopLoss||'—')+'</div></div>'
     +'<div class="detail-item" data-dmf="targetPrice"><div class="di-label">Target price</div><div class="di-val mono">'+(trade.targetPrice||'—')+'</div></div>'
-    +'<div class="detail-item" data-dmf="risk"><div class="di-label">Risk</div><div class="di-val mono">'+(trade.riskDollar!=null&&trade.riskDollar!==''?_dS+trade.riskDollar:'—')+(trade.riskpct!=null&&trade.riskpct!==''?' / '+trade.riskpct+'%':'')+'</div></div>'
+    +'<div class="detail-item" data-dmf="risk"><div class="di-label">Risk</div><div class="di-val mono">'+(function(){var _hR=trade.riskDollar!=null&&trade.riskDollar!=='',_hP=trade.riskpct!=null&&trade.riskpct!=='';if(_hR)return _dS+trade.riskDollar+(_hP?'('+trade.riskpct+'%)':'');return _hP?trade.riskpct+'%':'—';})()+'</div></div>'
     +'<div class="detail-item" data-dmf="qty"><div class="di-label">Qty (units)</div><div class="di-val mono">'+(trade.qty||'—')+'</div></div>'
     +'<div class="detail-item" data-dmf="posSize"><div class="di-label">Position size</div><div class="di-val mono">'+(function(){var q=parseFloat(trade.qty),e=parseFloat(trade.entryPrice);return(q&&e)?'$'+calcFmt(q*e,2):'—';})()+'</div></div>'
     +'<div class="detail-item" data-dmf="balance"><div class="di-label">Balance ('+_dC+') used</div><div class="di-val mono">'+(trade.acct?_dS+parseFloat(trade.acct).toLocaleString():'—')+'</div></div>'
@@ -15086,7 +15153,7 @@ async function openDetail(id,opts){
       var _g0 = parseFloat(trade.plDollar) || 0;
       inj.innerHTML =
         '<div class="detail-item" data-dmf="fees"><div class="di-label">Fees (est.)</div><div class="di-val mono">\u2014</div></div>'
-        +'<div class="detail-item" data-dmf="netPL"><div class="di-label">Net P/L ('+_dC+')</div><div class="di-val mono" style="color:'+(_g0>=0?'var(--green)':'var(--red)')+'">'+(_g0>=0?'+':'')+_g0.toFixed(2)+'</div></div>';
+        +'<div class="detail-item" data-dmf="netPL"><div class="di-label">Net P/L ('+_dC+')</div><div class="di-val mono" style="color:'+(_g0>=0?'var(--green)':'var(--red)')+'">'+(_g0>=0?'+':'')+_g0.toFixed(2)+_dmPctTxt(trade.plPct)+'</div></div>';
       try{dmApplyFieldPrefs();}catch(e){}
       return;
     }
@@ -15095,8 +15162,12 @@ async function openDetail(id,opts){
     var netColor = netPL >= 0 ? 'var(--green)' : 'var(--red)';
     inj.innerHTML =
       '<div class="detail-item" data-dmf="fees"><div class="di-label">Fees (est.)</div><div class="di-val mono">-'+_dS+feeResult.total.toFixed(4)+'</div></div>'
-      +'<div class="detail-item" data-dmf="netPL"><div class="di-label">Net P/L ('+_dC+')</div><div class="di-val mono" style="color:'+netColor+'">'+(netPL>=0?'+':'')+netPL.toFixed(2)+'</div></div>';
+      +'<div class="detail-item" data-dmf="netPL"><div class="di-label">Net P/L ('+_dC+')</div><div class="di-val mono" style="color:'+netColor+'">'+(netPL>=0?'+':'')+netPL.toFixed(2)+_dmPctTxt(_dmNetPct(netPL))+'</div></div>';
     try{dmApplyFieldPrefs();}catch(e){}
+  }).catch(function(e){
+    // Fee lookup failed: drop the '…' placeholders rather than leave them hanging
+    console.warn('detail fees failed',e);
+    var inj=document.getElementById('dm-fees-inject');if(inj)inj.innerHTML='';
   });
 }
 
@@ -15108,8 +15179,12 @@ async function openDetail(id,opts){
 // toggles a CSS class on them, so the markup itself is never altered and Edit / exports /
 // other pages are unaffected. Stored entries are 'f.<fieldKey>' or 's.<sectionKey>'.
 var _dmHiddenPrefs=[];
+// Field keys (data-dmf) shown highlighted in yellow — settings key 'dmHighlightFields' (synced with the config).
+// Nothing is highlighted until the user picks fields in the customize drawer.
+var DM_HIGHLIGHT_DEFAULT=[];
+var _dmHighlightPrefs=DM_HIGHLIGHT_DEFAULT.slice();
 var DM_FIELD_CATALOG=[
-  {key:'result',title:'Result',fields:[['grossPL','Gross P/L'],['plPct','P/L (%)'],['actualRR','Actual RR'],['targetRR','Target RR'],['fees','Fees (est.)'],['netPL','Net P/L']]},
+  {key:'result',title:'Result',fields:[['grossPL','Gross P/L'],['fees','Fees (est.)'],['netPL','Net P/L'],['actualRR','Actual RR'],['targetRR','Target RR']]},
   {key:'priceSize',title:'Price & size',fields:[['entry','Entry'],['exit','Exit'],['sl','SL'],['targetPrice','Target price'],['risk','Risk'],['qty','Qty (units)'],['posSize','Position size'],['balance','Balance used']]},
   {key:'timing',title:'Timing',fields:[['entryTime','Entry date/time'],['exitTime','Exit date/time'],['duration','Duration'],['session','Market session']]},
   {key:'setupExec',title:'Setup & execution',fields:[['journalSession','Journal session'],['assetType','Asset type'],['ltf','LTF entry'],['timeframes','Timeframes (HTF / MTF / LTF)'],['model','Model'],['method','Entry method'],['slPlace','SL placed at'],['tpPlace','TP placed at'],['exitCriteria','Exit criteria'],['tpCriteria','TP criteria'],['slTrailing','SL trailing'],['slTrailDesc','SL trail description'],['tpChanged','TP changed'],['tpChgLevels','TP change (original \u2192 new)'],['tpChgNotes','TP change description'],['partialTPs','Partial TPs'],['partialHow','Partial TPs \u2014 how taken'],['plannedPartials','Planned partials (calculator)']]},
@@ -15135,6 +15210,8 @@ function dmApplyFieldPrefs(){
   all('.dm-pref-hidden').forEach(function(el){el.classList.remove('dm-pref-hidden');});
   all('.dm-first-title').forEach(function(el){el.classList.remove('dm-first-title');});
   all('[data-dmf]').forEach(function(el){if(hid['f.'+el.getAttribute('data-dmf')])el.classList.add('dm-pref-hidden');});
+  var hl={};(_dmHighlightPrefs||[]).forEach(function(k){hl[k]=1;});
+  all('[data-dmf]').forEach(function(el){el.classList.toggle('dm-hl',!!hl[el.getAttribute('data-dmf')]&&el.classList.contains('detail-item'));});
   // Group the panel's top-level children into sections: a title (data-dms) starts a group and
   // every following sibling belongs to it until the next title; the unmet-checklist blocks
   // carry their own data-dms and start their own group.
@@ -15168,13 +15245,18 @@ function _dmCustIsOpen(){var el=document.getElementById('dm-cust');return !!(el&
 function dmCustRender(){
   var body=document.getElementById('dm-cust-body');if(!body)return;
   var hid={};(_dmHiddenPrefs||[]).forEach(function(k){hid[k]=1;});
+  var hl={};(_dmHighlightPrefs||[]).forEach(function(k){hl[k]=1;});
   body.innerHTML=DM_FIELD_CATALOG.map(function(sec){
     var secOn=!hid['s.'+sec.key];
     var h='<div class="dm-cust-sec'+(secOn?'':' off')+'">'
       +'<label class="dm-cust-row dm-cust-sec-row"><input type="checkbox" data-k="s.'+sec.key+'"'+(secOn?' checked':'')+' onchange="dmCustToggle(this)"><span>'+escHtml(sec.title)+'</span></label>';
     if(sec.fields){
       h+='<div class="dm-cust-fields">'+sec.fields.map(function(f){
-        return '<label class="dm-cust-row"><input type="checkbox" data-k="f.'+f[0]+'"'+(hid['f.'+f[0]]?'':' checked')+' onchange="dmCustToggle(this)"><span>'+escHtml(f[1])+'</span></label>';
+        var isHl=!!hl[f[0]];
+        return '<div class="dm-cust-frow"><label class="dm-cust-row"><input type="checkbox" data-k="f.'+f[0]+'"'+(hid['f.'+f[0]]?'':' checked')+' onchange="dmCustToggle(this)"><span>'+escHtml(f[1])+'</span></label>'
+          +'<button type="button" class="dm-hl-btn'+(isHl?' on':'')+'" data-hl="'+f[0]+'" onclick="dmCustToggleHl(this)" title="'+(isHl?'Remove highlight':'Highlight in yellow')+'" aria-pressed="'+(isHl?'true':'false')+'">'
+          +'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 11-6 6v3h9l3-3"/><path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"/></svg>'
+          +'</button></div>';
       }).join('')+'</div>';
     }
     return h+'</div>';
@@ -15187,6 +15269,18 @@ function dmCustToggle(cb){
   _dmHiddenPrefs=set;
   if(k.indexOf('s.')===0){var secEl=cb.closest('.dm-cust-sec');if(secEl)secEl.classList.toggle('off',!cb.checked);}
   Promise.resolve(setSetting('dmHiddenFields',set.slice())).then(function(){ghAutoSyncConfig();}).catch(function(){});
+  try{dmApplyFieldPrefs();}catch(e){console.warn('dmApplyFieldPrefs failed',e);}
+}
+function dmCustToggleHl(btn){
+  var k=btn.getAttribute('data-hl');if(!k)return;
+  var on=!btn.classList.contains('on');
+  var set=(_dmHighlightPrefs||[]).filter(function(x){return x!==k;});
+  if(on)set.push(k);
+  _dmHighlightPrefs=set;
+  btn.classList.toggle('on',on);
+  btn.setAttribute('aria-pressed',on?'true':'false');
+  btn.title=on?'Remove highlight':'Highlight in yellow';
+  Promise.resolve(setSetting('dmHighlightFields',set.slice())).then(function(){ghAutoSyncConfig();}).catch(function(){});
   try{dmApplyFieldPrefs();}catch(e){console.warn('dmApplyFieldPrefs failed',e);}
 }
 function dmCustReset(){
