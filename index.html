@@ -7,6 +7,7 @@
 <title>JournUp</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%234d7fff'/%3E%3Cpolyline points='24,9 15.5,17.5 10.5,12.5 4,19' fill='none' stroke='%23fff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpolyline points='18,9 24,9 24,15' fill='none' stroke='%23fff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
@@ -1491,6 +1492,81 @@ input:focus,select:focus,textarea:focus{box-shadow:0 0 0 3px rgba(77,127,255,.16
   .modal-overlay,.detail-overlay,.lightbox,.modal-overlay>div,.detail-overlay>div,
   .analysis-body,.cond-box,#page-calculator .calc-info-body,.dm-cust-panel,.dm-focus-view,.edit-banner,.tref-dropdown,.mob-overlay{animation:none!important}
   .btn:active,.nav-item:active,.form-tab:active,.cal-view-tab:active,.trd-tabnav-btn:active{transform:none}
+}
+/* ══════════════════════════════════════════════════════════════
+   UI SMOOTHNESS LAYER 2 — visual only (closing motion, theme cross-fade,
+   hover/press feedback, scroll elevation). Sits on top of the polish layer
+   above and changes no markup, logic or workflow. To remove it, delete this
+   block and the small <script> marked "UI smoothness layer 2" at the end of <body>.
+   ══════════════════════════════════════════════════════════════ */
+
+/* Crisper, lighter text rendering on macOS dark UIs (no effect elsewhere) */
+html{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+
+/* ── 1. Closing motion ──────────────────────────────────────────
+   Opening already animates; closing used to snap shut. Overlays now fade out and the
+   box eases away. Uses CSS discrete-display transitions, so the app's own open/close
+   code (which only toggles the .open class) is untouched; browsers without support
+   simply keep the previous instant close. Closed overlays ignore the pointer at once,
+   so nothing under them is ever blocked while they fade. */
+@supports (transition-behavior:allow-discrete){
+  .modal-overlay,.detail-overlay,.lightbox,.mob-overlay{transition:opacity .18s ease,display .18s allow-discrete}
+  .modal-overlay:not(.open),.detail-overlay:not(.open),.lightbox:not(.open),.mob-overlay:not(.open){opacity:0;pointer-events:none}
+  .modal-overlay:not(.open)>div{transform:translateY(10px) scale(.985);transition:transform .18s var(--ease-out)}
+  .lightbox:not(.open) img{transform:scale(.97);transition:transform .18s var(--ease-out)}
+  /* keep the backdrop blur through the fade so it doesn't pop off */
+  .modal-overlay:not(.open),.detail-overlay:not(.open):not(.jx-no-exit){-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}
+  /* closing the full-screen Trade Review swaps layouts in the same instant, so it stays instant (flag set by the helper script) */
+  .detail-overlay.jx-no-exit{transition:none}
+  /* trade-detail "Customize fields" drawer slides back out */
+  .dm-cust{transition:display .2s allow-discrete}
+  .dm-cust:not(.open) .dm-cust-panel{opacity:0;transform:translateX(24px);pointer-events:none;transition:opacity .2s ease,transform .22s var(--ease-out)}
+}
+@media(max-width:600px){
+  @supports (transition-behavior:allow-discrete){
+    .modal-overlay:not(.open)>div{transform:translateY(32px)}
+  }
+}
+
+/* ── 2. Theme switch cross-fades instead of snapping ─────────────
+   The helper script adds .jx-theme-fade for ~0.4s around a user-triggered theme change only. */
+html.jx-theme-fade *,html.jx-theme-fade *::before,html.jx-theme-fade *::after{
+  transition:background-color .3s ease,border-color .3s ease,color .3s ease,fill .3s ease,stroke .3s ease,box-shadow .3s ease
+}
+html.jx-theme-fade .toast{transition:opacity .22s ease,transform .3s var(--ease-spring)}
+
+/* ── 3. Cards and stat tiles respond to the cursor (mouse devices only) ── */
+.stat-card,.card{transition:border-color .2s var(--ease-out),box-shadow .25s var(--ease-out)}
+@media(hover:hover){
+  .stat-card:hover{border-color:var(--border2);box-shadow:0 6px 20px -8px rgba(0,0,0,.45)}
+  .card:hover{border-color:var(--border2)}
+}
+
+/* ── 4. Press feedback + easing for chips, pills and small toggles (Log Trade etc.) ── */
+.opt-pill,.led-chip,.tf-pill,.break-dur-btn,.add-tf-btn,.partial-tp-add-btn,.bias-chip{transition-timing-function:var(--ease-out)}
+.tf-add-btn{transition:color .15s,border-color .15s,transform .12s var(--ease-out)}
+.dash-mode-btn{transition:background .15s,color .15s,transform .12s var(--ease-out)}
+.opt-pill:not(.locked):active,.led-chip:not(.editing):active,.tf-pill:active,.break-dur-btn:active,
+.add-tf-btn:active,.tf-add-btn:active,.partial-tp-add-btn:active,.dash-mode-btn:active{transform:scale(.96)}
+
+/* ── 5. Sidebar: the active bar eases in/out instead of popping.
+   Inactive items now carry a transparent 3px left border (padding reduced by the same 3px),
+   so every item keeps exactly the same size and text position as before. ── */
+.nav-item{border-left:3px solid transparent;padding-left:7px;transition:color .15s,background .15s,border-left-color .2s var(--ease-out),transform .12s var(--ease-out)}
+
+/* ── 6. Sticky top bar gains a soft shadow as the page scrolls under it (scroll-driven, no JS) ── */
+@supports (animation-timeline:scroll()){
+  .topbar{animation:jx-topbar-elev linear both;animation-timeline:scroll(nearest block);animation-range:0 56px}
+  @keyframes jx-topbar-elev{from{box-shadow:0 0 0 0 transparent}to{box-shadow:0 10px 24px -14px rgba(0,0,0,.4)}}
+}
+
+/* Respect "reduce motion" for everything added in this layer */
+@media(prefers-reduced-motion:reduce){
+  .modal-overlay,.detail-overlay,.lightbox,.mob-overlay,.modal-overlay>div,.lightbox img,.dm-cust,.dm-cust-panel,
+  .stat-card,.card,html.jx-theme-fade *,html.jx-theme-fade *::before,html.jx-theme-fade *::after{transition:none!important}
+  .topbar{animation:none!important}
+  .opt-pill:active,.led-chip:active,.tf-pill:active,.break-dur-btn:active,.add-tf-btn:active,.tf-add-btn:active,
+  .partial-tp-add-btn:active,.dash-mode-btn:active{transform:none}
 }
 </style>
 <script>
@@ -32735,6 +32811,61 @@ document.addEventListener('wheel', function(){
   var ae = document.activeElement;
   if(ae && ae.tagName === 'INPUT' && ae.type === 'number') ae.blur();
 }, {passive:true});
+</script>
+<!-- UI smoothness layer 2 -->
+<script>
+/* ── UI smoothness layer 2 — visual-only helpers ───────────────────────────
+   Pairs with the "UI SMOOTHNESS LAYER 2" CSS block. Each part is wrapped in its own
+   try/catch and only touches presentation (a CSS class, or Chart.js animation timing), so
+   a failure here can never affect data, saving, filters or any other feature. */
+(function(){
+  var reduce=false;
+  try{reduce=!!(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches);}catch(e){}
+
+  // (a) Chart.js redraws (filter changes, page switches) finish in ~0.7s instead of 1s, and
+  //     hover highlights respond faster. Only default timing changes — no data/options touched.
+  try{
+    if(window.Chart&&Chart.defaults){
+      if(Chart.defaults.animation&&typeof Chart.defaults.animation==='object'){Chart.defaults.animation.duration=reduce?0:700;}
+      var act=Chart.defaults.transitions&&Chart.defaults.transitions.active&&Chart.defaults.transitions.active.animation;
+      if(act)act.duration=reduce?0:180;
+    }
+  }catch(e){}
+
+  // (b) Theme cross-fade: flag <html> for ~0.4s around a user-triggered theme change so the
+  //     colours fade (CSS above). The original function runs exactly as before; the boot-time
+  //     restore (noPush=true) is skipped so the app never fades on load.
+  try{
+    var origTheme=window.applyThemeVars,fadeTimer=null;
+    if(typeof origTheme==='function'&&!reduce){
+      window.applyThemeVars=function(name,noPush){
+        if(!noPush){
+          var root=document.documentElement;
+          root.classList.add('jx-theme-fade');
+          clearTimeout(fadeTimer);
+          fadeTimer=setTimeout(function(){root.classList.remove('jx-theme-fade');},420);
+        }
+        return origTheme.apply(this,arguments);
+      };
+    }
+  }catch(e){}
+
+  // (c) Trade detail: closing from full-screen Trade Review changes layout in the same instant,
+  //     so a fade-out would show a layout jump. Flag that one case so it closes instantly like before.
+  try{
+    var ov=document.getElementById('detail-overlay');
+    if(ov&&window.MutationObserver){
+      new MutationObserver(function(muts){
+        for(var i=0;i<muts.length;i++){
+          var was=(muts[i].oldValue||'').split(/\s+/);
+          var isOpen=ov.classList.contains('open');
+          if(was.indexOf('open')>-1&&!isOpen&&was.indexOf('review-mode')>-1){ov.classList.add('jx-no-exit');}
+          else if(was.indexOf('open')===-1&&isOpen){ov.classList.remove('jx-no-exit');}
+        }
+      }).observe(ov,{attributes:true,attributeFilter:['class'],attributeOldValue:true});
+    }
+  }catch(e){}
+})();
 </script>
 </body>
 </html>
