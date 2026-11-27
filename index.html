@@ -1417,6 +1417,81 @@ textarea{resize:vertical;min-height:80px;line-height:1.55}
 .tref-item .tref-num{font-family:'DM Mono',monospace;font-weight:700;color:var(--accent)}
 .tref-item .tref-pair{color:var(--text2);font-weight:600}
 .tref-item .tref-date{margin-left:auto;color:var(--text3);font-size:10px}
+/* ══════════════════════════════════════════════════════════════
+   UI POLISH LAYER — visual only (motion, feedback, focus). No markup,
+   logic or workflow changes; delete this block to restore the old feel.
+   ══════════════════════════════════════════════════════════════ */
+:root{--ease-out:cubic-bezier(.22,.8,.24,1);--ease-spring:cubic-bezier(.34,1.4,.64,1)}
+html{-webkit-tap-highlight-color:transparent}
+button,[role=button],.nav-item,select,.btn{touch-action:manipulation}
+
+/* Page change: soft fade + short rise whenever a page becomes active */
+.page.active{animation:jx-rise .26s var(--ease-out) backwards}
+.form-step.active,.trd-tab-panel.active{animation:jx-rise-sm .22s var(--ease-out) backwards}
+@keyframes jx-rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes jx-rise-sm{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+
+/* Modals, detail panels, lightbox: backdrop fades, box rises (bottom sheet on phones) */
+.modal-overlay.open,.detail-overlay.open,
+.modal-overlay[style*="display: flex"],.detail-overlay[style*="display: flex"],
+.modal-overlay[style*="display:flex"],.detail-overlay[style*="display:flex"],
+.lightbox.open{animation:jx-fade .2s ease-out backwards}
+.modal-overlay.open>div,.detail-overlay.open>div,
+.modal-overlay[style*="display: flex"]>div,.detail-overlay[style*="display: flex"]>div,
+.modal-overlay[style*="display:flex"]>div,.detail-overlay[style*="display:flex"]>div{animation:jx-pop .28s var(--ease-out) backwards}
+.detail-overlay.review-mode>div{animation:none}
+.modal-overlay.open,.detail-overlay.open:not(.review-mode){-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}
+@keyframes jx-fade{from{opacity:0}to{opacity:1}}
+@keyframes jx-pop{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
+@keyframes jx-sheet{from{opacity:.6;transform:translateY(40px)}to{opacity:1;transform:none}}
+@media(max-width:600px){
+  .modal-overlay.open>div,.detail-overlay.open>div,
+  .modal-overlay[style*="display: flex"]>div,.detail-overlay[style*="display: flex"]>div,
+  .modal-overlay[style*="display:flex"]>div,.detail-overlay[style*="display:flex"]>div{animation:jx-sheet .3s var(--ease-out) backwards}
+  .detail-overlay.review-mode>div{animation:none}
+}
+
+/* Expanding sections (e.g. Fees & margin) ease open */
+#fees-margin-body{animation:jx-expand .22s var(--ease-out) backwards}
+@keyframes jx-expand{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+
+/* Press + hover feedback, smoother easing */
+.btn,.cal-view-tab,.cal-heatmode-btn,.form-tab,.trd-tabnav-btn{transition-duration:.16s;transition-timing-function:var(--ease-out)}
+.nav-item{transition:color .15s,background .15s,transform .12s var(--ease-out)}
+.btn:active:not(:disabled),.form-tab:active,.cal-view-tab:active,.cal-heatmode-btn:active,.trd-tabnav-btn:active{transform:scale(.97)}
+.nav-item:active{transform:scale(.985)}
+table.data tbody td{transition:background-color .15s,color .15s}
+.strat-card{transition-timing-function:var(--ease-out)}
+
+/* Fields: smoother focus with a slightly clearer ring */
+input[type=text],input[type=number],input[type=date],input[type=time],select,textarea{transition:border-color .15s,box-shadow .2s var(--ease-out),background-color .15s}
+input:focus,select:focus,textarea:focus{box-shadow:0 0 0 3px rgba(77,127,255,.16)}
+
+/* Toasts glide in */
+.toast{transition:opacity .22s ease,transform .3s var(--ease-spring)}
+
+/* Visible keyboard focus on navigation and tabs */
+.nav-item:focus-visible,.form-tab:focus-visible,.cal-view-tab:focus-visible,.trd-tabnav-btn:focus-visible,[role=button]:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* Sections, panels and popups ease in (entrance only — closing behaves exactly as before) */
+.analysis-body.open,.cond-box.visible,#page-calculator .calc-info-body.open{animation:jx-expand .22s var(--ease-out) backwards}
+.dm-cust.open .dm-cust-panel{animation:jx-slide-left .26s var(--ease-out) backwards}
+.dm-focus-view.open{animation:jx-rise-sm .22s var(--ease-out) backwards}
+.edit-banner.visible{animation:jx-drop .22s var(--ease-out) backwards}
+.tref-dropdown[style*="display: block"],.tref-dropdown[style*="display:block"]{animation:jx-drop .14s var(--ease-out) backwards}
+.mob-overlay.open{animation:jx-fade .2s ease-out backwards}
+@keyframes jx-slide-left{from{opacity:.4;transform:translateX(28px)}to{opacity:1;transform:none}}
+@keyframes jx-drop{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+/* Scrolling inside popups no longer drags the page behind them */
+.modal-body,.detail-overlay,.dm-cust-body,.tref-dropdown,.sidebar-nav{overscroll-behavior:contain}
+
+/* Respect "reduce motion": drop only the entrance animations added above */
+@media(prefers-reduced-motion:reduce){
+  .page.active,.form-step.active,.trd-tab-panel.active,#fees-margin-body,
+  .modal-overlay,.detail-overlay,.lightbox,.modal-overlay>div,.detail-overlay>div,
+  .analysis-body,.cond-box,#page-calculator .calc-info-body,.dm-cust-panel,.dm-focus-view,.edit-banner,.tref-dropdown,.mob-overlay{animation:none!important}
+  .btn:active,.nav-item:active,.form-tab:active,.cal-view-tab:active,.trd-tabnav-btn:active{transform:none}
+}
 </style>
 <script>
 // ── Theme-preload (FOUC guard) ──────────────────────────────────────────
@@ -21943,7 +22018,7 @@ function ghvMerge3(base,L,R,ad,tomb,preferLocal,remTombs,keepAll){
       else if(!base)pick=preferLocal?'L':(ad.resolve?'X':'R');   // no history yet: the shared (GitHub) copy wins, docs are unioned
       else if(lh===b)pick='R';                  // only the other device changed it
       else if(rh===b)pick='L';                  // only this device changed it
-      else pick='X';                            // both changed
+      else pick=(ad.remoteWinsOn&&k.charAt(0)===ad.remoteWinsOn)?'R':'X'; // both changed (trades: GitHub's copy wins — see remoteWinsOn on the data adapter)
     }else if(hasL){
       // Missing from GitHub is NOT a delete (an old copy of the app or a damaged file can drop records): this device keeps it and
       // restores it to GitHub. Only an explicit delete marker written by another device's UI delete removes it here.
@@ -21971,7 +22046,7 @@ function ghvImg(r){return(r&&r.cloudUrl)?{id:r.id,cloudUrl:r.cloudUrl,name:r.nam
 function ghvAdapters(){
   var storeOf={t:'trades',i:'images',s:'sessions'};
   return{
-    data:{path:GH_FILE,label:'data',hk:function(k,rec){if(k.charAt(0)!=='t')return ghvHash(rec);var c=JSON.parse(JSON.stringify(rec));recomputeTradeFields(c);return ghvHash(c);},valid:function(o){return Array.isArray(o)||!!(o&&Array.isArray(o.trades));},tombPrefixes:['t:','i:','s:'],
+    data:{path:GH_FILE,label:'data',remoteWinsOn:'t',hk:function(k,rec){if(k.charAt(0)!=='t')return ghvHash(rec);var c=JSON.parse(JSON.stringify(rec));recomputeTradeFields(c);return ghvHash(c);},valid:function(o){return Array.isArray(o)||!!(o&&Array.isArray(o.trades));},tombPrefixes:['t:','i:','s:'],
       local:async function(){
         var recs={};
         (await dbGetAll('trades')).forEach(function(r){if(r&&r.id!=null)recs['t:'+r.id]=r;});
@@ -22117,6 +22192,8 @@ async function ghvPut(cfg,path,msg,obj,sha){
 // o: {push, force (push even if unchanged), notify, preferLocal (no sync history yet: this device's copy wins a conflict — used by boot-time migrations)}
 async function ghvSync(cfg,ad,o){
   var out={ok:false,changed:false,pending:false,pushed:false,remoteExists:false,seeded:false,msg:'',counts:{trades:0,images:0},stats:{added:0,updated:0,removed:0}};
+  // A copy opened straight from a downloaded file (file://, content://) has its own old browser storage: it may pull/merge from GitHub but never pushes trades.
+  if(o&&o.push&&ad.path===GH_FILE&&!/^https?:$/.test(location.protocol)){o=Object.assign({},o,{push:false});out.fileBlocked=true;}
   try{
     for(var attempt=0;attempt<4;attempt++){
       if(_ghvTDirty)ghvTombSave();_ghvT=null;
@@ -22534,6 +22611,10 @@ async function _ghPushOnce(showToast){
     // Version-token sync (see ghvSync): merges anything newer from another device before pushing,
     // and the PUT carries the merged SHA, so a stale device can no longer overwrite newer trades.
     var r=await ghvRun(cfg,'data',{push:true,notify:true});
+    if(r.fileBlocked&&r.ok){ // local-file copy: pulled/merged only, nothing pushed — say so once instead of a misleading "Synced"
+      if(showToast||!window._ghvFileToast){window._ghvFileToast=1;toast('This copy is opened from a local file, so it only pulls from GitHub and never pushes. Open your GitHub Pages link to push.','warn');}
+      return;
+    }
     if(r.ok){
       localStorage.setItem('tj-gh-last-sync',new Date().toISOString());
       ghRefreshStatus();
