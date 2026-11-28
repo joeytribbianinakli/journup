@@ -1580,7 +1580,219 @@ html.jx-theme-fade .toast{transition:opacity .22s ease,transform .3s var(--ease-
   .opt-pill:active,.led-chip:active,.tf-pill:active,.break-dur-btn:active,.add-tf-btn:active,.tf-add-btn:active,
   .partial-tp-add-btn:active,.dash-mode-btn:active{transform:none}
 }
+
+
+/* ══════════════════════════════════════════════════════════════
+   JOURNUP — VISUAL REFINEMENT LAYER
+   Presentation only: no feature, data, markup, or workflow changes.
+   ══════════════════════════════════════════════════════════════ */
+:root{
+  --jx-ease:cubic-bezier(.2,.75,.25,1);
+  --jx-spring:cubic-bezier(.2,1,.3,1);
+  --jx-shadow:0 8px 24px rgba(0,0,0,.16);
+  --jx-shadow-hover:0 14px 34px rgba(0,0,0,.24);
+}
+
+/* More deliberate app shell and navigation rhythm */
+.sidebar{
+  box-shadow:8px 0 28px rgba(0,0,0,.08);
+  position:relative;
+  z-index:2;
+}
+.sidebar-logo{padding-top:22px;padding-bottom:18px}
+.sidebar-logo .logo-icon{
+  box-shadow:0 4px 14px rgba(77,127,255,.24);
+  transition:transform .28s var(--jx-spring),box-shadow .28s var(--jx-ease);
+}
+.sidebar-logo:hover .logo-icon{
+  transform:translateY(-1px) rotate(-3deg);
+  box-shadow:0 7px 20px rgba(77,127,255,.32);
+}
+.nav-item{
+  position:relative;
+  min-height:34px;
+  border-radius:7px;
+  transition:background .2s var(--jx-ease),color .2s var(--jx-ease),
+             transform .2s var(--jx-spring),padding .2s var(--jx-ease);
+}
+.nav-item.active{
+  box-shadow:inset 0 0 0 1px rgba(77,127,255,.08);
+}
+.nav-item svg{transition:opacity .2s ease,transform .22s var(--jx-spring)}
+.nav-item:hover svg{transform:translateX(2px)}
+.nav-section-header{transition:background .18s ease}
+.nav-section-header:active{transform:scale(.99)}
+
+/* Top bar gets a subtle glass-like separation while remaining opaque/readable */
+.topbar{
+  box-shadow:0 1px 0 rgba(255,255,255,.012);
+  transition:box-shadow .22s ease,border-color .22s ease;
+}
+.topbar-actions .btn{box-shadow:0 1px 0 rgba(255,255,255,.025) inset}
+
+/* Cards and dashboard tiles feel more tactile, without changing their geometry */
+.card,.stat-card,.cl-card,.habit-streak-banner,.edge-verdict,
+.cal-cell,.cal-week-cell,.cal-year-month,.analysis-section{
+  transition:border-color .22s var(--jx-ease),background-color .22s var(--jx-ease),
+             box-shadow .24s var(--jx-ease),transform .24s var(--jx-spring);
+}
+.card{box-shadow:0 2px 10px rgba(0,0,0,.07)}
+.stat-card{box-shadow:0 2px 12px rgba(0,0,0,.08)}
+.stat-card:hover{
+  border-color:var(--border2);
+  box-shadow:var(--jx-shadow);
+}
+.cl-card:hover{
+  border-color:var(--border2);
+  box-shadow:var(--jx-shadow);
+  transform:translateY(-2px);
+}
+.card-header{background:linear-gradient(180deg,rgba(255,255,255,.012),transparent)}
+.card-body{transition:background-color .2s ease}
+.cal-cell:hover,.cal-week-cell:hover,.cal-year-month:hover{
+  transform:translateY(-1px);
+  box-shadow:0 5px 16px rgba(0,0,0,.14);
+}
+.analysis-section:hover{border-color:var(--border2)}
+
+/* Consistent, confident interaction feedback */
+.btn{
+  position:relative;
+  overflow:hidden;
+  transition:background .2s var(--jx-ease),border-color .2s var(--jx-ease),
+             color .2s var(--jx-ease),box-shadow .2s var(--jx-ease),
+             transform .2s var(--jx-spring);
+}
+.btn:not(:disabled):hover{box-shadow:0 4px 14px rgba(0,0,0,.13)}
+.btn-primary:not(:disabled):hover{box-shadow:0 5px 18px rgba(77,127,255,.24)}
+.btn:active:not(:disabled){transform:translateY(1px) scale(.985)}
+.opt-pill,.bias-chip,.dash-mode-btn,.cal-view-tab,.cal-heatmode-btn{
+  transition:background .2s var(--jx-ease),border-color .2s var(--jx-ease),
+             color .2s var(--jx-ease),opacity .2s ease,transform .2s var(--jx-spring),
+             box-shadow .2s var(--jx-ease);
+}
+.opt-pill:active,.bias-chip:active{transform:scale(.96)}
+.opt-pill.selected{box-shadow:0 1px 8px rgba(0,0,0,.08)}
+
+/* Inputs: softer focus and hover states */
+input[type=text],input[type=number],input[type=date],input[type=time],
+select,textarea,.bal-split-input-wrap{
+  transition:border-color .2s var(--jx-ease),box-shadow .22s var(--jx-ease),
+             background-color .2s var(--jx-ease);
+}
+input:focus,select:focus,textarea:focus{
+  box-shadow:0 0 0 3px rgba(77,127,255,.13),0 2px 8px rgba(0,0,0,.08);
+}
+input::placeholder,textarea::placeholder{transition:color .2s ease}
+input:focus::placeholder,textarea:focus::placeholder{color:var(--text3)}
+
+/* Tables: quiet row lift and cleaner hover contrast */
+table.data tbody tr{transition:background-color .18s ease}
+table.data tbody tr:hover td{background:rgba(77,127,255,.06)}
+table.data td,table.data th{transition:background-color .18s ease,color .18s ease}
+.col-mgr-row{transition:background .18s ease,border-color .18s ease,transform .18s var(--jx-spring)}
+.col-mgr-row:hover{transform:translateX(2px)}
+
+/* Dropdowns and floating surfaces get a little depth */
+.th-info .th-info-tip,.tref-dropdown,.dm-cust-panel{
+  box-shadow:0 14px 36px rgba(0,0,0,.28);
+}
+.tref-dropdown{transform-origin:top center}
+.th-info .th-info-tip{transition:opacity .18s ease,transform .2s var(--jx-spring),visibility .18s}
+.toast{box-shadow:0 10px 30px rgba(0,0,0,.22)}
+
+/* Scrollbars are subtle until interaction */
+.main,.sidebar-nav,.modal-body,.detail-overlay{
+  scrollbar-width:thin;
+  scrollbar-color:rgba(122,130,152,.22) transparent;
+}
+.main::-webkit-scrollbar,.sidebar-nav::-webkit-scrollbar,
+.modal-body::-webkit-scrollbar,.detail-overlay::-webkit-scrollbar{width:8px}
+.main::-webkit-scrollbar-thumb,.sidebar-nav::-webkit-scrollbar-thumb,
+.modal-body::-webkit-scrollbar-thumb,.detail-overlay::-webkit-scrollbar-thumb{
+  background:rgba(122,130,152,.2);border:2px solid transparent;background-clip:padding-box;border-radius:8px;
+}
+.main:hover::-webkit-scrollbar-thumb,.sidebar-nav:hover::-webkit-scrollbar-thumb,
+.modal-body:hover::-webkit-scrollbar-thumb,.detail-overlay:hover::-webkit-scrollbar-thumb{
+  background:rgba(122,130,152,.38);border:2px solid transparent;background-clip:padding-box;
+}
+
+/* Motion stays restrained and is fully disabled for users who request it */
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{
+    scroll-behavior:auto!important;
+    animation-duration:.01ms!important;
+    animation-iteration-count:1!important;
+    transition-duration:.01ms!important;
+  }
+}
+
+/* ── Phone drawer fix (added after the Visual Refinement Layer) ──────────────
+   The layer's `.sidebar{position:relative;z-index:2;box-shadow:…}` has no media query and sits later in the
+   file than the ≤600px slide-in drawer rule, so on phones it overrode `position:fixed;z-index:200` and left the
+   menu in the page flow underneath the dim overlay (nav items untappable). This restores the drawer's own
+   values at phone size only; desktop/tablet keep the layer's styling.
+   Also re-adds the active-bar colour ease that the layer's .nav-item transition list replaced. */
+@media(max-width:600px){
+  .sidebar{position:fixed;z-index:200;box-shadow:4px 0 24px rgba(0,0,0,.45)}
+}
+.nav-item{transition:background .2s var(--jx-ease),color .2s var(--jx-ease),border-left-color .2s var(--jx-ease),
+           transform .2s var(--jx-spring),padding .2s var(--jx-ease)}
+
+/* ══════════════════════════════════════════════════════════════
+   COLLAPSIBLE SIDEBAR (icons only) — presentation + one preference.
+   Expanded by default. Desktop/tablet only: the phone drawer is untouched.
+   The saved open/closed state of the nav accordion sections is never modified;
+   in icon mode every section is simply shown open (CSS only) and returns to its
+   saved state on expand. Remove this block, the .sb-toggle button, the "sb-foot"
+   class, and the two <script>s marked "Collapsible sidebar" to take it out.
+   ══════════════════════════════════════════════════════════════ */
+:root{--sb-ease:cubic-bezier(.2,.75,.25,1)}
+.sidebar-logo{position:relative}
+.sb-toggle{position:absolute;top:50%;right:10px;transform:translateY(-50%);width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;padding:0;border:1px solid transparent;border-radius:7px;background:none;color:var(--text3);cursor:pointer;transition:background .18s var(--sb-ease),color .18s var(--sb-ease),border-color .18s var(--sb-ease)}
+.sb-toggle:hover{background:var(--bg3);color:var(--text);border-color:var(--border)}
+.sb-toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.sb-toggle svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;transition:transform .25s var(--sb-ease)}
+@media(max-width:600px){.sb-toggle{display:none}}
+
+/* Width glide while toggling (class is present only for ~0.3s, so resizes/breakpoints never animate) */
+html.sb-anim .sidebar{transition:width .24s var(--sb-ease),min-width .24s var(--sb-ease)}
+html.sb-anim .sidebar-nav{overflow-x:hidden}
+html.sb-anim .sidebar-logo{overflow:hidden}
+html.sb-anim .nav-item,html.sb-anim .logo-text,html.sb-anim .logo-sub,html.sb-anim #sidebar-stats{white-space:nowrap}
+
+/* Hover label for icons (single floating element, created on first use) */
+.sb-tip{position:fixed;z-index:450;max-width:240px;padding:6px 10px;background:var(--bg3);color:var(--text);border:1px solid var(--border2);border-radius:7px;font-size:12px;font-weight:600;line-height:1.2;white-space:nowrap;pointer-events:none;opacity:0;transform:translateX(-4px);transition:opacity .14s ease,transform .16s var(--sb-ease);box-shadow:0 8px 24px rgba(0,0,0,.35)}
+.sb-tip.show{opacity:1;transform:none}
+
+@media(min-width:601px){
+  html.sb-collapsed{--sidebar-w:60px}
+  html.sb-collapsed .sidebar-logo{padding:16px 0 12px;display:flex;flex-direction:column;align-items:center;gap:10px}
+  html.sb-collapsed .sidebar-logo .logo-mark{gap:0;justify-content:center}
+  html.sb-collapsed .sidebar-logo .logo-mark>div:last-child{display:none}
+  html.sb-collapsed .sb-toggle{position:static;transform:none}
+  html.sb-collapsed .sb-toggle svg{transform:rotate(180deg)}
+  /* every page stays reachable: show all sections open, headers become thin dividers */
+  html.sb-collapsed .nav-section-header{display:none}
+  html.sb-collapsed .nav-section .nav-section-collapse{grid-template-rows:1fr!important}
+  html.sb-collapsed .nav-section+.nav-section{border-top:1px solid var(--border);margin-top:4px;padding-top:4px}
+  /* icons only, centred (equal 3px side borders keep the icon on the true centre line) */
+  html.sb-collapsed .nav-item,html.sb-collapsed .nav-item.active{font-size:0;gap:0;justify-content:center;min-height:30px;margin-bottom:1px;padding-left:0;padding-right:0;border-right:3px solid transparent}
+  html.sb-collapsed .nav-item svg{width:18px;height:18px}
+  html.sb-collapsed .nav-item:hover svg{transform:none}
+  html.sb-collapsed #nav-alerts-count{position:absolute;top:4px;right:5px;margin:0!important;padding:0 4px!important;font-size:8px!important;min-width:13px;text-align:center}
+  html.sb-collapsed .sb-foot{display:none}
+  /* The Session Goal widget defaults to bottom-left, which would sit on top of the last icons. While it is still at its
+     default spot (no saved/dragged position => no inline left), park it just right of the rail. A position the user
+     dragged it to is applied inline by the app and is never overridden. */
+  html.sb-collapsed .trade-tracker:not([style*="left"]){left:76px}
+}
+html.sb-anim .trade-tracker:not([style*="left"]){transition:left .24s var(--sb-ease)}
+@media(prefers-reduced-motion:reduce){
+  html.sb-anim .sidebar,.sb-toggle,.sb-toggle svg,.sb-tip{transition:none!important}
+}
 </style>
+<script>/* Collapsible sidebar: apply the saved state before first paint so the page never flashes the wrong width */try{if(localStorage.getItem('tj-sidebar-collapsed')==='1')document.documentElement.classList.add('sb-collapsed');}catch(e){}</script>
 <script>
 // ── Theme-preload (FOUC guard) ──────────────────────────────────────────
 // Runs synchronously before first paint so the page never flashes the
@@ -1659,6 +1871,7 @@ html.jx-theme-fade .toast{transition:opacity .22s ease,transform .3s var(--ease-
       <div class="logo-icon"><svg viewBox="0 0 24 24"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg></div>
       <div><div class="logo-text">JournUp</div><div class="logo-sub">Trading Journal</div></div>
     </div>
+    <button type="button" class="sb-toggle" id="sb-toggle" onclick="toggleSidebarCollapsed()" aria-label="Collapse sidebar" aria-expanded="true" title="Collapse sidebar"><svg viewBox="0 0 24 24"><polyline points="11 17 6 12 11 7"/><polyline points="18 17 13 12 18 7"/></svg></button>
   </div>
   <nav class="sidebar-nav" id="sidebar-nav">
     <div class="nav-section" data-section="overview">
@@ -1771,7 +1984,7 @@ html.jx-theme-fade .toast{transition:opacity .22s ease,transform .3s var(--ease-
       </div></div>
     </div>
   </nav>
-  <div style="padding:13px;border-top:1px solid var(--border)">
+  <div class="sb-foot" style="padding:13px;border-top:1px solid var(--border)">
     <div id="sidebar-stats" style="font-size:11px;color:var(--text3);line-height:1.8"></div>
   </div>
 </aside>
@@ -32959,6 +33172,58 @@ document.addEventListener('wheel', function(){
       }).observe(ov,{attributes:true,attributeFilter:['class'],attributeOldValue:true});
     }
   }catch(e){}
+})();
+</script>
+<!-- Collapsible sidebar -->
+<script>
+/* Collapsible sidebar — toggle, saved preference and hover labels. Presentation only: it adds/removes
+   classes on <html> and never touches page content, data or the nav accordion state. */
+(function(){
+  var KEY='tj-sidebar-collapsed',root=document.documentElement,animT=null,tip=null;
+  function phone(){try{return window.matchMedia('(max-width:600px)').matches;}catch(e){return false;}}
+  function reduced(){try{return window.matchMedia('(prefers-reduced-motion: reduce)').matches;}catch(e){return false;}}
+  function sync(){
+    var b=document.getElementById('sb-toggle');if(!b)return;
+    var c=root.classList.contains('sb-collapsed'),t=c?'Expand sidebar':'Collapse sidebar';
+    b.setAttribute('aria-expanded',c?'false':'true');b.setAttribute('aria-label',t);b.title=t;
+  }
+  function hideTip(){if(tip)tip.classList.remove('show');}
+  function labelOf(item){var s='';for(var n=item.firstChild;n;n=n.nextSibling){if(n.nodeType===3)s+=n.nodeValue;}return s.replace(/\s+/g,' ').trim();}
+  function showTip(item){
+    if(!root.classList.contains('sb-collapsed')||phone())return;
+    var l=labelOf(item);if(!l)return;
+    if(!tip){tip=document.createElement('div');tip.className='sb-tip';tip.setAttribute('role','tooltip');document.body.appendChild(tip);}
+    tip.textContent=l;
+    var r=item.getBoundingClientRect();
+    tip.style.left=(r.right+10)+'px';tip.style.top=(r.top+r.height/2-tip.offsetHeight/2)+'px';
+    tip.classList.add('show');
+  }
+  window.toggleSidebarCollapsed=function(force){
+    var cur=root.classList.contains('sb-collapsed'),want=(typeof force==='boolean')?force:!cur;
+    if(want===cur)return;
+    hideTip();
+    // Glide the width only when the page is cheap to re-layout. Pages with several live charts redraw every
+    // chart on every frame of a width change (measured: dropped frames), so there it switches in one step.
+    var canv=0;try{canv=document.querySelectorAll('.page.active canvas').length;}catch(e){}
+    var animate=!reduced()&&!phone()&&canv<=2;
+    if(animate)root.classList.add('sb-anim');
+    root.classList.toggle('sb-collapsed',want);
+    try{localStorage.setItem(KEY,want?'1':'0');}catch(e){}
+    sync();
+    clearTimeout(animT);
+    // once the width has settled, let the app's own resize handlers re-measure (same as a window resize)
+    animT=setTimeout(function(){root.classList.remove('sb-anim');try{window.dispatchEvent(new Event('resize'));}catch(e){}},animate?300:0);
+  };
+  var nav=document.getElementById('sidebar-nav');
+  if(nav){
+    nav.addEventListener('mouseover',function(e){var it=e.target.closest&&e.target.closest('.nav-item');if(it)showTip(it);else hideTip();});
+    nav.addEventListener('mouseleave',hideTip);
+    nav.addEventListener('focusin',function(e){var it=e.target.closest&&e.target.closest('.nav-item');if(it)showTip(it);});
+    nav.addEventListener('focusout',hideTip);
+    nav.addEventListener('click',hideTip);
+    nav.addEventListener('scroll',hideTip);
+  }
+  sync();
 })();
 </script>
 </body>
